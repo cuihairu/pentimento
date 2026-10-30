@@ -2,6 +2,8 @@
 #include <QFile>
 #include <QTemporaryDir>
 #include <QtTest>
+#include <sys/stat.h>
+#include <unistd.h>
 
 namespace {
 void put(const QString &path, const QByteArray &data) {
@@ -73,6 +75,29 @@ private slots:
         const auto preserved = library.revisions(asset.id).at(1);
         library.exportRevision(asset.id, preserved.id, dir.filePath("preserved.dat"));
         QCOMPARE(get(dir.filePath("preserved.dat")), QByteArray("unrecorded"));
+    }
+    void restoreRollsBackPreservationOnTransactionFailure() {
+        if (::geteuid() == 0) QSKIP("root bypasses directory write permissions");
+        QTemporaryDir dir;
+        const auto source = dir.filePath("asset.dat");
+        put(source, "v1");
+        Library library(dir.filePath("library"));
+        const auto asset = library.importFile(source);
+        const qint64 first = library.revisions(asset.id).first().id;
+        put(asset.path, "unrecorded");
+        // Make the working-file directory unwritable so the restored working-file write fails
+        // *after* the transaction has already appended the preservation ("恢复前自动保存") revision.
+        const QString workingDir = QFileInfo(asset.path).absolutePath();
+        struct stat st;
+        QVERIFY(::stat(workingDir.toLocal8Bit().constData(), &st) == 0);
+        const mode_t original = st.st_mode & 07777;
+        QVERIFY(::chmod(workingDir.toLocal8Bit().constData(), 0555) == 0);
+        QVERIFY_EXCEPTION_THROWN(library.restore(asset, first), std::runtime_error);
+        QVERIFY(::chmod(workingDir.toLocal8Bit().constData(), original) == 0);
+        // The failed in-transaction write must roll back both appends: only the original import revision remains.
+        QCOMPARE(library.revisions(asset.id).size(), 1);
+        // The working file is untouched because the write never succeeded.
+        QCOMPARE(get(asset.path), QByteArray("unrecorded"));
     }
     void readObjectIsPublicAndVerifiesHash() {
         QTemporaryDir dir;

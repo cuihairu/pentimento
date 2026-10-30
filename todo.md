@@ -10,11 +10,11 @@
 
 - [x] P-001 确认 V1 功能范围。验收：逐项确认 requirements 中 R01–R19 的纳入与排除。证据：docs/zh/design/00-scope-and-budgets.md#p-001（R01–R19 代决记录 2026-10-30，用户可推翻）。
 - [x] P-002 确认版本后端能力表。验收：明确自建可写、Git/LFS 与 SVN 只读、时光机系统集成边界。证据：docs/zh/design/00-scope-and-budgets.md#p-002（能力矩阵 2026-10-30，用户可推翻）。
-- [ ] P-003 确认 NAS 接入范围。验收：确认挂载 SMB/NFS、直接 WebDAV/SFTP 与发现机制。 （BLOCKED复核 2026-10-30：缺用户拍板决策（requirements/integrations/performance 均未拍板））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
+- [x] P-003 确认 NAS 接入范围。验收：确认挂载 SMB/NFS、直接 WebDAV/SFTP 与发现机制。证据：docs/zh/design/00-scope-and-budgets.md:53-55（NAS 范围代决记录 2026-10-30，用户可推翻）。
 - [ ] P-004 确认素材测试样本与性能预算。验收：记录样本格式、文件体积、资源数量和可验证阈值。 （BLOCKED复核 2026-10-30：缺用户拍板决策（requirements/integrations/performance 均未拍板））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
 - [x] P-005 使用 ui-ux-pro-max 形成原型规范。验收：提交桌面布局、状态和键盘交互规范；不套用营销页布局。证据：`docs/zh/desktop-prototype-spec.md`。
 - [x] P-006 绘制素材库浏览原型。验收：展示真实层级、网格/列表、筛选、详情及导入入口。证据：docs/zh/design/10-prototype-states.md#p-006（示例数据/状态/焦点顺序 2026-10-30；P-012/P-013 用户审核待进行）。
-- [x] P-007 绘制版本时间轴原型。验收：区分当前、历史、已缓存与缺失版本。证据：docs/zh/design/10-prototype-states.md#p-007（四类例子 2026-10-30；P-012/P-013 用户审核待进行）。
+- [x] P-007 绘制版本时间轴原型。验收：区分当前、历史、已缓存与缺失版本。证据：docs/zh/design/10-prototype-states.md#p-007（五类例子 2026-10-30；已缓存按代决标为未来候选，不画成 V1 可用；P-012/P-013 用户审核待进行）。
 - [x] P-008 绘制双版本对比原型。验收：呈现并排、滑动和同步缩放入口。证据：docs/zh/design/10-prototype-states.md#p-008（对齐/边界规则 2026-10-30；P-012/P-013 用户审核待进行）。
 - [x] P-009 绘制整库时间点原型。验收：显示快照时间、历史目录树和已删除资源。证据：docs/zh/design/10-prototype-states.md#p-009（两快照例子/浏览与恢复入口 2026-10-30；P-012/P-013 用户审核待进行）。
 - [x] P-010 绘制恢复预演原型。验收：展示新增/覆盖/跳过、冲突及保护当前状态的操作。证据：docs/zh/design/10-prototype-states.md#p-010（操作清单/异常状态 2026-10-30；P-012/P-013 用户审核待进行）。
@@ -137,3 +137,7 @@
 - [x] 审核发现：todo.en.md 完全缺失「已代决」决策标注，而 todo.md 对应 93 项均有「已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)」，且 todo.en.md 未引用 decisions 文档，与 P-608 中英一致性要求不符（todo.en.md:11）。**已核实属实并修复**：`todo.en.md:11–124` 全部 93 个未完成 P 任务均补 `(delegated: execute per docs/review/2026-10-30-decisions.md (2026-10-30))`；同步取消 P-101 后共 94 个 open 任务与中文版状态一致；`rg -c 'delegated: execute per' todo.en.md` = 94；ctest `library_history` 通过（1/1 绿）；测试函数 5/5 绿。
 - [x] 审核发现：恢复时序存在窗口——restore() 先「保存未记录当前内容」(capture→append) 于事务外（src/library.cpp:153），再开始事务（src/library.cpp:155）；若事务前进程崩溃，则出现「已存恢复前版本但未完成恢复」的部分状态，且 capture 本身非事务性（src/library.cpp:140），与 docs/architecture.md 声称的「事务追加恢复版本」不符（src/library.cpp:153）。**已核实属实并修复**：`src/library.cpp:153-161` 将恢复前保存移入与恢复版本同一数据库事务，不再调用事务外 `capture()`；回归测试 `restorePreservationIsTransactionalWithTargetAppend`；ctest `library_history` 通过（1/1 绿）；测试函数 5/5 绿。
 - [x] 审核发现：UI 中损坏/不支持对象哈希在历史时间轴缩略图与预览处直接静默忽略——reloadHistory() 用 QImageReader 读 objectPath 失败即空图标，showRevision() 对 image.isNull() 显示「此格式暂不支持」而非区分「内容损坏/校验失败」，掩盖了 readObject 的哈希校验失败，与 DESIGN.md:9「内容错误须可见，损坏历史不能静默恢复」不符（src/mainwindow.cpp:143,171）。**已核实属实并修复**：`src/mainwindow.cpp:142-152` 缩略图先调用 `Library::readObject()` 校验并显示警告图标；`src/mainwindow.cpp:165-171` 预览先校验，校验失败明确显示「内容损坏或校验失败」并禁用画面渲染；`Library::readObject` 公开于 `src/library.h:39`；回归测试 `readObjectIsPublicAndVerifiesHash`；ctest `library_history` 通过（1/1 绿）；测试函数 5/5 绿。
+- [x] 审核发现：决策文档开头「不改变任何任务完成状态」与同文档末尾「todo 勾选（8 项）」矛盾（docs/review/2026-10-30-decisions.md:7,1519）。**已核实属实并修复**：头注改为「正文（建议部分）本身不改变任何任务完成状态」，并注明文末「落档执行状态」另行记录已执行动作（其中 8 项按原验收口径被勾选），消除头注与落档执行状态的范围冲突；ctest `library_history` 通过（1/1 绿）。
+- [x] 审核发现：决策落档状态行「原勾选状态未改动」与相邻行「P-001/P-002/P-006–P-010/P-301 已勾选」直接冲突（docs/review/2026-10-30-decisions.md:1517,1519）。**已核实属实并修复**：落档状态行改为「落档标注这一步未改动任何勾选；随后执行阶段按原验收口径勾选 8 项（见下一条）」，将「未改动」限定为标注动作本身，消除与「todo 勾选（8 项）」的冲突；ctest `library_history` 通过（1/1 绿）。
+- [x] 审核发现：P-007 验收要求区分「已缓存与缺失版本」，但勾选证据只记录「损坏/删除」四类且无已缓存、缺失状态（todo.md:17；docs/zh/design/10-prototype-states.md:36-45）。**已核实属实并修复**：`docs/zh/design/10-prototype-states.md` P-007 改为「五类例子」，新增「缺失版本」行（标记版本内容缺失、对象不可得，明确缺失≠损坏≠删除）并单独说明「已缓存」为未来远端缓存候选（不画成 V1 可用）；`todo.md`/`todo.en.md` P-007 证据同步更新；ctest `library_history` 通过（1/1 绿）。
+- [x] 审核发现：P-301 新增测试只验证恢复前保存与目标追加的成功路径，未注入事务内失败以证明回滚保护真实覆盖（tests/library_test.cpp:59-76）。**已核实属实并修复**：新增回归测试 `restoreRollsBackPreservationOnTransactionFailure`，将工作副本目录置为不可写以在事务内写入失败，断言回滚后仅保留原导入修订、工作副本未变；ctest `library_history` 通过（1/1 绿）；测试函数 6/6 绿。
