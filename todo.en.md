@@ -126,5 +126,5 @@ Each task has one deliverable and an observable acceptance condition. See `docs/
 
 - [x] A-001 Layer 1: Immutable version store. Acceptance: After simulating workspace encryption, history objects stay readable and restorable (tests green); objects are set read-only after write. Evidence: docs/zh/design/85-antiransom.md#防线一不可变版本库防篡改 (objects append-only + read-only after write + store/workspace separation + one-way restore; commit 797fc61).
 - [x] A-002 Layer 2: Batch-modification sentinel. Acceptance: A fixture (batch rename + random-byte overwrite) triggers; unit tests cover the three signals; false-positive rate has a threshold test. Evidence: `docs/zh/design/85-antiransom.md#防线二批量修改哨兵发现` (`src/sentinel.{h,cpp}`, `Library::snapshotAll`, `tests/security_test.cpp`, commit ba576b7).
-- [ ] A-003 Layer 3: Whole-tree rollback. Acceptance: End-to-end test — plant simulated ransomware → sentinel alerts → roll back to anchor → sampled file hashes match pre-infection.
+- [x] A-003 Layer 3: Whole-tree rollback. Acceptance: End-to-end test — plant simulated ransomware → sentinel alerts → roll back to anchor → sampled file hashes match pre-infection. Evidence: `docs/zh/design/85-antiransom.md#防线三整树回滚恢复` (`Library::rollbackAll`, `MainWindow::rollbackToSnapshot`, `rollbackRestoresWorkspaceToPreInfectionAnchor` in `tests/security_test.cpp`, commit ff75b95).
 

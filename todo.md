@@ -126,7 +126,7 @@
 
 - [x] A-001 防线一：不可变版本库。验收：模拟加密工作区文件后，历史对象仍可读可恢复，测试绿；对象落盘后置只读。证据：docs/zh/design/85-antiransom.md#防线一不可变版本库防篡改（对象 append-only + 落盘置只读 + 库/工作区分离 + 恢复单向；提交 797fc61）。
 - [x] A-002 防线二：批量修改哨兵。验收：测试 fixture（批量改名+随机字节覆盖）触发，单测覆盖三种特征，误报率有阈值测试。证据：`docs/zh/design/85-antiransom.md#防线二批量修改哨兵发现`（`src/sentinel.{h,cpp}`、`Library::snapshotAll`、`tests/security_test.cpp`，提交 ba576b7）。
-- [ ] A-003 防线三：整树回滚。验收：端到端测试——种入模拟勒索 → 哨兵告警 → 选锚点回滚 → 抽样文件哈希与感染前一致。
+- [x] A-003 防线三：整树回滚。验收：端到端测试——种入模拟勒索 → 哨兵告警 → 选锚点回滚 → 抽样文件哈希与感染前一致。证据：`docs/zh/design/85-antiransom.md#防线三整树回滚恢复`（`Library::rollbackAll`、`MainWindow::rollbackToSnapshot`、`tests/security_test.cpp` 的 `rollbackRestoresWorkspaceToPreInfectionAnchor`，提交 ff75b95）。
 
 - [x] 审核发现：P-005 仅在 todo.md 标记完成，跨语言链接的 todo.en.md:15 仍为未勾选，与 P-608 中英一致要求不符（todo.md:15）。**已核实属实并修复**：todo.en.md:15 已改为 `- [x]`，与 todo.md 中 P-005 一致；ctest `library_history` 通过（1/1 绿）。
 - [x] 审核发现：P-001–P-004 的 BLOCKED 理由含与本任务无关的“无 git 远程，无法 fetch+rebase+push”，实际阻断原因是用户未拍板，理由误导（todo.md:11）。**已核实属实并修复**：移除 P-001–P-004 中“无 git 远程”误导理由，仅保留缺用户拍板；git 确认无远程（`git remote -v` 为空）故该理由确属误导；ctest 绿（1/1）。
