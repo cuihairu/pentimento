@@ -8,10 +8,10 @@
 
 ## 需求与审核
 
-- [ ] P-001 确认 V1 功能范围。验收：逐项确认 requirements 中 R01–R19 的纳入与排除。 （BLOCKED复核 2026-10-30：缺网络环境：无 git 远程，无法 fetch+rebase+push；缺用户拍板决策（requirements/integrations/performance 均未拍板））
-- [ ] P-002 确认版本后端能力表。验收：明确自建可写、Git/LFS 与 SVN 只读、时光机系统集成边界。 （BLOCKED复核 2026-10-30：缺网络环境：无 git 远程，无法 fetch+rebase+push；缺用户拍板决策（requirements/integrations/performance 均未拍板））
-- [ ] P-003 确认 NAS 接入范围。验收：确认挂载 SMB/NFS、直接 WebDAV/SFTP 与发现机制。 （BLOCKED复核 2026-10-30：缺网络环境：无 git 远程，无法 fetch+rebase+push；缺用户拍板决策（requirements/integrations/performance 均未拍板））
-- [ ] P-004 确认素材测试样本与性能预算。验收：记录样本格式、文件体积、资源数量和可验证阈值。 （BLOCKED复核 2026-10-30：缺网络环境：无 git 远程，无法 fetch+rebase+push；缺用户拍板决策（requirements/integrations/performance 均未拍板））
+- [ ] P-001 确认 V1 功能范围。验收：逐项确认 requirements 中 R01–R19 的纳入与排除。 （BLOCKED复核 2026-10-30：缺用户拍板决策（requirements/integrations/performance 均未拍板））
+- [ ] P-002 确认版本后端能力表。验收：明确自建可写、Git/LFS 与 SVN 只读、时光机系统集成边界。 （BLOCKED复核 2026-10-30：缺用户拍板决策（requirements/integrations/performance 均未拍板））
+- [ ] P-003 确认 NAS 接入范围。验收：确认挂载 SMB/NFS、直接 WebDAV/SFTP 与发现机制。 （BLOCKED复核 2026-10-30：缺用户拍板决策（requirements/integrations/performance 均未拍板））
+- [ ] P-004 确认素材测试样本与性能预算。验收：记录样本格式、文件体积、资源数量和可验证阈值。 （BLOCKED复核 2026-10-30：缺用户拍板决策（requirements/integrations/performance 均未拍板））
 - [x] P-005 使用 ui-ux-pro-max 形成原型规范。验收：提交桌面布局、状态和键盘交互规范；不套用营销页布局。证据：`docs/zh/desktop-prototype-spec.md`。
 - [ ] P-006 绘制素材库浏览原型。验收：展示真实层级、网格/列表、筛选、详情及导入入口。 （BLOCKED复核 2026-10-30：缺网络环境：无 git 远程，无法 fetch+rebase+push；缺用户审核/批准（原型绘制范围未拍板，且审核轮次未开始））
 - [ ] P-007 绘制版本时间轴原型。验收：区分当前、历史、已缓存与缺失版本。 （BLOCKED复核 2026-10-30：缺网络环境：无 git 远程，无法 fetch+rebase+push；缺用户审核/批准（原型绘制范围未拍板，且审核轮次未开始））
@@ -122,3 +122,7 @@
 - [ ] P-608 验证中英界面与文档一致性。验收：同需求 ID、任务状态、能力限制逐项一致。 （BLOCKED复核 2026-10-30：缺网络环境：无 git 远程，无法 fetch+rebase+push；缺用户批准（P-015 进入实现阶段未获批））
 - [ ] P-609 执行 V1 用户旅程验收。验收：完成 requirements 中全部场景，未通过项保持未完成。 （BLOCKED复核 2026-10-30：缺网络环境：无 git 远程，无法 fetch+rebase+push；缺用户批准（P-015 进入实现阶段未获批））
 
+- [x] 审核发现：P-005 仅在 todo.md 标记完成，跨语言链接的 todo.en.md:15 仍为未勾选，与 P-608 中英一致要求不符（todo.md:15）。**已核实属实并修复**：todo.en.md:15 已改为 `- [x]`，与 todo.md 中 P-005 一致；ctest `library_history` 通过（1/1 绿）。
+- [x] 审核发现：P-001–P-004 的 BLOCKED 理由含与本任务无关的“无 git 远程，无法 fetch+rebase+push”，实际阻断原因是用户未拍板，理由误导（todo.md:11）。**已核实属实并修复**：移除 P-001–P-004 中“无 git 远程”误导理由，仅保留缺用户拍板；git 确认无远程（`git remote -v` 为空）故该理由确属误导；ctest 绿（1/1）。
+- [x] 审核发现：Shift+Tab 语义自相矛盾——3.5 说在对话框内循环，另一行又说从确认按钮反向回到摘要列表，同一按键不能同时满足（docs/zh/desktop-prototype-spec.md:161）。**已核实属实并修复**：规范 3.5 节 `Shift+Tab` 行改为“反向遍历（属上行对话框内循环的反向路径）：确认按钮 → 摘要列表，支持复核”，消除与 3.5 首行“仅在当前对话框内循环”的歧义；ctest 绿（1/1）。
+- [x] 审核发现：规范自称基于 R01–R19，但未给出 R06 定时快照/暂停与排除规则、R07 元数据历史的任何界面/状态面，覆盖不完整（docs/zh/desktop-prototype-spec.md:3）。**已核实属实并修复**：新增 `2.3.1 R06 快照策略与排除规则状态`（快照调度/暂停/运行/失败、排除规则/命中）与 `2.3.2 R07 元数据历史状态`（可回看/字段变更/空历史/冲突）两个状态表；ctest 绿（1/1）。

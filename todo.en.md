@@ -1,0 +1,124 @@
+# pentimento V1 atomic TODO
+
+[English](todo.en.md) | [简体中文](todo.md)
+
+**Status: requirements draft. All implementation tasks are open. Documentation, prototypes and repeated reviews precede explicit implementation approval. Experimental code is not accepted delivery.**
+
+Each task has one deliverable and an observable acceptance condition. See `docs/requirements.md` and `docs/integrations.md` for scope. Groups indicate dependencies, not work already started.
+
+## Requirements and reviews
+
+- [ ] P-001 Approve V1 scope. Acceptance: Review inclusion/exclusion for R01–R19 in requirements.
+- [ ] P-002 Approve backend capabilities. Acceptance: Confirm built-in writes, read-only Git/LFS/SVN and Time Machine system boundaries.
+- [ ] P-003 Approve NAS scope. Acceptance: Confirm mounted SMB/NFS, direct WebDAV/SFTP and discovery methods.
+- [ ] P-004 Define samples and performance budgets. Acceptance: Record formats, byte sizes, asset counts and measurable thresholds.
+- [x] P-005 Create prototype specification with ui-ux-pro-max. Acceptance: Deliver desktop structure, states and keyboard behavior; no marketing-page layout.
+- [ ] P-006 Prototype library browsing. Acceptance: Show hierarchy, grid/list, filters, details and import entry.
+- [ ] P-007 Prototype revision timeline. Acceptance: Distinguish current, historical, cached and missing revisions.
+- [ ] P-008 Prototype revision comparison. Acceptance: Show side-by-side, swipe and synchronized zoom controls.
+- [ ] P-009 Prototype library time travel. Acceptance: Show snapshot time, historical tree and deleted assets.
+- [ ] P-010 Prototype restore preview. Acceptance: Show create/replace/skip, conflicts and preservation of current work.
+- [ ] P-011 Prototype connections. Acceptance: Cover discovery, manual addresses, authentication, capabilities and offline states.
+- [ ] P-012 Complete functional review. Acceptance: Record gaps, scope conflicts and decisions; unresolved findings block approval.
+- [ ] P-013 Complete interaction review. Acceptance: Record workflow, error-state and keyboard findings plus revisions.
+- [ ] P-014 Complete functionality/UI traceability review. Acceptance: Map R01–R19 to surfaces, actions, states and acceptance.
+- [ ] P-015 Obtain explicit implementation approval. Acceptance: Record user approval and the resolution of outstanding decisions.
+
+## Engineering foundation
+
+- [ ] P-101 Establish C++17/CMake targets. Acceptance: Separate core, desktop and test targets; no C++20 dependency.
+- [ ] P-102 Select Qt version and modules. Acceptance: Document available versions, image plugins and distribution requirements across OSes.
+- [ ] P-103 Define history backend interface. Acceptance: Expose capabilities for history, tree snapshots, restore, locks and remote fetch.
+- [ ] P-104 Define storage access interface. Acceptance: Unify listing and file information across local, mounted, WebDAV and SFTP sources.
+- [ ] P-105 Build background task queue. Acceptance: Expose progress, cancellation and errors without blocking the UI.
+- [ ] P-106 Integrate system credential stores. Acceptance: Keep secrets out of asset indexes, logs and plaintext configuration.
+- [ ] P-107 Establish Chinese/English translation. Acceptance: Translate menus, states, errors and dialogs.
+
+## Asset library
+
+- [ ] P-201 Create and open libraries. Acceptance: Report invalid, locked and unavailable directories clearly.
+- [ ] P-202 Implement recent libraries and relocation. Acceptance: Relocate unavailable paths while preserving asset identity.
+- [ ] P-203 Implement copy import. Acceptance: Preserve source bytes and paths.
+- [ ] P-204 Index external directories. Acceptance: Do not copy or modify indexed source files.
+- [ ] P-205 Import recursive directories with exclusions. Acceptance: Excluded files do not enter import tasks.
+- [ ] P-206 Implement import cancellation and results. Acceptance: Distinguish completed, failed and unprocessed files.
+- [ ] P-207 Implement thumbnail cache. Acceptance: Reuse identical-content previews and rebuild corrupt cache entries.
+- [ ] P-208 Implement grid/list browsing. Acceptance: Preserve selection, ordering and position across views.
+- [ ] P-209 Implement zoom and transparency backgrounds. Acceptance: Preserve aspect ratio and allow background switching.
+- [ ] P-210 Support initial image formats and fallback states. Acceptance: Validate PNG/JPEG/WebP/TGA/BMP samples; expose unsupported formats.
+- [ ] P-211 Implement bounded PSD composite preview. Acceptance: Document supported samples and preserve original files on preview failure.
+- [ ] P-212 Extract technical metadata. Acceptance: Report format, dimensions, bytes and readable color/channels without inventing fields.
+- [ ] P-213 Implement tagging. Acceptance: Query the results of single and batch tag edits.
+- [ ] P-214 Implement ratings and notes. Acceptance: Persist values across reopening.
+- [ ] P-215 Record source, author and license. Acceptance: Preserve entered data and evidence without inferring permissions.
+- [ ] P-216 Implement folders and asset identity. Acceptance: Preserve history through renames and in-library moves.
+- [ ] P-217 Implement search and combined filters. Acceptance: Combine and clear name, tag, format and dimension filters.
+
+## Built-in versioning
+
+- [ ] P-301 Define revision/snapshot manifests. Acceptance: Represent content, metadata, paths, asset IDs and schema versions.
+- [ ] P-302 Implement content-object storage. Acceptance: Validate streaming hashing, deduplication and integrity on large samples.
+- [ ] P-303 Capture manual revisions. Acceptance: Create a queryable revision ID and message.
+- [ ] P-304 Capture stable changes automatically. Acceptance: Handle partial writes and repeated saves under the agreed policy.
+- [ ] P-305 Implement scheduled snapshots and pause. Acceptance: Expose scheduling state; paused jobs produce no automatic snapshot.
+- [ ] P-306 Implement history exclusions. Acceptance: Excluded objects are omitted from later snapshots.
+- [ ] P-307 Pin key revisions. Acceptance: Retention never removes pinned revisions.
+- [ ] P-308 Implement asset timeline. Acceptance: Show correct order, timestamps, messages and current/historical markers.
+- [ ] P-309 Version metadata. Acceptance: Inspect past names, tags, notes and provenance.
+- [ ] P-310 Implement deletion tombstones. Acceptance: Deleted assets remain discoverable in history.
+- [ ] P-311 Implement consistent library snapshots. Acceptance: Tree and content references belong to one complete manifest.
+- [ ] P-312 Browse historical directory states. Acceptance: Show paths and deletion states for the selected snapshot.
+- [ ] P-313 Implement side-by-side synchronized comparison. Acceptance: Compare reproducibly at the same position and scale.
+- [ ] P-314 Implement swipe comparison. Acceptance: Reveal matching coordinates through a draggable divider.
+- [ ] P-315 Preview restores. Acceptance: List creates, replacements, skips and conflicts before writing.
+- [ ] P-316 Preserve current state before restore. Acceptance: Record untracked changes; abort restoration if preservation fails.
+- [ ] P-317 Restore an asset as a new revision. Acceptance: Preserve prior history and expose the restored result.
+- [ ] P-318 Restore selected snapshot items. Acceptance: Apply only reviewed resources and metadata.
+- [ ] P-319 Export historical copies. Acceptance: Leave the history backend and current workspace unchanged.
+- [ ] P-320 Implement restore journal and restart recovery. Acceptance: Resolve interrupted work as completed or rolled back, never silently partial.
+
+## Git, SVN and Time Machine
+
+- [ ] P-401 Connect local Git repositories. Acceptance: Show repository, branch/commit and workspace state without mutation.
+- [ ] P-402 Read Git trees and logs. Acceptance: Associate paths and history with a chosen commit.
+- [ ] P-403 Extract historical Git content. Acceptance: Return exact commit bytes to cache/export locations.
+- [ ] P-404 Recognize LFS pointers and missing objects. Acceptance: Do not preview pointers as images; explain missing content.
+- [ ] P-405 Fetch LFS objects with explicit consent. Acceptance: Fetch and verify after consent; declining preserves the missing state.
+- [ ] P-406 Connect SVN working copies or URLs. Acceptance: Distinguish authentication failures and read-only access.
+- [ ] P-407 Read SVN logs, trees and locks. Acceptance: Show chosen revisions and available lock information.
+- [ ] P-408 Extract historical SVN content. Acceptance: Return exact revision content without commits or overwrite updates.
+- [ ] P-409 Expose backend history capabilities. Acceptance: Do not offer in-place restore for read-only adapters.
+- [ ] P-410 Define macOS Time Machine system integration. Acceptance: Assess available system states/entry points and permissions; exclude format parsing.
+- [ ] P-411 Expose Time Machine capability and system entry. Acceptance: Offer applicable entry on macOS only; explain other platforms.
+
+## NAS, discovery and connections
+
+- [ ] P-501 Support mounted SMB/NFS sources. Acceptance: Index mounted shares and detect unavailable/read-only locations.
+- [ ] P-502 List HTTPS WebDAV directories. Acceptance: Respect authorization and path encoding/depth/pagination.
+- [ ] P-503 Read WebDAV content on demand. Acceptance: Support cancellation and verify cached content.
+- [ ] P-504 List SFTP directories. Acceptance: Browse authorized paths and expose permission errors.
+- [ ] P-505 Read SFTP content on demand. Acceptance: Preview/cache remote files without default writeback.
+- [ ] P-506 Implement mDNS/DNS-SD discovery. Acceptance: Show advertised file services/Time Machine capability; no claim for unadvertised services.
+- [ ] P-507 Implement WS-Discovery. Acceptance: Discover responding devices with provenance and expiry.
+- [ ] P-508 Deduplicate and expire discovery results. Acceptance: Merge NAS identities while preserving address/protocol options.
+- [ ] P-509 Add addresses manually. Acceptance: Handle hostnames, IPv4/IPv6, ports and protocols.
+- [ ] P-510 Select shares/directories and probe capabilities. Acceptance: Separate discovery, authentication, permissions and backup support.
+- [ ] P-511 Verify TLS certificates. Acceptance: Block automatic connections with invalid certificates.
+- [ ] P-512 Verify SSH host keys. Acceptance: Require new-host confirmation and explicit handling of changed keys.
+- [ ] P-513 Implement reconnection states. Acceptance: Show connecting/online/offline/failed states without remote overwrites.
+- [ ] P-514 Browse offline cache. Acceptance: Distinguish available and uncached content.
+- [ ] P-515 Reconcile remote changes after reconnect. Acceptance: Do not confuse remote deletion, rename or permission changes with local deletion.
+- [ ] P-516 Export and verify NAS backup packages. Acceptance: Mark success only after manifest/object verification; never share the live index.
+
+## Reliability and release verification
+
+- [ ] P-601 Check object/index consistency. Acceptance: Report missing/corrupt objects and invalid references.
+- [ ] P-602 Preview space and retention policies. Acceptance: List candidates and preservation reasons without deletion.
+- [ ] P-603 Verify backup restorability. Acceptance: Restore into an empty directory and verify assets, revisions and metadata.
+- [ ] P-604 Validate NAS compatibility matrix. Acceptance: Record tested devices, OSes, protocols, failures and limits.
+- [ ] P-605 Validate failure/recovery scenarios. Acceptance: Provide evidence for disk-full, disconnect, interruption, corruption and conflicts.
+- [ ] P-606 Verify keyboard access and scaling. Acceptance: Complete critical workflows by keyboard with usable scaled controls.
+- [ ] P-607 Verify macOS/Windows/Linux builds. Acceptance: Record builds, plugin deployment and limitations separately.
+- [ ] P-608 Verify bilingual consistency. Acceptance: Match requirement IDs, task states and capability limits.
+- [ ] P-609 Run V1 journey acceptance. Acceptance: Run all requirement scenarios; failed items remain open.
+
