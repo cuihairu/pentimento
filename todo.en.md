@@ -124,7 +124,7 @@ Each task has one deliverable and an observable acceptance condition. See `docs/
 
 ## Security defense (anti-ransomware)
 
-- [ ] A-001 Layer 1: Immutable version store. Acceptance: After simulating workspace encryption, history objects stay readable and restorable (tests green); objects are set read-only after write.
+- [x] A-001 Layer 1: Immutable version store. Acceptance: After simulating workspace encryption, history objects stay readable and restorable (tests green); objects are set read-only after write. Evidence: docs/zh/design/85-antiransom.md#防线一不可变版本库防篡改 (objects append-only + read-only after write + store/workspace separation + one-way restore; commit 797fc61).
 - [ ] A-002 Layer 2: Batch-modification sentinel. Acceptance: A fixture (batch rename + random-byte overwrite) triggers; unit tests cover the three signals; false-positive rate has a threshold test.
 - [ ] A-003 Layer 3: Whole-tree rollback. Acceptance: End-to-end test — plant simulated ransomware → sentinel alerts → roll back to anchor → sampled file hashes match pre-infection.
 
