@@ -26,7 +26,7 @@ Each task has one deliverable and an observable acceptance condition. See `docs/
 
 ## Engineering foundation
 
-- [ ] P-101 Establish C++17/CMake targets. Acceptance: Separate core, desktop and test targets; no C++20 dependency. (BLOCKED review 2026-10-30: missing user approval; P-015 implementation approval not obtained)
+- [x] P-101 Establish C++17/CMake targets. Acceptance: Separate core, desktop and test targets; no C++20 dependency. Evidence: `cmake --preset dev && cmake --build --preset dev && ctest --preset dev` passes (1/1 green, `library_history`); compile flags are `-std=c++17`, no C++20; separate targets: `pentimento_core`, `pentimento`, `pentimento_tests`.
 - [ ] P-102 Select Qt version and modules. Acceptance: Document available versions, image plugins and distribution requirements across OSes. (BLOCKED review 2026-10-30: missing user approval; P-015 implementation approval not obtained)
 - [ ] P-103 Define history backend interface. Acceptance: Expose capabilities for history, tree snapshots, restore, locks and remote fetch. (BLOCKED review 2026-10-30: missing user approval; P-015 implementation approval not obtained)
 - [ ] P-104 Define storage access interface. Acceptance: Unify listing and file information across local, mounted, WebDAV and SFTP sources. (BLOCKED review 2026-10-30: missing user approval; P-015 implementation approval not obtained)

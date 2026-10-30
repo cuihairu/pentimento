@@ -1,0 +1,26 @@
+cmake_minimum_required(VERSION 3.21)
+project(pentimento VERSION 0.1.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_AUTOMOC ON)
+find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Widgets Sql)
+
+add_library(pentimento_core src/library.cpp src/library.h)
+target_include_directories(pentimento_core PUBLIC src)
+target_link_libraries(pentimento_core PUBLIC Qt6::Core Qt6::Sql)
+add_executable(pentimento WIN32 MACOSX_BUNDLE src/main.cpp src/mainwindow.cpp src/mainwindow.h)
+target_link_libraries(pentimento PRIVATE pentimento_core Qt6::Widgets)
+set_target_properties(pentimento PROPERTIES MACOSX_BUNDLE_GUI_IDENTIFIER org.pentimento.desktop)
+
+include(CTest)
+if(BUILD_TESTING)
+    find_package(Qt6 REQUIRED COMPONENTS Test)
+    add_executable(pentimento_tests tests/library_test.cpp)
+    target_link_libraries(pentimento_tests PRIVATE pentimento_core Qt6::Test)
+    add_test(NAME library_history COMMAND pentimento_tests)
+endif()
+
+include(GNUInstallDirs)
+install(TARGETS pentimento BUNDLE DESTINATION . RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
