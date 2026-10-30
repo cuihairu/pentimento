@@ -57,7 +57,9 @@ Library::Library(const QString &root)
              QStringLiteral("PRAGMA foreign_keys=ON"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS assets(id TEXT PRIMARY KEY,name TEXT NOT NULL,path TEXT NOT NULL)"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS revisions(id INTEGER PRIMARY KEY AUTOINCREMENT,asset_id TEXT NOT NULL REFERENCES assets(id),hash TEXT NOT NULL,created TEXT NOT NULL,note TEXT NOT NULL,size INTEGER NOT NULL)"),
-             QStringLiteral("CREATE INDEX IF NOT EXISTS revisions_asset ON revisions(asset_id,id)")}) {
+             QStringLiteral("CREATE INDEX IF NOT EXISTS revisions_asset ON revisions(asset_id,id)"),
+             QStringLiteral("CREATE TABLE IF NOT EXISTS snapshots(id INTEGER PRIMARY KEY AUTOINCREMENT,created TEXT NOT NULL,note TEXT NOT NULL)"),
+             QStringLiteral("CREATE TABLE IF NOT EXISTS snapshot_assets(snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),asset_id TEXT NOT NULL REFERENCES assets(id),revision_id INTEGER NOT NULL,PRIMARY KEY(snapshot_id,asset_id))")}) {
         if (!q.exec(sql)) fail(q.lastError().text());
     }
 }
@@ -202,4 +204,59 @@ int Library::hardenObjects() {
         if (platform::makeImmutable(info.absoluteFilePath())) ++hardened;
     }
     return hardened;
+}
+
+qint64 Library::snapshotAll(const QString &note) {
+    if (!db_.transaction()) fail(db_.lastError().text());
+    qint64 snapshotId = 0;
+    try {
+        QSqlQuery q(db_);
+        q.prepare("INSERT INTO snapshots(created,note) VALUES(?,?)");
+        q.addBindValue(QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
+        q.addBindValue(note.isEmpty() ? QStringLiteral("紧急快照") : note);
+        execute(q);
+        snapshotId = q.lastInsertId().toLongLong();
+        const auto all = assets();
+        for (const auto &asset : all) {
+            const auto history = revisions(asset.id);
+            qint64 anchor = history.isEmpty() ? 0 : history.first().id;
+            QFile file(asset.path);
+            if (file.exists() && file.open(QIODevice::ReadOnly)) {
+                const auto bytes = file.readAll();
+                if (history.isEmpty() || history.first().hash != digest(bytes)) {
+                    // Freeze the current working state as a new revision so the
+                    // snapshot records exactly what is on disk right now.
+                    append(asset, bytes, QStringLiteral("紧急快照锚点"));
+                    anchor = revisions(asset.id).first().id;
+                } else {
+                    anchor = history.first().id;
+                }
+            }
+            if (!anchor) continue; // no history and no readable working file
+            QSqlQuery ins(db_);
+            ins.prepare("INSERT OR REPLACE INTO snapshot_assets(snapshot_id,asset_id,revision_id) VALUES(?,?,?)");
+            ins.addBindValue(snapshotId);
+            ins.addBindValue(asset.id);
+            ins.addBindValue(anchor);
+            execute(ins);
+        }
+        if (!db_.commit()) fail(db_.lastError().text());
+    } catch (...) {
+        db_.rollback();
+        throw;
+    }
+    return snapshotId;
+}
+
+QVector<Snapshot> Library::snapshots() const {
+    QSqlQuery q(db_);
+    q.prepare("SELECT s.id,s.created,s.note,COUNT(sa.asset_id) FROM snapshots s "
+              "LEFT JOIN snapshot_assets sa ON sa.snapshot_id=s.id GROUP BY s.id ORDER BY s.id DESC");
+    execute(q);
+    QVector<Snapshot> result;
+    while (q.next()) {
+        result.push_back({q.value(0).toLongLong(), q.value(1).toString(),
+                          q.value(2).toString(), q.value(3).toInt()});
+    }
+    return result;
 }

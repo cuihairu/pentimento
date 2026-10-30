@@ -1,7 +1,9 @@
 #pragma once
 #include "library.h"
+#include "sentinel.h"
 #include <QMainWindow>
 #include <QMap>
+#include <memory>
 
 class QListWidget;
 class QLabel;
@@ -26,7 +28,9 @@ private:
     QPushButton *export_;
     QMap<QString, QPair<qint64, qint64>> observations_;
     QMap<QString, QPair<qint64, qint64>> recorded_;
+    std::unique_ptr<Sentinel> sentinel_;
     Asset selected() const;
+    void pollSentinel();
     void reloadAssets(const QString &selectId = QString());
     void reloadHistory();
     void showRevision();

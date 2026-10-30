@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "sentinel.h"
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QFileDialog>
@@ -97,6 +98,12 @@ MainWindow::MainWindow(Library &library) : library_(library) {
     auto *timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, &MainWindow::scanChanges);
     timer->start(2000);
+    // Anti-ransomware Layer 2: watch the workspace for abnormal batch writes.
+    sentinel_ = std::make_unique<Sentinel>(library_.root() + QStringLiteral("/working"));
+    sentinel_->resetBaseline();
+    auto *sentinelTimer = new QTimer(this);
+    connect(sentinelTimer, &QTimer::timeout, this, &MainWindow::pollSentinel);
+    sentinelTimer->start(5000);
     reloadAssets();
     statusBar()->showMessage(QStringLiteral("本地素材库：%1 · 编辑工作副本后自动记录稳定变化").arg(library_.root()));
 }
@@ -196,6 +203,8 @@ void MainWindow::importFiles() {
         catch (const std::exception &error) { report(error); break; }
     }
     reloadAssets(last);
+    // Re-arm the sentinel: the app's own import is legitimate, not ransomware.
+    if (sentinel_) sentinel_->resetBaseline();
 }
 
 void MainWindow::capture() {
@@ -217,6 +226,8 @@ void MainWindow::restore() {
     if (QMessageBox::question(this, QStringLiteral("恢复历史版本"), QStringLiteral("将历史内容恢复为当前工作副本，并新增一个版本。\n未记录的当前内容会先保存。请先在外部编辑器中关闭此文件。")) != QMessageBox::Yes) return;
     try { library_.restore(selected(), revisions_.at(row).id); reloadAssets(selected().id); }
     catch (const std::exception &error) { report(error); }
+    // Re-arm the sentinel: restore is an app-initiated write, not ransomware.
+    if (sentinel_) sentinel_->resetBaseline();
 }
 
 void MainWindow::exportFile() {
@@ -245,6 +256,21 @@ void MainWindow::scanChanges() {
             statusBar()->showMessage(QStringLiteral("自动记录失败：%1").arg(QString::fromUtf8(error.what())));
         }
     }
+}
+
+void MainWindow::pollSentinel() {
+    if (!sentinel_) return;
+    const auto alert = sentinel_->check();
+    if (!alert.triggered) return;
+    // Ransomware-style batch write detected: anchor the current state, then tell
+    // the user. The anchor keeps the pre-infection revisions restorable even if
+    // the workspace is later rolled back or overwritten.
+    try { library_.snapshotAll(QStringLiteral("紧急快照：疑似勒索批量写入")); }
+    catch (const std::exception &error) {
+        statusBar()->showMessage(QStringLiteral("紧急快照失败：%1").arg(QString::fromUtf8(error.what())));
+    }
+    QMessageBox::warning(this, QStringLiteral("疑似勒索批量写入"),
+                         QStringLiteral("工作区检测到异常批量写入，已自动建立紧急快照锚点。\n\n%1\n\n可先关闭外部编辑器，再通过「恢复历史版本」或「恢复到锚点」回退。").arg(alert.reason));
 }
 
 void MainWindow::resizeEvent(QResizeEvent *event) { QMainWindow::resizeEvent(event); showRevision(); }

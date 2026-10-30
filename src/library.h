@@ -22,6 +22,15 @@ struct Revision {
     qint64 size = 0;
 };
 
+// One whole-tree emergency anchor: each asset pinned to the revision that
+// represented it when the snapshot was taken.
+struct Snapshot {
+    qint64 id = 0;
+    QString created;
+    QString note;
+    int assets = 0;
+};
+
 // One library, one writer. Original imports are never modified.
 class Library {
 public:
@@ -39,6 +48,9 @@ public:
     QByteArray readObject(const QString &hash) const;
     // Anti-ransomware: re-apply immutability to any object left writable (idempotent).
     int hardenObjects();
+    // Anti-ransomware: freeze current working state of every asset as one anchor.
+    qint64 snapshotAll(const QString &note);
+    QVector<Snapshot> snapshots() const;
     QString root() const { return root_; }
 private:
     QString root_;
