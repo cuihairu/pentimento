@@ -56,6 +56,35 @@ private slots:
         QVERIFY_EXCEPTION_THROWN(library.restore(a, revision.id), std::runtime_error);
         QCOMPARE(get(a.path), QByteArray("current"));
     }
+    void restorePreservationIsTransactionalWithTargetAppend() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("asset.dat");
+        put(source, "v1");
+        Library library(dir.filePath("library"));
+        const auto asset = library.importFile(source);
+        const qint64 first = library.revisions(asset.id).first().id;
+        put(asset.path, "unrecorded");
+        library.restore(asset, first);
+        // Both the pre-save ("恢复前自动保存") and the restored version are appended.
+        QCOMPARE(library.revisions(asset.id).size(), 3);
+        // The restored working file matches the target revision content.
+        QCOMPARE(get(asset.path), QByteArray("v1"));
+        // The pre-saved unrecorded content is recoverable from history.
+        const auto preserved = library.revisions(asset.id).at(1);
+        library.exportRevision(asset.id, preserved.id, dir.filePath("preserved.dat"));
+        QCOMPARE(get(dir.filePath("preserved.dat")), QByteArray("unrecorded"));
+    }
+    void readObjectIsPublicAndVerifiesHash() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("asset.dat");
+        put(source, "content");
+        Library library(dir.filePath("library"));
+        const auto asset = library.importFile(source);
+        const auto revision = library.revisions(asset.id).first();
+        QCOMPARE(library.readObject(revision.hash), QByteArray("content"));
+        put(library.objectPath(revision.hash), "tampered");
+        QVERIFY_EXCEPTION_THROWN(library.readObject(revision.hash), std::runtime_error);
+    }
     void deletedWorkingCopyCanBeRecoveredAndWriterIsExclusive() {
         QTemporaryDir dir;
         const auto root = dir.filePath("library");

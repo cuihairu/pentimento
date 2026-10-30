@@ -14,6 +14,7 @@
 #include <QScrollArea>
 #include <QSplitter>
 #include <QStatusBar>
+#include <QStyle>
 #include <QTimer>
 #include <QToolBar>
 #include <QUrl>
@@ -140,10 +141,17 @@ void MainWindow::reloadHistory() {
         auto *item = new QListWidgetItem(QStringLiteral("%1%2\n%3\n%4")
             .arg(i == 0 ? QStringLiteral("当前 · ") : QString(), date.toString("MM-dd HH:mm:ss"), revision.note,
                  QStringLiteral("%1 KiB").arg(revision.size / 1024.0, 0, 'f', 1)), historyList_);
-        QImageReader reader(library_.objectPath(revision.hash));
-        reader.setDecideFormatFromContent(true);
-        reader.setScaledSize(QSize(80, 80));
-        item->setIcon(QPixmap::fromImage(reader.read()));
+        QIcon icon;
+        try {
+            library_.readObject(revision.hash);
+            QImageReader reader(library_.objectPath(revision.hash));
+            reader.setDecideFormatFromContent(true);
+            reader.setScaledSize(QSize(80, 80));
+            icon = QPixmap::fromImage(reader.read());
+        } catch (const std::exception &) {
+            icon = style()->standardIcon(QStyle::SP_MessageBoxWarning);
+        }
+        if (!icon.isNull()) item->setIcon(icon);
     }
     historyList_->setCurrentRow(revisions_.isEmpty() ? -1 : 0);
     historyList_->blockSignals(false);
@@ -160,6 +168,14 @@ void MainWindow::showRevision() {
         .arg(selected().name, row == 0 ? QStringLiteral("当前版本") : QStringLiteral("历史版本"),
              QDateTime::fromString(revision.created, Qt::ISODateWithMs).toLocalTime().toString("yyyy-MM-dd HH:mm:ss"))
         .arg(revision.id));
+    try {
+        library_.readObject(revision.hash);
+    } catch (const std::exception &error) {
+        preview_->setPixmap(QPixmap());
+        preview_->setText(QStringLiteral("内容损坏或校验失败\n\n%1\n\n原始对象已保留，可导出排查。")
+            .arg(QString::fromUtf8(error.what())));
+        return;
+    }
     QImageReader reader(library_.objectPath(revision.hash));
     reader.setDecideFormatFromContent(true);
     reader.setAutoTransform(true);

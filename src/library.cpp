@@ -148,13 +148,13 @@ void Library::restore(const Asset &asset, qint64 revisionId) {
         const auto bytes = readObject(revision.hash); // Verify before touching the working file.
         const bool existed = QFileInfo::exists(asset.path);
         QByteArray previous;
-        if (existed) {
-            previous = readFile(asset.path);
-            capture(asset, QStringLiteral("恢复前自动保存"));
-        }
+        if (existed) previous = readFile(asset.path);
         if (!db_.transaction()) fail(db_.lastError().text());
         bool replaced = false;
         try {
+            const auto currentHistory = revisions(asset.id);
+            if (existed && (currentHistory.isEmpty() || currentHistory.first().hash != digest(previous)))
+                append(asset, previous, QStringLiteral("恢复前自动保存"));
             append(asset, bytes, QStringLiteral("恢复历史版本 #%1").arg(revisionId));
             if (!QDir().mkpath(QFileInfo(asset.path).absolutePath())) fail(QStringLiteral("无法创建恢复目录"));
             writeFile(asset.path, bytes);

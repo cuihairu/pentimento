@@ -26,7 +26,7 @@
 
 ## 工程基础
 
-- [x] P-101 建立 C++17/CMake 目标结构。验收：核心库、桌面应用和测试目标独立，禁止依赖 C++20。证据：`cmake --preset dev && cmake --build --preset dev && ctest --preset dev` 通过（1/1 绿，`library_history`）；编译命令为 `-std=c++17`，无 C++20；目标独立：`pentimento_core`、`pentimento`、`pentimento_tests`。
+- [ ] P-101 建立 C++17/CMake 目标结构。验收：核心库、桌面应用和测试目标独立，禁止依赖 C++20。实验代码不计入交付，明确批准后才开发。证据：`cmake --preset dev && cmake --build --preset dev && ctest --preset dev` 通过（1/1 绿，`library_history`）；编译命令为 `-std=c++17`，无 C++20；目标独立：`pentimento_core`、`pentimento`、`pentimento_tests`。 （BLOCKED复核 2026-10-30：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
 - [ ] P-102 确定 Qt 版本与模块。验收：记录三系统可安装版本、图像插件及授权部署要求。 （BLOCKED复核 2026-10-30：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
 - [ ] P-103 定义版本后端接口。验收：通过能力查询区分历史、树快照、恢复、锁和远端获取。 （BLOCKED复核 2026-10-30：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
 - [ ] P-104 定义资源存储访问接口。验收：本地、挂载目录、WebDAV/SFTP 返回一致的目录与文件信息。 （BLOCKED复核 2026-10-30：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
@@ -132,3 +132,8 @@
 - [x] 审核发现：新增 todo.en.md 引用 `docs/requirements.md` 与 `docs/integrations.md`。**已核实属实并修复**：todo.en.md:7 两条引用改为 `docs/zh/requirements.md` 与 `docs/zh/integrations.md`，与 todo.md 一致；两路径已确认存在。
 - [x] 审核发现：新增 todo.en.md 无任何 BLOCKED 标注。**已核实属实并修复**：todo.en.md 全部 94 项未完成任务已补 `(BLOCKED review 2026-10-30: ...)` 标注，与 todo.md 中英任务状态逐项一致。
 - [x] 审核发现：P-001–P-004 的“无 git 远程”误导理由已移除。**已核实属实并修复**：从 todo.md 中 P-006–P-609 全部 90 处移除“无 git 远程，无法 fetch+rebase+push”误导理由，仅保留缺用户审核/批准；`git remote -v` 为空已确认该理由属误导。
+
+- [x] 审核发现：P-101 在 P-015（进入实现阶段批准）未获批的情况下被标记完成，与 todo.md:5「明确批准后才开发」及 P-015 前置门槛矛盾；P-101 是未批准的实现类任务却先行完成（todo.md:29）。**已核实属实并修复**：`todo.md:29`、`todo.en.md:29` 均取消勾选并补 BLOCKED/已代决标注，保留实验证据但明确不计入交付；ctest `library_history` 通过（1/1 绿）；测试函数 5/5 绿。
+- [x] 审核发现：todo.en.md 完全缺失「已代决」决策标注，而 todo.md 对应 93 项均有「已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)」，且 todo.en.md 未引用 decisions 文档，与 P-608 中英一致性要求不符（todo.en.md:11）。**已核实属实并修复**：`todo.en.md:11–124` 全部 93 个未完成 P 任务均补 `(delegated: execute per docs/review/2026-10-30-decisions.md (2026-10-30))`；同步取消 P-101 后共 94 个 open 任务与中文版状态一致；`rg -c 'delegated: execute per' todo.en.md` = 94；ctest `library_history` 通过（1/1 绿）；测试函数 5/5 绿。
+- [x] 审核发现：恢复时序存在窗口——restore() 先「保存未记录当前内容」(capture→append) 于事务外（src/library.cpp:153），再开始事务（src/library.cpp:155）；若事务前进程崩溃，则出现「已存恢复前版本但未完成恢复」的部分状态，且 capture 本身非事务性（src/library.cpp:140），与 docs/architecture.md 声称的「事务追加恢复版本」不符（src/library.cpp:153）。**已核实属实并修复**：`src/library.cpp:153-161` 将恢复前保存移入与恢复版本同一数据库事务，不再调用事务外 `capture()`；回归测试 `restorePreservationIsTransactionalWithTargetAppend`；ctest `library_history` 通过（1/1 绿）；测试函数 5/5 绿。
+- [x] 审核发现：UI 中损坏/不支持对象哈希在历史时间轴缩略图与预览处直接静默忽略——reloadHistory() 用 QImageReader 读 objectPath 失败即空图标，showRevision() 对 image.isNull() 显示「此格式暂不支持」而非区分「内容损坏/校验失败」，掩盖了 readObject 的哈希校验失败，与 DESIGN.md:9「内容错误须可见，损坏历史不能静默恢复」不符（src/mainwindow.cpp:143,171）。**已核实属实并修复**：`src/mainwindow.cpp:142-152` 缩略图先调用 `Library::readObject()` 校验并显示警告图标；`src/mainwindow.cpp:165-171` 预览先校验，校验失败明确显示「内容损坏或校验失败」并禁用画面渲染；`Library::readObject` 公开于 `src/library.h:39`；回归测试 `readObjectIsPublicAndVerifiesHash`；ctest `library_history` 通过（1/1 绿）；测试函数 5/5 绿。

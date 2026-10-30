@@ -36,6 +36,7 @@ public:
     void restore(const Asset &asset, qint64 revisionId);
     void exportRevision(const QString &assetId, qint64 revisionId, const QString &destination) const;
     QString objectPath(const QString &hash) const;
+    QByteArray readObject(const QString &hash) const;
     QString root() const { return root_; }
 private:
     QString root_;
@@ -43,5 +44,4 @@ private:
     QSqlDatabase db_;
     std::unique_ptr<QLockFile> lock_;
     void append(const Asset &asset, const QByteArray &bytes, const QString &note);
-    QByteArray readObject(const QString &hash) const;
 };
