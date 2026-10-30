@@ -7,7 +7,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_AUTOMOC ON)
 find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Widgets Sql)
 
-add_library(pentimento_core src/library.cpp src/library.h)
+add_library(pentimento_core src/library.cpp src/library.h src/platform_immutable.cpp src/platform_immutable.h)
 target_include_directories(pentimento_core PUBLIC src)
 target_link_libraries(pentimento_core PUBLIC Qt6::Core Qt6::Sql)
 add_executable(pentimento WIN32 MACOSX_BUNDLE src/main.cpp src/mainwindow.cpp src/mainwindow.h)

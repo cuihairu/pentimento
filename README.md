@@ -28,6 +28,22 @@ macOS 的 bundle 入口为 `build/dev/pentimento.app/Contents/MacOS/pentimento`�
 
 不传 `--library` 时使用 Qt AppLocalDataLocation 下的 `library/`。素材库内有 `catalog.sqlite`、`objects/`、`working/`；通过“编辑工作副本”打开库内文件，编辑完成后自动记录或点击“记录版本”。编辑导入前的原文件不会更新库内副本。
 
+## 安全防线（防勒索病毒）
+
+本地素材库被勒索软件加密/篡改时，产品要能防住、发现、并快速恢复（用户 2026-10-31 新增核心需求）。只做素材库自身防线，不做杀毒引擎/病毒库。
+
+- **防线一：不可变版本库**（已实现）——历史对象按内容寻址 append-only，落盘后置只读（Linux `chattr +i` 可用则用，否则清除写权限位；Windows/macOS 只读属性抽象到平台层，真机验证 TODO）。版本库与工作区分离，恢复单向 库→工作区；加密工作区后历史对象仍可读可恢复。
+- **防线二：批量修改哨兵**——监测工作区异常批量写入（大量文件被改/被改扩展名/内容熵值异常升高），触发告警并自动紧急快照锚点。
+- **防线三：整树回滚**——一键恢复工作区到感染前锚点，走「恢复形成新版本」口径，不销毁后续历史。
+
+### Security defense (anti-ransomware)
+
+When a local asset library is encrypted or tampered by ransomware, the product must **prevent, detect, and quickly recover** (new core requirement, 2026-10-31). Only the library's own defense is built — no antivirus engine, no virus database.
+
+- **Layer 1: Immutable version store** (implemented) — history objects are content-addressed and append-only, then set read-only after write (Linux `chattr +i` when permitted, else clear write bits; Windows/macOS read-only attribute abstracted to the platform layer, real-machine verification TODO). Version store is separate from the workspace; restore is one-way store→workspace. Encrypting the workspace leaves history objects readable and restorable.
+- **Layer 2: Batch-modification sentinel** — watches the workspace for anomalous batch writes (many files changed / extension churn / abnormally high content entropy), raises an alert and takes an emergency snapshot anchor.
+- **Layer 3: Whole-tree rollback** — restores the workspace to the pre-infection anchor in one action, using the existing "restore forms a new version" semantics; later history is not destroyed.
+
 ## 首版边界
 
 这是可运行的早期原型，不是 Eagle 的完整替代品，也不是系统级备份工具。

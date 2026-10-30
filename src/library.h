@@ -37,6 +37,8 @@ public:
     void exportRevision(const QString &assetId, qint64 revisionId, const QString &destination) const;
     QString objectPath(const QString &hash) const;
     QByteArray readObject(const QString &hash) const;
+    // Anti-ransomware: re-apply immutability to any object left writable (idempotent).
+    int hardenObjects();
     QString root() const { return root_; }
 private:
     QString root_;

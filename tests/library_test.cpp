@@ -1,5 +1,7 @@
 #include "library.h"
+#include "platform_immutable.h"
 #include <QFile>
+#include <QFileInfo>
 #include <QTemporaryDir>
 #include <QtTest>
 #include <sys/stat.h>
@@ -53,6 +55,9 @@ private slots:
         const auto revision = library.revisions(a.id).first();
         QCOMPARE(library.revisions(b.id).first().hash, revision.hash);
         QVERIFY_EXCEPTION_THROWN(library.restore(b, revision.id), std::runtime_error);
+        // Objects are append-only/immutable; a successful tamperer clears the
+        // guard first (best-effort defense), which is what this test simulates.
+        QVERIFY(platform::makeMutable(library.objectPath(revision.hash)));
         put(library.objectPath(revision.hash), "corrupt");
         put(a.path, "current");
         QVERIFY_EXCEPTION_THROWN(library.restore(a, revision.id), std::runtime_error);
@@ -107,6 +112,9 @@ private slots:
         const auto asset = library.importFile(source);
         const auto revision = library.revisions(asset.id).first();
         QCOMPARE(library.readObject(revision.hash), QByteArray("content"));
+        // A successful tamperer clears the immutability guard first (best-effort
+        // defense); the hash check must still catch the corrupted content.
+        QVERIFY(platform::makeMutable(library.objectPath(revision.hash)));
         put(library.objectPath(revision.hash), "tampered");
         QVERIFY_EXCEPTION_THROWN(library.readObject(revision.hash), std::runtime_error);
     }
@@ -122,6 +130,51 @@ private slots:
         library.restore(asset, revision.id);
         QCOMPARE(get(asset.path), QByteArray("recover me"));
         QCOMPARE(library.revisions(asset.id).size(), 2);
+    }
+    void objectFilesAreImmutableAndResistTamper() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("asset.dat");
+        put(source, "v1");
+        Library library(dir.filePath("library"));
+        const auto asset = library.importFile(source);
+        const auto revision = library.revisions(asset.id).first();
+        const QString object = library.objectPath(revision.hash);
+        QVERIFY(QFileInfo::exists(object));
+        QVERIFY(platform::isImmutable(object));
+        if (::geteuid() != 0) {
+            // A direct write to the object file must fail while it stays immutable.
+            QFile attempt(object);
+            QVERIFY(!attempt.open(QIODevice::WriteOnly));
+        }
+        QCOMPARE(library.readObject(revision.hash), QByteArray("v1"));
+        // hardenObjects re-applies the guard to any object left writable.
+        QVERIFY(platform::makeMutable(object));
+        QVERIFY(!platform::isImmutable(object));
+        QCOMPARE(library.hardenObjects(), 1);
+        QVERIFY(platform::isImmutable(object));
+    }
+    void historyObjectsSurviveWorkspaceEncryption() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("character.png");
+        put(source, "v1 content");
+        Library library(dir.filePath("library"));
+        const auto asset = library.importFile(source);
+        const auto v1 = library.revisions(asset.id).first();
+        put(asset.path, "v2 content");
+        QVERIFY(library.capture(asset, "draft 2"));
+        const auto v2 = library.revisions(asset.id).first();
+        // Simulated ransomware: overwrite the working file with garbage and rename
+        // it to a locked extension. The managed objects must stay untouched.
+        put(asset.path, QByteArray(2048, '\x7f'));
+        QVERIFY(QFile::rename(asset.path, asset.path + ".locked"));
+        QVERIFY(!QFileInfo::exists(asset.path));
+        QCOMPARE(library.readObject(v1.hash), QByteArray("v1 content"));
+        QCOMPARE(library.readObject(v2.hash), QByteArray("v2 content"));
+        QVERIFY(platform::isImmutable(library.objectPath(v1.hash)));
+        QVERIFY(platform::isImmutable(library.objectPath(v2.hash)));
+        // Restore still works and the working file comes back with original content.
+        library.restore(asset, v1.id);
+        QCOMPARE(get(asset.path), QByteArray("v1 content"));
     }
 };
 QTEST_GUILESS_MAIN(HistoryTest)

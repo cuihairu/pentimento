@@ -20,6 +20,16 @@ library/
 
 导出：同样验证版本归属和对象哈希，禁止将目标设为素材库内路径。外部文件由保存对话框提示覆盖；核心接口只负责原子写入。
 
+## 安全防线（防勒索病毒）
+
+用户 2026-10-31 令新增核心需求：本地素材库被勒索软件加密/篡改时，产品要能防住、发现、并快速恢复。只做素材库自身防线，不做杀毒引擎/病毒库。三层防线见 [docs/zh/design/85-antiransom.md](docs/zh/design/85-antiransom.md)。
+
+### 防线一：不可变版本库（已实现）
+
+- 对象 append-only（内容寻址，复用），落盘后**置只读**：`src/platform_immutable.{h,cpp}` 抽象平台差异——Linux 优先 `chattr +i`（ioctl FS_IMMUTABLE_FL，需特权），拒绝时回退清除写权限位；Windows `FILE_ATTRIBUTE_READONLY`；macOS `UF_IMMUTABLE`；Windows/macOS 真机验证 TODO。`Library::append` 写对象后即置只读，`Library::hardenObjects` 对既有可写对象加固（幂等）。
+- 版本库（`objects/`、`catalog.sqlite`）与工作区（`working/`）分离；恢复路径单向 库→工作区——`restore` 只写 `working/`，绝不改写 `objects/`。
+- 已知边界：只读是**尽力而为**（同用户进程可 chmod 恢复写权限，`chattr +i` 才是强保证且需特权）；不冒充防住特权攻击者。工作区被加密不影响 `objects/`；读对象仍哈希校验。
+
 ## 自动记录
 
 UI 定时器检查文件大小和修改时间，连续两次（2 秒间隔）相同后读取；已经处理的同一签名不再全量哈希。不改变磁盘签名的写入可能被漏掉，写入中暂停超过窗口可能被记录。后续需要编辑器感知、文件监视器、稳定读取二次校验及后台任务队列。

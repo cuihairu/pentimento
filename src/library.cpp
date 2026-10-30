@@ -1,5 +1,7 @@
 #include "library.h"
 
+#include "platform_immutable.h"
+
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
@@ -102,8 +104,15 @@ QByteArray Library::readObject(const QString &hash) const {
 void Library::append(const Asset &asset, const QByteArray &bytes, const QString &note) {
     const QString hash = digest(bytes);
     const QString path = objectPath(hash);
-    if (!QFileInfo::exists(path)) writeFile(path, bytes);
-    else if (readObject(hash) != bytes) fail(QStringLiteral("历史对象内容不一致"));
+    if (!QFileInfo::exists(path)) {
+        writeFile(path, bytes);
+    } else if (readObject(hash) != bytes) {
+        fail(QStringLiteral("历史对象内容不一致"));
+    }
+    // The version store is append-only: once an object lands it must resist
+    // later tampering by a same-user ransomware process. Best-effort + idempotent
+    // (chattr +i where the OS allows it, read-only mode bits otherwise).
+    platform::makeImmutable(path);
     QSqlQuery q(db_);
     q.prepare("INSERT INTO revisions(asset_id,hash,created,note,size) VALUES(?,?,?,?,?)");
     q.addBindValue(asset.id);
@@ -182,4 +191,15 @@ void Library::exportRevision(const QString &assetId, qint64 revisionId, const QS
         if (revision.id == revisionId) { writeFile(dest, readObject(revision.hash)); return; }
     }
     fail(QStringLiteral("找不到历史版本"));
+}
+
+int Library::hardenObjects() {
+    const QDir dir(root_ + "/objects");
+    int hardened = 0;
+    const auto entries = dir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot, QDir::Name);
+    for (const auto &info : entries) {
+        if (platform::isImmutable(info.absoluteFilePath())) continue;
+        if (platform::makeImmutable(info.absoluteFilePath())) ++hardened;
+    }
+    return hardened;
 }
