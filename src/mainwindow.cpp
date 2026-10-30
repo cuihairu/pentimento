@@ -40,6 +40,8 @@ MainWindow::MainWindow(Library &library) : library_(library) {
     toolbar->addAction(QStringLiteral("打开素材库"), this, [this] {
         QDesktopServices::openUrl(QUrl::fromLocalFile(library_.root()));
     });
+    // Anti-ransomware Layer 3: one-click rollback to a pre-infection anchor.
+    toolbar->addAction(QStringLiteral("恢复到锚点"), this, &MainWindow::rollbackToSnapshot);
     auto *splitter = new QSplitter;
     auto *left = new QWidget;
     auto *leftLayout = new QVBoxLayout(left);
@@ -271,6 +273,33 @@ void MainWindow::pollSentinel() {
     }
     QMessageBox::warning(this, QStringLiteral("疑似勒索批量写入"),
                          QStringLiteral("工作区检测到异常批量写入，已自动建立紧急快照锚点。\n\n%1\n\n可先关闭外部编辑器，再通过「恢复历史版本」或「恢复到锚点」回退。").arg(alert.reason));
+}
+
+void MainWindow::rollbackToSnapshot() {
+    const auto snapshots = library_.snapshots();
+    if (snapshots.isEmpty()) {
+        statusBar()->showMessage(QStringLiteral("还没有紧急快照锚点"));
+        return;
+    }
+    QStringList labels;
+    for (const auto &snapshot : snapshots)
+        labels << QStringLiteral("#%1 %2 · %3 个素材").arg(snapshot.id).arg(snapshot.created, snapshot.assets);
+    bool ok = false;
+    const auto choice = QInputDialog::getItem(this, QStringLiteral("恢复到锚点"),
+                                              QStringLiteral("选择感染前锚点（回滚形成新版本，不销毁后续历史）"), labels, 0, false, &ok);
+    if (!ok) return;
+    const int index = labels.indexOf(choice);
+    if (index < 0) return;
+    const qint64 snapshotId = snapshots.at(index).id;
+    if (QMessageBox::question(this, QStringLiteral("恢复到锚点"),
+                              QStringLiteral("将整个工作区恢复到该锚点。\n未记录的当前内容会先保存，后续历史（含被加密版本）保留。\n请先关闭所有外部编辑器。")) != QMessageBox::Yes) return;
+    try {
+        const int restored = library_.rollbackAll(snapshotId);
+        reloadAssets();
+        // Re-arm the sentinel: rollback is an app-initiated write, not ransomware.
+        if (sentinel_) sentinel_->resetBaseline();
+        statusBar()->showMessage(QStringLiteral("已恢复到锚点 #%1（%2 个素材回滚）").arg(snapshotId).arg(restored));
+    } catch (const std::exception &error) { report(error); }
 }
 
 void MainWindow::resizeEvent(QResizeEvent *event) { QMainWindow::resizeEvent(event); showRevision(); }

@@ -39,6 +39,7 @@ private:
     void restore();
     void exportFile();
     void scanChanges();
+    void rollbackToSnapshot();
     void report(const std::exception &error);
 protected:
     void resizeEvent(QResizeEvent *event) override;

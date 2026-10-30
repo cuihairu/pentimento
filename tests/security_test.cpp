@@ -119,6 +119,47 @@ private slots:
         QCOMPARE(library.snapshots().first().assets, 2);
         QVERIFY(library.snapshots().first().note.contains(QStringLiteral("勒索")));
     }
+    void rollbackRestoresWorkspaceToPreInfectionAnchor() {
+        QTemporaryDir dir;
+        put(dir.filePath("a.png"), "alpha");
+        put(dir.filePath("b.png"), "beta");
+        Library library(dir.filePath("library"));
+        library.importFile(dir.filePath("a.png"));
+        library.importFile(dir.filePath("b.png"));
+        const auto assets = library.assets();
+        QCOMPARE(assets.size(), 2);
+        // Pre-infection working content (the recovery target).
+        QFile beforeA(assets.at(0).path), beforeB(assets.at(1).path);
+        QVERIFY(beforeA.open(QIODevice::ReadOnly) && beforeB.open(QIODevice::ReadOnly));
+        const QByteArray aBefore = beforeA.readAll();
+        const QByteArray bBefore = beforeB.readAll();
+        QVERIFY(!aBefore.isEmpty() && !bBefore.isEmpty());
+        SentinelConfig cfg = isolating(2, 2, 2);
+        Sentinel sentinel(library.root() + "/working", cfg);
+        sentinel.resetBaseline();
+        // Plant simulated ransomware: batch overwrite + rename (the Layer 2 fixture).
+        for (int i = 0; i < 2; ++i) {
+            const QString base = assets.at(i).path;
+            put(base, randomBytes(1024));
+            QVERIFY(QFile::rename(base, base + ".enc"));
+        }
+        QVERIFY(sentinel.check().triggered);
+        // Select the emergency snapshot as the rollback anchor.
+        const qint64 snap = library.snapshotAll(QStringLiteral("紧急快照：疑似勒索批量写入"));
+        QVERIFY(snap > 0);
+        // One-click rollback restores the whole workspace to pre-infection content.
+        QCOMPARE(library.rollbackAll(snap), 2);
+        QFile afterA(assets.at(0).path), afterB(assets.at(1).path);
+        QVERIFY(afterA.open(QIODevice::ReadOnly) && afterB.open(QIODevice::ReadOnly));
+        QCOMPARE(afterA.readAll(), aBefore); // sampled hashes match pre-infection
+        QCOMPARE(afterB.readAll(), bBefore);
+        // Rollback forms a new version and does not destroy later history: the
+        // infected .enc files remain on disk, and each asset gained a restore version.
+        QVERIFY(QFile::exists(assets.at(0).path + ".enc"));
+        QVERIFY(QFile::exists(assets.at(1).path + ".enc"));
+        QCOMPARE(library.revisions(assets.at(0).id).size(), 2);
+        QCOMPARE(library.revisions(assets.at(1).id).size(), 2);
+    }
 };
 QTEST_GUILESS_MAIN(SecurityTest)
 #include "security_test.moc"

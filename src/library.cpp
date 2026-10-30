@@ -7,6 +7,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
 #include <QLockFile>
 #include <QSaveFile>
 #include <QSqlError>
@@ -219,20 +220,17 @@ qint64 Library::snapshotAll(const QString &note) {
         const auto all = assets();
         for (const auto &asset : all) {
             const auto history = revisions(asset.id);
+            // The recovery anchor is the last CLEAN revision (pre-infection).
+            // Current working content that diverged from it is recorded as an
+            // emergency revision for forensics, but is never the anchor.
             qint64 anchor = history.isEmpty() ? 0 : history.first().id;
             QFile file(asset.path);
             if (file.exists() && file.open(QIODevice::ReadOnly)) {
                 const auto bytes = file.readAll();
-                if (history.isEmpty() || history.first().hash != digest(bytes)) {
-                    // Freeze the current working state as a new revision so the
-                    // snapshot records exactly what is on disk right now.
+                if (history.isEmpty() || history.first().hash != digest(bytes))
                     append(asset, bytes, QStringLiteral("紧急快照锚点"));
-                    anchor = revisions(asset.id).first().id;
-                } else {
-                    anchor = history.first().id;
-                }
             }
-            if (!anchor) continue; // no history and no readable working file
+            if (!anchor) continue; // no clean history to recover to
             QSqlQuery ins(db_);
             ins.prepare("INSERT OR REPLACE INTO snapshot_assets(snapshot_id,asset_id,revision_id) VALUES(?,?,?)");
             ins.addBindValue(snapshotId);
@@ -259,4 +257,34 @@ QVector<Snapshot> Library::snapshots() const {
                           q.value(2).toString(), q.value(3).toInt()});
     }
     return result;
+}
+
+int Library::rollbackAll(qint64 snapshotId) {
+    QHash<QString, Asset> byId;
+    for (const auto &asset : assets()) byId.insert(asset.id, asset);
+    QSqlQuery q(db_);
+    q.prepare("SELECT asset_id, revision_id FROM snapshot_assets WHERE snapshot_id=?");
+    q.addBindValue(snapshotId);
+    execute(q);
+    int restored = 0;
+    while (q.next()) {
+        const auto assetId = q.value(0).toString();
+        const auto anchorId = q.value(1).toLongLong();
+        const auto it = byId.constFind(assetId);
+        if (it == byId.constEnd()) continue;
+        const Asset &asset = it.value();
+        QByteArray anchorBytes;
+        for (const auto &rev : revisions(assetId)) {
+            if (rev.id == anchorId) { anchorBytes = readObject(rev.hash); break; }
+        }
+        if (anchorBytes.isEmpty()) continue; // anchor revision vanished (defensive)
+        // Already at the recovery target: skip (a no-op restore would only churn).
+        if (QFileInfo::exists(asset.path) && readFile(asset.path) == anchorBytes) continue;
+        // One-click rollback goes through the normal restore path: it appends the
+        // anchor content as a new version and rewrites the working file, so later
+        // history stays intact and the infection's own versions remain recoverable.
+        restore(asset, anchorId);
+        ++restored;
+    }
+    return restored;
 }

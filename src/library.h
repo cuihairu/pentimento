@@ -51,6 +51,11 @@ public:
     // Anti-ransomware: freeze current working state of every asset as one anchor.
     qint64 snapshotAll(const QString &note);
     QVector<Snapshot> snapshots() const;
+    // Anti-ransomware: one-click whole-tree rollback to a snapshot anchor. Each
+    // asset is restored via the normal "restore forms a new version" path, so
+    // later history is preserved rather than destroyed. Returns how many assets
+    // actually changed. Assets already at the anchor content are skipped.
+    int rollbackAll(qint64 snapshotId);
     QString root() const { return root_; }
 private:
     QString root_;
