@@ -174,8 +174,8 @@
 
 ## 审核发现（7233ecc7..HEAD 只审）
 
-- [ ] 审核发现：README 徽章声明 CMake 3.24+，但「构建与运行」仍写「需要 CMake 3.21+」，与 `CMakeLists.txt:1`（`cmake_minimum_required(VERSION 3.24)`）不一致（README.md:25）。
-- [ ] 审核发现：`docs/zh/design/90-benchmark.md:273` 称「pentimento 时间轴 R07 目前未提缩略图维度」，但 `todo.md:168` 的 B-009 判定「V1 时间轴已实现缩略图维度」，两处对同一现状描述矛盾（README「当前可用」亦确认时间轴带缩略图）。
-- [ ] 审核发现：`fetch_dep` 的 `if(TARGET ${name} OR DEFINED FETCH_DEP_${name}_DONE)` 用 `DEFINED FETCH_DEP_${name}_DONE` 作「已声明」判据，但 `set(FETCH_DEP_${name}_DONE ON)` 在 `FetchContent_Declare` 之前设置，若同名依赖的 `FetchContent_Declare` 本身失败（如参数错误），`DEFINED` 已为真，后续调用会静默跳过声明，错误被掩盖；且 `set(... DONE ON)` 未加 `PARENT_SCOPE`，在 `fetch_dep` 函数作用域内设置对父作用域不可见，`DEFINED FETCH_DEP_${name}_DONE` 在下次调用时恒为假，该去重判据实际不生效（CMakeLists.txt:33-36）。
-- [ ] 审核发现：`fetch_dep` 仅检查 `TARGET ${name}`，若某依赖未提供同名 target（仅提供库别名或不同名 target，或纯头文件依赖），则无法触发去重；去重依赖 target 名与依赖名相同这一隐含约定未在文档中说明（CMakeLists.txt:33）。
-- [ ] 审核发现：`docs/zh/design/35-dependencies.md:24` 声明「CI（.github/workflows/nightly.yml）只允许出现 Qt 相关的包安装」，但 `nightly.yml:20` 同时安装 `ninja-build`（构建工具，非 Qt 包），与「只允许 Qt 相关包安装」口径矛盾（35-dependencies.md:24；.github/workflows/nightly.yml:20）。
+- [x] 审核发现：README 徽章声明 CMake 3.24+，但「构建与运行」仍写「需要 CMake 3.21+」，与 `CMakeLists.txt:1`（`cmake_minimum_required(VERSION 3.24)`）不一致（README.md:25）。 （已修：README.md:25 改为 CMake 3.24+，0bc1f09）
+- [x] 审核发现：`docs/zh/design/90-benchmark.md:273` 称「pentimento 时间轴 R07 目前未提缩略图维度」，但 `todo.md:168` 的 B-009 判定「V1 时间轴已实现缩略图维度」，两处对同一现状描述矛盾（README「当前可用」亦确认时间轴带缩略图）。 （已修：docs/zh/design/90-benchmark.md:273 改为「已实现缩略图维度」，7877cf0）
+- [x] 审核发现：`fetch_dep` 的 `if(TARGET ${name} OR DEFINED FETCH_DEP_${name}_DONE)` 用 `DEFINED FETCH_DEP_${name}_DONE` 作「已声明」判据，但 `set(FETCH_DEP_${name}_DONE ON)` 在 `FetchContent_Declare` 之前设置，若同名依赖的 `FetchContent_Declare` 本身失败（如参数错误），`DEFINED` 已为真，后续调用会静默跳过声明，错误被掩盖；且 `set(... DONE ON)` 未加 `PARENT_SCOPE`，在 `fetch_dep` 函数作用域内设置对父作用域不可见，`DEFINED FETCH_DEP_${name}_DONE` 在下次调用时恒为假，该去重判据实际不生效（CMakeLists.txt:33-36）。 （已修：CMakeLists.txt 的 fetch_dep 将 DONE 标志移至 FetchContent_Declare 之后并加 PARENT_SCOPE，4a79ed4）
+- [x] 审核发现：`fetch_dep` 仅检查 `TARGET ${name}`，若某依赖未提供同名 target（仅提供库别名或不同名 target，或纯头文件依赖），则无法触发去重；去重依赖 target 名与依赖名相同这一隐含约定未在文档中说明（CMakeLists.txt:33）。 （已修：CMakeLists.txt 注释与 35-dependencies.md 第 3 节补充 target 同名去重约定，015d8ca）
+- [x] 审核发现：`docs/zh/design/35-dependencies.md:24` 声明「CI（.github/workflows/nightly.yml）只允许出现 Qt 相关的包安装」，但 `nightly.yml:20` 同时安装 `ninja-build`（构建工具，非 Qt 包），与「只允许 Qt 相关包安装」口径矛盾（35-dependencies.md:24；.github/workflows/nightly.yml:20）。 （已修：35-dependencies.md:24 口径补记 ninja-build 为构建工具例外，df7f210）
