@@ -230,15 +230,15 @@ qint64 Library::snapshotAll(const QString &note) {
                 current = file.readAll();
             }
             // The recovery anchor must be the last CLEAN revision (pre-infection).
-            // Race: scanChanges (2s) can auto-record infected bytes just before
-            // pollSentinel (5s) fires, so history.first() may simply mirror the
-            // current (suspected-infected) working content. Skip any newest
-            // revision whose content equals the current working bytes, so the
-            // anchor stays on the newest clean (pre-infection) revision. In a
-            // false-positive alert where the current content is genuinely clean
-            // and already recorded, this conservatively anchors to the prior
-            // revision (consistent with "宁可误报、不可漏报" and the user's
-            // explicit confirm before rollback).
+            // Race: scanChanges (2s) can auto-record suspected-infected bytes
+            // just before pollSentinel (5s) fires, so history.first() may merely
+            // mirror the current (infected) working content. The anchor is the
+            // newest revision whose content differs from the current working
+            // content — an auto-recorded infected mirror (hash == current) is
+            // skipped, so the anchor stays on the newest clean (pre-infection)
+            // revision. If every revision equals the current content, the current
+            // state is genuinely clean (e.g. an untouched asset), so the newest
+            // revision is kept as the anchor rather than dropping the asset.
             const QString currentHash = current.isEmpty() ? QString() : digest(current);
             qint64 anchor = 0;
             for (const auto &rev : history) { // newest first
