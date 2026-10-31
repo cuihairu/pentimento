@@ -60,7 +60,7 @@
 - [x] P-302 实现内容对象存储。验收：流式哈希、去重和对象校验通过大文件样本。证据：tests/library_test.cpp 大文件流式+去重、损坏对象阻断去重、磁盘满临时清理三测试（ctest library_history 绿 13/13；commit ca1ad7b）。
 - [x] P-303 实现手动记录版本。验收：一次操作创建可查询的版本 ID 与说明。证据：tests/library_test.cpp manualRecordReturnsQueryableVersionIdAndNote（内容变更创建新 ID+说明、未变返回当前 ID、默认说明、失败抛错；ctest library_history 绿 15/15；commit 343f3aa）。
 - [x] P-304 实现稳定变化自动记录。验收：半写入与连续保存样本按已定策略处理。证据：tests/library_test.cpp autoRecordPolicyHandlesSampleClasses（连续写入不记、长暂停后稳定记录、临时文件改名保存、同大小写入、touch 不重复）与 stableRecordRetriesWhenFileMovesMidRead（读后复核 mtime/size 变化则重试、撕裂对象不发布；ctest library_history 绿 17/17；commit 3e1a85e）。设计项「后台执行」暂缓：与 README「I/O 在 UI 线程」边界一致，随整体 I/O 线程化一并处理。
-- [ ] P-305 实现定时快照与暂停。验收：调度状态可见，暂停后不产生自动快照。 （BLOCKED复核 2026-10-30：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
+- [x] P-305 实现定时快照与暂停。验收：调度状态可见，暂停后不产生自动快照。证据：tests/library_test.cpp scheduleStateIsVisibleAndPauseStopsSnapshots（默认关、非法周期拒绝、到期触发一次、错过多周期只补一次、暂停记录原因且不再产生快照、继续后按新时点重启、关闭清空；ctest library_history 绿 18/18；commit 0c9a069）。UI 状态栏常显周期/下次时间/暂停原因。
 - [ ] P-306 实现版本排除规则。验收：排除对象不进入后续快照。 （BLOCKED复核 2026-10-30：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
 - [ ] P-307 实现关键版本固定。验收：固定版本不被保留策略清理。 （BLOCKED复核 2026-10-30：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
 - [ ] P-308 实现单素材时间轴。验收：顺序、时间、说明与当前/历史标识准确。 （BLOCKED复核 2026-10-30：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
