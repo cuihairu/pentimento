@@ -954,6 +954,56 @@ private slots:
         // A snapshot that excluded nothing returns an empty exclusion listing.
         QCOMPARE(library.snapshotExclusions(snap1).size(), 0);
     }
+    void restorePreviewListsOpsWithoutWriting() {
+        QTemporaryDir dir;
+        const auto aSrc = dir.filePath("a.png");
+        const auto bSrc = dir.filePath("b.png");
+        const auto cSrc = dir.filePath("c.png");
+        put(aSrc, "a-v1"); put(bSrc, "b-v1"); put(cSrc, "c-v1");
+        Library library(dir.filePath("library"));
+        const auto a = library.importFile(aSrc);
+        const auto b = library.importFile(bSrc);
+        const auto c = library.importFile(cSrc);
+        const qint64 snap = library.snapshotAll(QStringLiteral("预演锚点"));
+        QVERIFY(snap > 0);
+        // Divergence: a edited to a new version; c's working copy removed.
+        put(a.path, "a-v2");
+        QVERIFY(library.capture(a, QStringLiteral("第二版")));
+        QVERIFY(QFile::remove(c.path));
+        const auto byId = [](const RestorePlan &plan, const QString &id) -> const RestoreOp * {
+            for (const auto &op : plan.ops) if (op.assetId == id) return &op;
+            return nullptr;
+        };
+        // The preview lists the full operation set and writes nothing.
+        const auto plan = library.planRestore(snap);
+        QCOMPARE(plan.ops.size(), 3);
+        const auto *aOp = byId(plan, a.id);
+        const auto *bOp = byId(plan, b.id);
+        const auto *cOp = byId(plan, c.id);
+        QVERIFY(aOp && bOp && cOp);
+        QCOMPARE(aOp->kind, QStringLiteral("replace")); // exists, differs from anchor
+        QCOMPARE(bOp->kind, QStringLiteral("skip"));    // already at anchor content
+        QCOMPARE(cOp->kind, QStringLiteral("add"));     // target absent, will create
+        QVERIFY(aOp->size > 0);
+        QCOMPARE(cOp->size, qint64(4)); // "c-v1"
+        QCOMPARE(bOp->size, qint64(0));
+        QCOMPARE(plan.bytesToWrite, aOp->size + cOp->size); // space needed
+        // No file was written by the preview: the working copies are untouched.
+        QVERIFY(!QFile::exists(c.path));
+        QCOMPARE(get(a.path), QByteArray("a-v2"));
+        // A read-only target whose content differs is a conflict, listed (never
+        // silently resolved); once writable again it is a replace.
+        put(b.path, "b-tampered"); // differs from the anchor now (writable yet)
+        QVERIFY(QFile::setPermissions(b.path, QFile::ReadOwner | QFile::ReadGroup | QFile::ReadOther));
+        const auto conflictPlan = library.planRestore(snap);
+        const auto *bConflict = byId(conflictPlan, b.id);
+        QVERIFY(bConflict);
+        QCOMPARE(bConflict->kind, QStringLiteral("conflict"));
+        QCOMPARE(bConflict->reason, QStringLiteral("目标不可写"));
+        QVERIFY(QFile::setPermissions(b.path, QFile::ReadOwner | QFile::WriteOwner | QFile::ReadGroup | QFile::ReadOther));
+        const auto writablePlan = library.planRestore(snap);
+        QCOMPARE(byId(writablePlan, b.id)->kind, QStringLiteral("replace"));
+    }
 };
 QTEST_GUILESS_MAIN(HistoryTest)
 #include "library_test.moc"

@@ -1036,3 +1036,68 @@ int Library::rollbackAll(qint64 snapshotId) {
     }
     return restored;
 }
+
+RestorePlan Library::planRestore(qint64 snapshotId) const {
+    // P-315: a dry-run of rollbackAll. It reads only — no file is written — and
+    // classifies each manifest entry as add / replace / skip / conflict plus the
+    // space the writes would need. The plan binds the target version (anchor
+    // revision) and the file state as of now; the executor rechecks before
+    // writing (P-316+), since a stale plan must be refreshed, never trusted.
+    RestorePlan plan;
+    QHash<QString, Asset> byId;
+    for (const auto &asset : assets()) byId.insert(asset.id, asset);
+    QSqlQuery q(db_);
+    q.prepare("SELECT asset_id, revision_id, hash FROM snapshot_assets "
+              "WHERE snapshot_id=? ORDER BY path, asset_id");
+    q.addBindValue(snapshotId);
+    execute(q);
+    while (q.next()) {
+        const QString assetId = q.value(0).toString();
+        const qint64 anchorId = q.value(1).toLongLong();
+        const QString anchorHash = q.value(2).toString();
+        RestoreOp op;
+        op.assetId = assetId;
+        const auto it = byId.constFind(assetId);
+        if (it == byId.constEnd()) {
+            op.kind = QStringLiteral("conflict");
+            op.reason = QStringLiteral("素材已不存在于当前库");
+            plan.ops.push_back(op);
+            continue;
+        }
+        const Asset &asset = it.value();
+        op.path = asset.path;
+        // The recovery anchor must exist and verify, else the op cannot be
+        // carried out — listed as a conflict, never silently skipped.
+        bool anchorFound = false;
+        for (const auto &rev : revisions(assetId)) {
+            if (rev.id != anchorId) continue;
+            op.size = rev.size;
+            try {
+                anchorFound = rev.hash == anchorHash
+                    && streamDigest(objectPath(anchorHash)) == anchorHash;
+            } catch (...) { anchorFound = false; }
+            break;
+        }
+        if (!anchorFound) {
+            op.kind = QStringLiteral("conflict");
+            op.reason = QStringLiteral("锚点版本对象缺失或校验失败");
+            plan.ops.push_back(op);
+            continue;
+        }
+        if (!QFileInfo::exists(asset.path)) {
+            op.kind = QStringLiteral("add"); // target absent, will create
+        } else if (readFile(asset.path) == readObject(anchorHash)) {
+            op.kind = QStringLiteral("skip"); // already at the recovery content
+            op.size = 0;
+        } else if (!QFileInfo(asset.path).isWritable()) {
+            op.kind = QStringLiteral("conflict");
+            op.reason = QStringLiteral("目标不可写");
+        } else {
+            op.kind = QStringLiteral("replace");
+        }
+        if (op.kind == QStringLiteral("add") || op.kind == QStringLiteral("replace"))
+            plan.bytesToWrite += op.size;
+        plan.ops.push_back(op);
+    }
+    return plan;
+}

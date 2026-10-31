@@ -182,6 +182,30 @@ struct SnapshotExclusion {
     QString path;
 };
 
+// P-315 one operation of a whole-tree restore preview. `kind` is:
+//   "add"      — the target does not exist; restoring will create it;
+//   "replace"  — the target exists with different content; restoring rewrites it;
+//   "skip"     — the target already matches the recovery content; no write;
+//   "conflict" — the target is not writable (or the anchor is unavailable);
+//                listed, never silently resolved. `reason` carries the conflict
+//                cause (empty otherwise). `path` is the working-copy target.
+struct RestoreOp {
+    QString assetId;
+    QString path;
+    QString kind;
+    QString reason;
+    qint64 size = 0; // bytes the operation would write (0 for skip)
+};
+
+// P-315 the whole-tree restore preview for one snapshot: the complete operation
+// list, computed WITHOUT writing any file (dry-run). `bytesToWrite` is the space
+// the add/replace operations would need. The consumer presents it, then executes
+// via the normal restore path after an exec-time recheck (P-316+).
+struct RestorePlan {
+    QVector<RestoreOp> ops;
+    qint64 bytesToWrite = 0;
+};
+
 // One library, one writer. Original imports are never modified.
 class Library {
 public:
@@ -296,6 +320,12 @@ public:
     // later history is preserved rather than destroyed. Returns how many assets
     // actually changed. Assets already at the anchor content are skipped.
     int rollbackAll(qint64 snapshotId);
+    // P-315 whole-tree restore preview: the complete add/replace/skip/conflict
+    // operation list for a snapshot, computed WITHOUT writing any file. Space
+    // requirement is summed; conflicts are listed, not silently resolved. The
+    // caller presents the plan and only then executes (after an exec-time
+    // recheck, since the plan binds the target version and the file state).
+    RestorePlan planRestore(qint64 snapshotId) const;
     QString root() const { return root_; }
 private:
     QString root_;
