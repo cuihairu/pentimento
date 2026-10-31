@@ -57,6 +57,10 @@ When a local asset library is encrypted or tampered by ransomware, the product m
 - **Layer 2: Batch-modification sentinel** (implemented) — watches the workspace for anomalous batch writes; three signals (many files changed / extension churn .png→.enc / abnormally high content entropy) trip an alert at threshold, and an emergency snapshot anchor is taken automatically. Normal small edits stay quiet (threshold test).
 - **Layer 3: Whole-tree rollback** (implemented) — "Restore to anchor" restores the workspace to the pre-infection anchor in one action, using the existing "restore forms a new version" semantics; later history (including encrypted versions) is not destroyed.
 
+## 对标调研
+
+对齐 7 款对标产品（Alienbrain、Anchorpoint、Perforce、Eagle、Billfish、Adobe Bridge+Lr、Time Machine/File History）的调研已落库：[docs/zh/design/90-benchmark.md](docs/zh/design/90-benchmark.md)（16 条可借鉴做法逐条复核 V1采纳/V2候选/排除，14 条功能缺口逐条复核登记至 [todo.md](todo.md)「对标缺口复核」）。
+
 ## 首版边界
 
 这是可运行的早期原型，不是 Eagle 的完整替代品，也不是系统级备份工具。
