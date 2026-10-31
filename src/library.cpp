@@ -208,7 +208,7 @@ StoredObject Library::publishTempObject(const QString &temp, qint64 size) {
     return {hash, size};
 }
 
-void Library::insertRevision(const Asset &asset, const QString &hash, qint64 size, const QString &note) {
+qint64 Library::insertRevision(const Asset &asset, const QString &hash, qint64 size, const QString &note) {
     QSqlQuery q(db_);
     q.prepare("INSERT INTO revisions(asset_id,hash,created,note,size) VALUES(?,?,?,?,?)");
     q.addBindValue(asset.id);
@@ -217,6 +217,7 @@ void Library::insertRevision(const Asset &asset, const QString &hash, qint64 siz
     q.addBindValue(note.isEmpty() ? QStringLiteral("手动快照") : note);
     q.addBindValue(size);
     execute(q);
+    return q.lastInsertId().toLongLong();
 }
 
 void Library::append(const Asset &asset, const QByteArray &bytes, const QString &note) {
@@ -224,9 +225,18 @@ void Library::append(const Asset &asset, const QByteArray &bytes, const QString 
     insertRevision(asset, stored.hash, stored.size, note);
 }
 
-void Library::appendFromFile(const Asset &asset, const QString &source, const QString &note) {
+qint64 Library::appendFromFile(const Asset &asset, const QString &source, const QString &note) {
     const auto stored = storeObject(source);
-    insertRevision(asset, stored.hash, stored.size, note);
+    return insertRevision(asset, stored.hash, stored.size, note);
+}
+
+RecordResult Library::recordVersion(const Asset &asset, const QString &note) {
+    const QString hash = streamDigest(asset.path);
+    const auto history = revisions(asset.id);
+    if (!history.isEmpty() && history.first().hash == hash)
+        return {history.first().id, history.first().note, true};
+    const QString effective = note.isEmpty() ? QStringLiteral("手动快照") : note;
+    return {appendFromFile(asset, asset.path, note), effective, false};
 }
 
 Asset Library::importFile(const QString &source) {
@@ -249,12 +259,8 @@ Asset Library::importFile(const QString &source) {
 }
 
 bool Library::capture(const Asset &asset, const QString &note) {
-    // Streaming hash so recording a large working copy never holds it in memory.
-    const QString hash = streamDigest(asset.path);
-    const auto history = revisions(asset.id);
-    if (!history.isEmpty() && history.first().hash == hash) return false;
-    appendFromFile(asset, asset.path, note);
-    return true;
+    // Recording never holds the working copy in memory (streaming, see P-302).
+    return !recordVersion(asset, note).unchanged;
 }
 
 void Library::restore(const Asset &asset, qint64 revisionId) {

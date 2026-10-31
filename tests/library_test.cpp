@@ -288,6 +288,39 @@ private slots:
             QCryptographicHash::hash(QByteArray("unsaved work"), QCryptographicHash::Sha256).toHex()));
         QCOMPARE(stored.size, 12);
     }
+    void manualRecordReturnsQueryableVersionIdAndNote() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("art.png");
+        put(source, "v1");
+        Library library(dir.filePath("library"));
+        const auto asset = library.importFile(source);
+        // Recording changed content creates a new version with its id + note.
+        put(asset.path, "v2");
+        const auto first = library.recordVersion(asset, QStringLiteral("定稿"));
+        QVERIFY(!first.unchanged);
+        QCOMPARE(first.note, QStringLiteral("定稿"));
+        const auto stored = library.revisions(asset.id).first();
+        QCOMPARE(first.revisionId, stored.id);
+        QCOMPARE(stored.note, QStringLiteral("定稿"));
+        // Same content again: no duplicate version; the current version id is
+        // returned so the user can see what is already protected.
+        put(asset.path, "v3");
+        const auto second = library.recordVersion(asset, QStringLiteral("v3 note"));
+        const auto again = library.recordVersion(asset, QStringLiteral("v3 note"));
+        QVERIFY(!second.unchanged);
+        QVERIFY(again.unchanged);
+        QCOMPARE(again.revisionId, second.revisionId);
+        QCOMPARE(again.note, QStringLiteral("v3 note"));
+        QCOMPARE(library.revisions(asset.id).size(), 3);
+        // An empty note falls back to the documented default.
+        put(asset.path, "v4");
+        const auto fourth = library.recordVersion(asset, QString());
+        QCOMPARE(fourth.note, QStringLiteral("手动快照"));
+        QCOMPARE(library.revisions(asset.id).first().note, QStringLiteral("手动快照"));
+        // Failures are loud, never silent: recording a missing working copy throws.
+        QVERIFY(QFile::remove(asset.path));
+        QVERIFY_EXCEPTION_THROWN(library.recordVersion(asset, QStringLiteral("gone")), std::runtime_error);
+    }
 };
 QTEST_GUILESS_MAIN(HistoryTest)
 #include "library_test.moc"

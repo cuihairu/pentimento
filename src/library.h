@@ -38,6 +38,16 @@ struct StoredObject {
     qint64 size = 0;
 };
 
+// Result of recording a version. `revisionId` is the queryable version id that
+// now represents the asset; `note` is the note attached to that version;
+// `unchanged` is true when the content was already the newest recorded version
+// (no duplicate version was created) — the returned id is then the existing one.
+struct RecordResult {
+    qint64 revisionId = 0;
+    QString note;
+    bool unchanged = false;
+};
+
 // One library, one writer. Original imports are never modified.
 class Library {
 public:
@@ -49,6 +59,13 @@ public:
     QVector<Revision> revisions(const QString &assetId) const;
     Asset importFile(const QString &source);
     bool capture(const Asset &asset, const QString &note = QString());
+    // P-303 manual version record. Always available: records the asset's current
+    // working content as a new version and returns its queryable id and note.
+    // When the content is already the newest recorded version, no duplicate is
+    // created and the existing version id is returned with unchanged=true, so the
+    // caller can tell the user what is already protected. Throws a loud error on
+    // a failed read/write/index registration instead of silently doing nothing.
+    RecordResult recordVersion(const Asset &asset, const QString &note = QString());
     void restore(const Asset &asset, qint64 revisionId);
     void exportRevision(const QString &assetId, qint64 revisionId, const QString &destination) const;
     QString objectPath(const QString &hash) const;
@@ -77,8 +94,8 @@ private:
     QSqlDatabase db_;
     std::unique_ptr<QLockFile> lock_;
     void append(const Asset &asset, const QByteArray &bytes, const QString &note);
-    void appendFromFile(const Asset &asset, const QString &source, const QString &note);
-    void insertRevision(const Asset &asset, const QString &hash, qint64 size, const QString &note);
+    qint64 appendFromFile(const Asset &asset, const QString &source, const QString &note);
+    qint64 insertRevision(const Asset &asset, const QString &hash, qint64 size, const QString &note);
     QString newTempObjectPath() const;
     StoredObject storeBytes(const QByteArray &bytes);
     StoredObject publishTempObject(const QString &temp, qint64 size);

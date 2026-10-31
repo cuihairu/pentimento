@@ -216,8 +216,12 @@ void MainWindow::capture() {
     const auto note = QInputDialog::getText(this, QStringLiteral("记录版本"), QStringLiteral("版本说明"), QLineEdit::Normal, QStringLiteral("手动快照"), &ok);
     if (!ok) return;
     try {
-        const bool changed = library_.capture(asset, note);
-        statusBar()->showMessage(changed ? QStringLiteral("已记录新版本") : QStringLiteral("内容未变化，无需重复保存"));
+        const auto result = library_.recordVersion(asset, note);
+        // Explicit feedback so the user never mistakes an unchanged capture for
+        // a successful new version (防误以为已保护).
+        statusBar()->showMessage(result.unchanged
+            ? QStringLiteral("内容未变化，当前已是版本 #%1").arg(result.revisionId)
+            : QStringLiteral("已记录版本 #%1").arg(result.revisionId));
         reloadHistory();
     } catch (const std::exception &error) { report(error); }
 }
