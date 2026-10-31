@@ -223,6 +223,7 @@ Library::Library(const QString &root)
             {QStringLiteral("rating"), QStringLiteral("INTEGER")},
             {QStringLiteral("note"), QStringLiteral("TEXT NOT NULL DEFAULT ''")},
             {QStringLiteral("source"), QStringLiteral("TEXT NOT NULL DEFAULT ''")}};
+            {QStringLiteral("state"), QStringLiteral("TEXT NOT NULL DEFAULT 'present'")}};
         for (const auto &column : entryAdditions) {
             if (entryNames.contains(column.first)) continue;
             QSqlQuery alter(db_);
@@ -927,6 +928,7 @@ qint64 Library::snapshotAll(const QString &note) {
         // snapshot, so a confirmed-item restore reverts resources and metadata.
         struct Entry { QString assetId; QString path; QString hash; QString state; qint64 revisionId;
                        QString name; QString tags; int rating; QString note; QString source; };
+        struct Entry { QString assetId; QString path; QString hash; QString state; qint64 revisionId; };
         QVector<Entry> entries;
         const auto all = assets();
         for (const auto &asset : all) {
@@ -984,6 +986,7 @@ qint64 Library::snapshotAll(const QString &note) {
                                anchorHash, state, anchor,
                                asset.name, tagsToStore(asset.tags), asset.rating,
                                asset.note, asset.source});
+                               anchorHash, state, anchor});
         }
         // The sequence point: everything above is a completed revision <= this.
         qint64 boundary = 0;
@@ -1003,6 +1006,7 @@ qint64 Library::snapshotAll(const QString &note) {
                 fail(QStringLiteral("快照不完整：锚点超出序列点，未发布"));
             QSqlQuery ins(db_);
             ins.prepare("INSERT OR REPLACE INTO snapshot_assets(snapshot_id,asset_id,revision_id,hash,path,state,name,tags,rating,note,source) VALUES(?,?,?,?,?,?,?,?,?,?,?)");
+            ins.prepare("INSERT OR REPLACE INTO snapshot_assets(snapshot_id,asset_id,revision_id,hash,path,state) VALUES(?,?,?,?,?,?)");
             ins.addBindValue(snapshotId);
             ins.addBindValue(entry.assetId);
             ins.addBindValue(entry.revisionId);
