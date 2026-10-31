@@ -181,6 +181,27 @@ private slots:
         QCOMPARE(library.rollbackAll(snap), 1);
         QCOMPARE(get(asset.path), QByteArray("clean v1"));
     }
+    void snapshotAnchorKeepsUnchangedAssetAtCurrentRevision() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("asset.dat");
+        put(source, "clean v1");
+        Library library(dir.filePath("library"));
+        const auto asset = library.importFile(source);
+        put(asset.path, "clean v2");
+        QVERIFY(library.capture(asset, QStringLiteral("draft 2")));
+        // The anchor skips revisions that mirror the current (suspected-infected)
+        // working content, so it conservatively falls back to the prior clean
+        // revision. This is safe (宁可误报、不可漏报): the current clean v2 is
+        // still preserved as a revision and remains restorable afterwards.
+        const qint64 snap = library.snapshotAll(QStringLiteral("误报快照"));
+        QVERIFY(snap > 0);
+        QCOMPARE(library.rollbackAll(snap), 1);
+        QCOMPARE(get(asset.path), QByteArray("clean v1"));
+        QCOMPARE(library.revisions(asset.id).size(), 3);
+        const auto v2 = library.revisions(asset.id).at(1); // preserved current v2
+        library.exportRevision(asset.id, v2.id, dir.filePath("v2.dat"));
+        QCOMPARE(get(dir.filePath("v2.dat")), QByteArray("clean v2"));
+    }
     void rollbackHandlesEmptyAnchorObject() {
         QTemporaryDir dir;
         const auto source = dir.filePath("asset.dat");
