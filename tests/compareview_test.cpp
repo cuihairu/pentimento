@@ -68,6 +68,21 @@ private slots:
         QCOMPARE(qreal(source.height()) * zoom, 150.0 * zoom);
         QVERIFY(target.width() > viewport.width()); // zoomed in: image exceeds viewport
     }
+    void slidingDividerShowsSameCoordinateOnBothSides() {
+        const compareview::View view{2.0, QPointF(100, 50)};
+        // The divider at viewport x exposes one image-pixel column; both sides
+        // render through the same View, so that column is the same on both.
+        const qreal column = compareview::dividerToImageX(300.0, view);
+        QVERIFY(qAbs(column - 250.0) < 1e-6); // 100 + 300/2
+        // Round trip: the viewport x of that column is back to 300.
+        QVERIFY(qAbs(compareview::imageXToViewport(column, view) - 300.0) < 1e-6);
+        // 缩放后同坐标: at another zoom the same image column maps to a different
+        // viewport x, and the divider there still exposes that same column.
+        const compareview::View zoomed{4.0, QPointF(50, 25)};
+        const qreal vx = compareview::imageXToViewport(column, zoomed); // (250-50)*4
+        QVERIFY(qAbs(vx - 800.0) < 1e-6);
+        QVERIFY(qAbs(compareview::dividerToImageX(vx, zoomed) - column) < 1e-6);
+    }
 };
 QTEST_GUILESS_MAIN(CompareViewTest)
 #include "compareview_test.moc"

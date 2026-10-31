@@ -63,4 +63,16 @@ inline QRect targetRect(const QSize &image, const QSize &viewport, qreal zoom, Q
                   QSizeF(image.width() * zoom, image.height() * zoom)).toAlignedRect();
 }
 
+// P-314 sliding divider. The divider is a viewport x; both versions render
+// through the SAME View, so the image-pixel column it exposes is identical on
+// both sides — 拖动分界线检查的是两版同坐标区域, and that holds at any zoom
+// (缩放后同坐标, because the mapping depends only on the shared View).
+inline qreal dividerToImageX(qreal viewportX, const View &view) {
+    return view.origin.x() + viewportX / view.zoom;
+}
+// Inverse: the viewport x at which an image-pixel column appears.
+inline qreal imageXToViewport(qreal imageX, const View &view) {
+    return (imageX - view.origin.x()) * view.zoom;
+}
+
 } // namespace compareview
