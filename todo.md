@@ -63,7 +63,7 @@
 - [x] P-305 实现定时快照与暂停。验收：调度状态可见，暂停后不产生自动快照。证据：tests/library_test.cpp scheduleStateIsVisibleAndPauseStopsSnapshots（默认关、非法周期拒绝、到期触发一次、错过多周期只补一次、暂停记录原因且不再产生快照、继续后按新时点重启、关闭清空；ctest library_history 绿 18/18；commit 0c9a069）。UI 状态栏常显周期/下次时间/暂停原因。
 - [x] P-306 实现版本排除规则。验收：排除对象不进入后续快照。证据：tests/library_test.cpp exclusionRulesKeepAssetsOutOfSnapshots（无规则时全部入锚；扩展名规则排除 .psd 并记录原因；被排除≠已删除，仍可手动记录；glob 规则再排除 .txt；首条命中原因优先；删除规则后恢复入快照；非法规则拒绝；ctest library_history 绿 19/19；commit cb6939a）。排除仅作用于后续快照，不追溯删除/GC。
 - [x] P-307 实现关键版本固定。验收：固定版本不被保留策略清理。证据：tests/library_test.cpp pinnedVersionSurvivesRetentionCleanup（默认最新版非候选、其余为候选；固定后带原因且退出候选；全部固定则无可清理；取消固定恢复候选且历史不删；跨素材/未知版本固定拒绝；重开保持固定与原因；ctest library_history 绿 20/20；commit 807f735）。固定标记+原因持久化，取消固定不删历史；自动清理为 P-602 预演。
-- [ ] P-308 实现单素材时间轴。验收：顺序、时间、说明与当前/历史标识准确。 （BLOCKED复核 2026-10-30：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
+- [x] P-308 实现单素材时间轴。验收：顺序、时间、说明与当前/历史标识准确。证据：tests/library_test.cpp timelineOrderAndMarksAreAccurate（按确定序列 id 排序、同秒/时钟回拨不改序、内容推导当前标识且唯一、恢复记录标 restore、未记录修改置 unrecorded、损坏对象标 corrupt 不隐藏、固定显示；ctest library_history 绿 21/21；commit adc623b）。时间仅作展示；UI 时间轴改用 AssetTimeline（当前/恢复/固定/损坏标识 + 未记录修改提示）。
 - [ ] P-309 实现元数据历史。验收：可查看旧名称、标签、备注与来源记录。 （BLOCKED复核 2026-10-30：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
 - [ ] P-310 实现删除墓碑。验收：删除后历史查询仍可找到原素材。 （BLOCKED复核 2026-10-30：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
 - [ ] P-311 实现整库一致快照。验收：快照目录树与内容引用属于同一完整清单。 （BLOCKED复核 2026-10-30：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
