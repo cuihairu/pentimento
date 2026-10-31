@@ -1,5 +1,7 @@
 #include "library.h"
 #include "platform_immutable.h"
+#include <QCryptographicHash>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QTemporaryDir>
@@ -192,6 +194,99 @@ private slots:
         // Restore still works and the working file comes back with original content.
         library.restore(asset, v1.id);
         QCOMPARE(get(asset.path), QByteArray("v1 content"));
+    }
+    void largeContentStreamsThroughObjectStoreWithDedup() {
+        QTemporaryDir dir;
+        const QString source = dir.filePath("big.psd");
+        // 64 MiB + 17 bytes: crosses the 1 MiB streaming windows and leaves a
+        // partial tail chunk, so the large-file sample catches boundary bugs.
+        const qint64 total = 64LL * 1024 * 1024 + 17;
+        {
+            QFile file(source);
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            QByteArray block(1 << 20, Qt::Uninitialized);
+            for (qsizetype i = 0; i < block.size(); ++i) block[i] = char(i % 251);
+            for (qint64 i = 0; i < total / block.size(); ++i) {
+                block[0] = char(i % 251); // vary blocks so content is not uniform
+                QCOMPARE(file.write(block), block.size());
+            }
+            const QByteArray tail(total % block.size(), '\a');
+            QCOMPARE(file.write(tail), tail.size());
+            QCOMPARE(file.size(), total);
+        }
+        Library library(dir.filePath("library"));
+        const auto asset = library.importFile(source);
+        const auto revision = library.revisions(asset.id).first();
+        QCOMPARE(revision.size, total);
+        // Independent full-content reference hash: the streamed store must agree.
+        const auto bytes = get(source);
+        const QString expected = QString::fromLatin1(
+            QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
+        QCOMPARE(revision.hash, expected);
+        // One published object, exact size, immutable, and verified on read.
+        QCOMPARE(QDir(library.root() + "/objects").entryInfoList(QDir::Files).size(), 1);
+        QCOMPARE(QFileInfo(library.objectPath(expected)).size(), total);
+        QVERIFY(platform::isImmutable(library.objectPath(expected)));
+        QCOMPARE(library.readObject(expected), bytes);
+        // The temporary staging area is empty after publishing.
+        QCOMPARE(QDir(library.root() + "/objects/.tmp").entryInfoList(QDir::Files).size(), 0);
+        // Dedup across assets: same content shares one object, no second copy.
+        const auto twin = library.importFile(source);
+        QCOMPARE(library.revisions(twin.id).first().hash, expected);
+        QCOMPARE(QDir(library.root() + "/objects").entryInfoList(QDir::Files).size(), 1);
+        // Recording the unchanged 64 MiB+ working copy is a streaming no-op.
+        QVERIFY(!library.capture(asset));
+        QCOMPARE(library.revisions(asset.id).size(), 1);
+        // A same-size edit is caught by the streaming hash and recorded.
+        QFile touch(asset.path);
+        QVERIFY(touch.open(QIODevice::ReadWrite));
+        QVERIFY(touch.seek(total / 2));
+        const char flip = '\xfe';
+        QCOMPARE(touch.write(&flip, 1), 1);
+        touch.close();
+        QVERIFY(library.capture(asset, "touched"));
+        QCOMPARE(library.revisions(asset.id).size(), 2);
+        QVERIFY(library.revisions(asset.id).first().hash != expected);
+        QCOMPARE(QDir(library.root() + "/objects").entryInfoList(QDir::Files).size(), 2);
+    }
+    void corruptedExistingObjectBlocksDedup() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("a.dat");
+        put(source, "payload");
+        Library library(dir.filePath("library"));
+        const auto stored = library.storeObject(source);
+        QCOMPARE(stored.hash, QString::fromLatin1(
+            QCryptographicHash::hash(QByteArray("payload"), QCryptographicHash::Sha256).toHex()));
+        QCOMPARE(stored.size, 7);
+        // Corrupt the stored object (a successful tamperer clears the guard first).
+        QVERIFY(platform::makeMutable(library.objectPath(stored.hash)));
+        put(library.objectPath(stored.hash), "corrupt");
+        // Re-storing the same content must verify the existing object and refuse
+        // to bless the corrupted copy — never overwrite an existing object.
+        QVERIFY_EXCEPTION_THROWN(library.storeObject(source), std::runtime_error);
+        QCOMPARE(get(library.objectPath(stored.hash)), QByteArray("corrupt"));
+        // The temp staging area stays clean: no half-published leftovers.
+        QCOMPARE(QDir(library.root() + "/objects/.tmp").entryInfoList(QDir::Files).size(), 0);
+    }
+    void failedTempObjectWritePublishesNothing() {
+        if (::geteuid() == 0) QSKIP("root bypasses directory write permissions");
+        QTemporaryDir dir;
+        const auto source = dir.filePath("work.dat");
+        put(source, "unsaved work");
+        Library library(dir.filePath("library"));
+        // Simulate disk exhaustion where the temp object lives: the temporary
+        // write fails, the temp is cleaned up, and nothing is published.
+        const QString tempDir = library.root() + "/objects/.tmp";
+        QVERIFY(::chmod(tempDir.toLocal8Bit().constData(), 0555) == 0);
+        QVERIFY_EXCEPTION_THROWN(library.storeObject(source), std::runtime_error);
+        QVERIFY(::chmod(tempDir.toLocal8Bit().constData(), 0755) == 0);
+        QCOMPARE(QDir(library.root() + "/objects").entryInfoList(QDir::Files).size(), 0);
+        QCOMPARE(QDir(tempDir).entryInfoList(QDir::Files).size(), 0);
+        // The store recovers: a retry succeeds and reports the content hash.
+        const auto stored = library.storeObject(source);
+        QCOMPARE(stored.hash, QString::fromLatin1(
+            QCryptographicHash::hash(QByteArray("unsaved work"), QCryptographicHash::Sha256).toHex()));
+        QCOMPARE(stored.size, 12);
     }
 };
 QTEST_GUILESS_MAIN(HistoryTest)

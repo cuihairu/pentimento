@@ -16,9 +16,55 @@
 #include <stdexcept>
 
 namespace {
+constexpr qint64 kStreamChunk = 1LL << 20; // 1 MiB streaming window
 [[noreturn]] void fail(const QString &message) { throw std::runtime_error(message.toStdString()); }
 QString digest(const QByteArray &bytes) {
     return QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
+}
+// P-302 streaming SHA-256: hashes a file in fixed-size windows instead of
+// loading it all into memory, so arbitrarily large assets can be fingerprinted.
+QString streamDigest(const QString &path) {
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) fail(QStringLiteral("无法读取文件：%1").arg(path));
+    QCryptographicHash hasher(QCryptographicHash::Sha256);
+    QByteArray window(kStreamChunk, Qt::Uninitialized);
+    while (true) {
+        const qint64 read = file.read(window.data(), window.size());
+        if (read < 0) fail(file.errorString());
+        if (read == 0) break;
+        hasher.addData(window.constData(), read);
+    }
+    if (file.error() != QFileDevice::NoError) fail(file.errorString());
+    return QString::fromLatin1(hasher.result().toHex());
+}
+// Stream-copies `source` to `destination`. On any failure the partial
+// destination is removed and an error is thrown. Returns the bytes copied.
+qint64 streamCopy(const QString &source, const QString &destination) {
+    QFile in(source);
+    if (!in.open(QIODevice::ReadOnly)) fail(QStringLiteral("无法读取文件：%1").arg(source));
+    QFile out(destination);
+    if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        fail(QStringLiteral("无法写入临时对象：%1；%2").arg(destination, out.errorString()));
+    QByteArray window(kStreamChunk, Qt::Uninitialized);
+    qint64 total = 0;
+    while (true) {
+        const qint64 read = in.read(window.data(), window.size());
+        if (read < 0) { out.close(); QFile::remove(destination); fail(in.errorString()); }
+        if (read == 0) break;
+        if (out.write(window.constData(), read) != read) {
+            const QString error = out.errorString();
+            out.close(); QFile::remove(destination);
+            fail(QStringLiteral("无法写入临时对象：%1；%2").arg(destination, error));
+        }
+        total += read;
+    }
+    if (in.error() != QFileDevice::NoError || !out.flush()) {
+        const QString error = in.error() != QFileDevice::NoError ? in.errorString() : out.errorString();
+        out.close(); QFile::remove(destination);
+        fail(QStringLiteral("无法写入临时对象：%1；%2").arg(destination, error));
+    }
+    out.close();
+    return total;
 }
 QByteArray readFile(const QString &path) {
     QFile file(path);
@@ -41,7 +87,7 @@ void execute(QSqlQuery &query) {
 
 Library::Library(const QString &root)
     : root_(QDir(root).absolutePath()), connection_(QUuid::createUuid().toString()) {
-    if (!QDir().mkpath(root_ + "/objects") || !QDir().mkpath(root_ + "/working"))
+    if (!QDir().mkpath(root_ + "/objects") || !QDir().mkpath(root_ + "/objects/.tmp") || !QDir().mkpath(root_ + "/working"))
         fail(QStringLiteral("无法创建素材库目录"));
     lock_ = std::make_unique<QLockFile>(root_ + "/library.lock");
     if (!lock_->tryLock(0)) fail(QStringLiteral("素材库正在被另一个进程使用"));
@@ -108,26 +154,79 @@ QByteArray Library::readObject(const QString &hash) const {
     return bytes;
 }
 
-void Library::append(const Asset &asset, const QByteArray &bytes, const QString &note) {
-    const QString hash = digest(bytes);
+StoredObject Library::storeObject(const QString &source) {
+    const QString temp = newTempObjectPath();
+    qint64 size = 0;
+    try {
+        size = streamCopy(source, temp);
+    } catch (...) {
+        QFile::remove(temp); // 磁盘满/读失败：清理临时，不发布
+        throw;
+    }
+    return publishTempObject(temp, size);
+}
+
+QString Library::newTempObjectPath() const {
+    if (!QDir().mkpath(root_ + "/objects/.tmp")) fail(QStringLiteral("无法创建临时对象目录"));
+    return root_ + "/objects/.tmp/" + QUuid::createUuid().toString(QUuid::WithoutBraces);
+}
+
+StoredObject Library::storeBytes(const QByteArray &bytes) {
+    const QString temp = newTempObjectPath();
+    QFile file(temp);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate) || file.write(bytes) != bytes.size() || !file.flush()) {
+        const QString error = file.errorString();
+        file.close();
+        QFile::remove(temp); // 写失败：清理临时，不发布
+        fail(QStringLiteral("无法写入临时对象；%1").arg(error));
+    }
+    file.close();
+    return publishTempObject(temp, bytes.size());
+}
+
+StoredObject Library::publishTempObject(const QString &temp, qint64 size) {
+    // 完整校验：re-hash the finished temporary object before it is trusted.
+    const QString hash = streamDigest(temp);
     const QString path = objectPath(hash);
-    if (!QFileInfo::exists(path)) {
-        writeFile(path, bytes);
-    } else if (readObject(hash) != bytes) {
-        fail(QStringLiteral("历史对象内容不一致"));
+    if (QFileInfo::exists(path)) {
+        // Dedup: identical content is already stored. The existing object must
+        // actually match; a mismatch is corruption and must block the store
+        // (never overwrite an existing object with different content).
+        if (streamDigest(path) != hash) {
+            QFile::remove(temp);
+            fail(QStringLiteral("历史对象内容不一致"));
+        }
+        QFile::remove(temp);
+    } else if (!QFile::rename(temp, path)) {
+        QFile::remove(temp);
+        fail(QStringLiteral("无法发布历史对象"));
     }
     // The version store is append-only: once an object lands it must resist
     // later tampering by a same-user ransomware process. Best-effort + idempotent
     // (chattr +i where the OS allows it, read-only mode bits otherwise).
     platform::makeImmutable(path);
+    return {hash, size};
+}
+
+void Library::insertRevision(const Asset &asset, const QString &hash, qint64 size, const QString &note) {
     QSqlQuery q(db_);
     q.prepare("INSERT INTO revisions(asset_id,hash,created,note,size) VALUES(?,?,?,?,?)");
     q.addBindValue(asset.id);
     q.addBindValue(hash);
     q.addBindValue(QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
     q.addBindValue(note.isEmpty() ? QStringLiteral("手动快照") : note);
-    q.addBindValue(bytes.size());
+    q.addBindValue(size);
     execute(q);
+}
+
+void Library::append(const Asset &asset, const QByteArray &bytes, const QString &note) {
+    const auto stored = storeBytes(bytes);
+    insertRevision(asset, stored.hash, stored.size, note);
+}
+
+void Library::appendFromFile(const Asset &asset, const QString &source, const QString &note) {
+    const auto stored = storeObject(source);
+    insertRevision(asset, stored.hash, stored.size, note);
 }
 
 Asset Library::importFile(const QString &source) {
@@ -150,10 +249,11 @@ Asset Library::importFile(const QString &source) {
 }
 
 bool Library::capture(const Asset &asset, const QString &note) {
-    const auto bytes = readFile(asset.path);
+    // Streaming hash so recording a large working copy never holds it in memory.
+    const QString hash = streamDigest(asset.path);
     const auto history = revisions(asset.id);
-    if (!history.isEmpty() && history.first().hash == digest(bytes)) return false;
-    append(asset, bytes, note);
+    if (!history.isEmpty() && history.first().hash == hash) return false;
+    appendFromFile(asset, asset.path, note);
     return true;
 }
 
