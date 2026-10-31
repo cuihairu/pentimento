@@ -125,6 +125,14 @@ Library::Library(const QString &root)
              QStringLiteral("CREATE INDEX IF NOT EXISTS revisions_asset ON revisions(asset_id,id)"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS snapshots(id INTEGER PRIMARY KEY AUTOINCREMENT,created TEXT NOT NULL,note TEXT NOT NULL,boundary INTEGER NOT NULL DEFAULT 0)"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS snapshot_assets(snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),asset_id TEXT NOT NULL REFERENCES assets(id),revision_id INTEGER NOT NULL,hash TEXT NOT NULL DEFAULT '',path TEXT NOT NULL DEFAULT '',state TEXT NOT NULL DEFAULT 'present',name TEXT NOT NULL DEFAULT '',tags TEXT NOT NULL DEFAULT '',rating INTEGER,note TEXT NOT NULL DEFAULT '',source TEXT NOT NULL DEFAULT '',PRIMARY KEY(snapshot_id,asset_id))"),
+             // P-320 restore journal: the plan for a snapshot restore is persisted
+             // BEFORE any file is touched, and each item's completion is recorded,
+             // so an interrupted (crash) restore is surfaced on reopen and converged
+             // by re-running the not-yet-done items. SQLite transactions and file
+             // replacement are NOT one transaction — the journal plus reopen
+             // convergence is the honest model, not "exception rollback".
+             QStringLiteral("CREATE TABLE IF NOT EXISTS restore_journal(id INTEGER PRIMARY KEY AUTOINCREMENT,snapshot_id INTEGER NOT NULL,status TEXT NOT NULL DEFAULT 'in_progress',started TEXT NOT NULL DEFAULT '',finished TEXT NOT NULL DEFAULT '',note TEXT NOT NULL DEFAULT '')"),
+             QStringLiteral("CREATE TABLE IF NOT EXISTS restore_journal_items(journal_id INTEGER NOT NULL REFERENCES restore_journal(id),asset_id TEXT NOT NULL,target_revision INTEGER NOT NULL DEFAULT 0,state TEXT NOT NULL DEFAULT 'pending',reason TEXT NOT NULL DEFAULT '',PRIMARY KEY(journal_id,asset_id))"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS exclusion_rules(id INTEGER PRIMARY KEY AUTOINCREMENT,kind TEXT NOT NULL,pattern TEXT NOT NULL,reason TEXT NOT NULL,created TEXT NOT NULL)"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS snapshot_exclusions(snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),asset_id TEXT NOT NULL REFERENCES assets(id),reason TEXT NOT NULL,path TEXT NOT NULL DEFAULT '',PRIMARY KEY(snapshot_id,asset_id))"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS metadata_changes(id INTEGER PRIMARY KEY AUTOINCREMENT,asset_id TEXT NOT NULL REFERENCES assets(id),revision_id INTEGER NOT NULL,field TEXT NOT NULL,old_value TEXT NOT NULL,new_value TEXT NOT NULL,changed TEXT NOT NULL)")}) {
@@ -1226,7 +1234,154 @@ QVector<RestoreItemResult> Library::restoreConfirmed(qint64 snapshotId, const QS
     // simply re-run. Items NOT confirmed, and new assets that never were in the
     // snapshot, are left completely untouched — no default mirror overwrite, no
     // deletion of out-of-snapshot assets.
+    //
+    // P-320: the whole run now goes through the durable journal — the plan is
+    // persisted BEFORE any file is touched (phase 2), each item's completion is
+    // recorded as it happens (phase 3), and the journal closes with a status
+    // (phase 4), so a crash mid-run leaves a restart-convergent record rather
+    // than a hidden half-restored state. SQLite transactions and file
+    // replacement are not one transaction; this log + reopen convergence is the
+    // honest model — never "exception rollback equals power-loss safety".
     if (confirmedAssetIds.isEmpty()) return {};
+    const qint64 journalId = beginRestore(snapshotId, confirmedAssetIds);
+    QVector<RestoreItemResult> results;
+    try {
+        results = executeRestoreItems(journalId, confirmedAssetIds);
+        finishRestore(journalId, QStringLiteral("completed"));
+    } catch (...) {
+        // The run itself blew up (outside the per-item isolation): record the
+        // abort so the reopen surface shows an unfinished restore, not silence.
+        try { finishRestore(journalId, QStringLiteral("aborted")); } catch (...) {}
+        throw;
+    }
+    return results;
+}
+
+qint64 Library::beginRestore(qint64 snapshotId, const QStringList &confirmedAssetIds) {
+    // Phase 2 (写日志): persist the plan — each confirmed asset and the revision
+    // it targets — BEFORE any file is replaced, so an interruption at any later
+    // point leaves an honest record of what was intended and where it stopped.
+    const QString now = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+    if (!db_.transaction()) fail(db_.lastError().text());
+    qint64 journalId = 0;
+    try {
+        QSqlQuery j(db_);
+        j.prepare("INSERT INTO restore_journal(snapshot_id,status,started) VALUES(?,?,?)");
+        j.addBindValue(snapshotId);
+        j.addBindValue(QStringLiteral("in_progress"));
+        j.addBindValue(now);
+        execute(j);
+        journalId = j.lastInsertId().toLongLong();
+        QSqlQuery target(db_);
+        target.prepare("SELECT revision_id FROM snapshot_assets WHERE snapshot_id=? AND asset_id=?");
+        for (const auto &assetId : confirmedAssetIds) {
+            qint64 anchorId = 0;
+            target.addBindValue(snapshotId);
+            target.addBindValue(assetId);
+            execute(target);
+            if (target.next()) anchorId = target.value(0).toLongLong();
+            target.finish();
+            QSqlQuery item(db_);
+            item.prepare("INSERT OR REPLACE INTO restore_journal_items(journal_id,asset_id,target_revision,state) "
+                         "VALUES(?,?,?,'pending')");
+            item.addBindValue(journalId);
+            item.addBindValue(assetId);
+            item.addBindValue(anchorId);
+            execute(item);
+        }
+        if (!db_.commit()) fail(db_.lastError().text());
+    } catch (...) {
+        db_.rollback();
+        throw;
+    }
+    return journalId;
+}
+
+void Library::markRestoreItem(qint64 journalId, const QString &assetId, const QString &state,
+                              const QString &reason) {
+    // A null QString binds as SQL NULL; the reason column is NOT NULL, so an
+    // absent reason is stored as an explicit empty string.
+    const QString storedReason = reason.isNull() ? QStringLiteral("") : reason;
+    QSqlQuery q(db_);
+    q.prepare("UPDATE restore_journal_items SET state=?,reason=? WHERE journal_id=? AND asset_id=?");
+    q.addBindValue(state);
+    q.addBindValue(storedReason);
+    q.addBindValue(journalId);
+    q.addBindValue(assetId);
+    execute(q);
+}
+
+void Library::finishRestore(qint64 journalId, const QString &status) {
+    QSqlQuery q(db_);
+    q.prepare("UPDATE restore_journal SET status=?,finished=? WHERE id=?");
+    q.addBindValue(status);
+    q.addBindValue(QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
+    q.addBindValue(journalId);
+    execute(q);
+}
+
+RestoreJournal Library::openRestore() const {
+    // The reopen surface: the most recent journal that still has an unfinished
+    // item (pending or failed). It is queryable BEFORE any decision, so a crash
+    // mid-restore is surfaced, never hidden. Conflicts are permanent conditions
+    // and are not "unfinished" — they stay recorded per item.
+    QSqlQuery q(db_);
+    q.prepare("SELECT j.id FROM restore_journal j JOIN restore_journal_items i "
+              "ON i.journal_id=j.id WHERE i.state IN ('pending','failed') "
+              "GROUP BY j.id ORDER BY j.id DESC LIMIT 1");
+    execute(q);
+    RestoreJournal journal;
+    if (!q.next()) return journal;
+    const qint64 id = q.value(0).toLongLong();
+    QSqlQuery head(db_);
+    head.prepare("SELECT snapshot_id,status,started,finished FROM restore_journal WHERE id=?");
+    head.addBindValue(id);
+    execute(head);
+    if (!head.next()) return journal;
+    journal.id = id;
+    journal.snapshotId = head.value(0).toLongLong();
+    journal.status = head.value(1).toString();
+    journal.started = head.value(2).toString();
+    journal.finished = head.value(3).toString();
+    QSqlQuery items(db_);
+    items.prepare("SELECT asset_id,target_revision,state,reason FROM restore_journal_items "
+                  "WHERE journal_id=? ORDER BY rowid");
+    items.addBindValue(id);
+    execute(items);
+    while (items.next())
+        journal.items.push_back({items.value(0).toString(), items.value(1).toLongLong(),
+                                 items.value(2).toString(), items.value(3).toString()});
+    return journal;
+}
+
+QVector<RestoreItemResult> Library::resumeRestore(qint64 journalId) {
+    // Restart convergence (P-320 hard gate): re-run every item that has not
+    // completed (pending, or failed transiently — conflicts are permanent and
+    // are never retried), mark each outcome, close the journal, and return the
+    // re-run results. Completed items are not touched: each item is
+    // independently atomic, so converging the rest is always safe. This is the
+    // reopen path an interrupted restore takes — never a hidden half-restored
+    // state.
+    QSqlQuery q(db_);
+    q.prepare("SELECT asset_id FROM restore_journal_items WHERE journal_id=? AND state IN ('pending','failed') "
+              "ORDER BY rowid");
+    q.addBindValue(journalId);
+    execute(q);
+    QStringList pending;
+    while (q.next()) pending << q.value(0).toString();
+    if (pending.isEmpty()) return {};
+    QVector<RestoreItemResult> results;
+    try {
+        results = executeRestoreItems(journalId, pending);
+        finishRestore(journalId, QStringLiteral("completed"));
+    } catch (...) {
+        try { finishRestore(journalId, QStringLiteral("aborted")); } catch (...) {}
+        throw;
+    }
+    return results;
+}
+
+QVector<RestoreItemResult> Library::executeRestoreItems(qint64 journalId, const QStringList &assetIds) {
     QHash<QString, Asset> byId;
     for (const auto &asset : assets()) byId.insert(asset.id, asset);
     struct ManifestEntry {
@@ -1239,6 +1394,12 @@ QVector<RestoreItemResult> Library::restoreConfirmed(qint64 snapshotId, const QS
         QString note;
         QString source;
     };
+    QSqlQuery journal(db_);
+    journal.prepare("SELECT snapshot_id FROM restore_journal WHERE id=?");
+    journal.addBindValue(journalId);
+    execute(journal);
+    if (!journal.next()) fail(QStringLiteral("恢复日志不存在"));
+    const qint64 snapshotId = journal.value(0).toLongLong();
     QHash<QString, ManifestEntry> manifest;
     QSqlQuery q(db_);
     q.prepare("SELECT asset_id,revision_id,hash,state,name,tags,rating,note,source FROM snapshot_assets "
@@ -1259,25 +1420,27 @@ QVector<RestoreItemResult> Library::restoreConfirmed(qint64 snapshotId, const QS
         manifest.insert(assetId, e);
     }
     QVector<RestoreItemResult> results;
-    for (const auto &assetId : confirmedAssetIds) {
+    for (const auto &assetId : assetIds) {
         RestoreItemResult result;
         result.assetId = assetId;
+        const auto record = [&](const QString &state, const QString &reason) {
+            markRestoreItem(journalId, assetId, state, reason);
+            result.state = state;
+            result.reason = reason;
+            results.push_back(result);
+        };
         const auto mit = manifest.constFind(assetId);
         if (mit == manifest.constEnd()) {
             // Not in this snapshot's manifest (excluded, or a new asset that was
             // never snapshotted). The preview could not have confirmed it; the
             // item stays untouched and the reason is reported honestly.
-            result.state = QStringLiteral("conflict");
-            result.reason = QStringLiteral("不在该快照清单中（已排除或快照后新增）");
-            results.push_back(result);
+            record(QStringLiteral("conflict"), QStringLiteral("不在该快照清单中（已排除或快照后新增）"));
             continue;
         }
         const ManifestEntry &entry = mit.value();
         const auto ait = byId.constFind(assetId);
         if (ait == byId.constEnd()) {
-            result.state = QStringLiteral("conflict");
-            result.reason = QStringLiteral("素材已不存在于当前库");
-            results.push_back(result);
+            record(QStringLiteral("conflict"), QStringLiteral("素材已不存在于当前库"));
             continue;
         }
         const Asset &asset = ait.value();
@@ -1292,13 +1455,11 @@ QVector<RestoreItemResult> Library::restoreConfirmed(qint64 snapshotId, const QS
             break;
         }
         if (!anchorFound) {
-            result.state = QStringLiteral("conflict");
-            result.reason = QStringLiteral("锚点版本对象缺失或校验失败");
-            results.push_back(result);
+            record(QStringLiteral("conflict"), QStringLiteral("锚点版本对象缺失或校验失败"));
             continue;
         }
-        // Per-item completion: a failure here is recorded and the next confirmed
-        // item still runs (no all-or-nothing claim across the library).
+        // Per-item completion: a failure here is recorded (in the journal too)
+        // and the next confirmed item still runs — no all-or-nothing claim.
         try {
             const Metadata snapshotMeta{entry.name, tagsFromStore(entry.tags),
                                         entry.rating, entry.note, entry.source};
@@ -1323,16 +1484,11 @@ QVector<RestoreItemResult> Library::restoreConfirmed(qint64 snapshotId, const QS
                 updateMetadata(assetId, snapshotMeta, QStringLiteral("恢复快照元数据"));
                 changed = true;
             }
-            result.state = changed ? QStringLiteral("restored") : QStringLiteral("skipped");
-            results.push_back(result);
+            record(changed ? QStringLiteral("restored") : QStringLiteral("skipped"), QString());
         } catch (const std::exception &e) {
-            result.state = QStringLiteral("failed");
-            result.reason = QString::fromLocal8Bit(e.what());
-            results.push_back(result);
+            record(QStringLiteral("failed"), QString::fromLocal8Bit(e.what()));
         } catch (...) {
-            result.state = QStringLiteral("failed");
-            result.reason = QStringLiteral("恢复失败");
-            results.push_back(result);
+            record(QStringLiteral("failed"), QStringLiteral("恢复失败"));
         }
     }
     return results;

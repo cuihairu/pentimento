@@ -242,6 +242,31 @@ struct RestoreItemResult {
     QString reason;
 };
 
+// P-320 one journaled item of a snapshot restore. `targetRevision` is the
+// anchored revision the item restores to; `state` carries the item's outcome:
+// "pending" (not yet run), "restored"/"skipped" (completed), "failed"
+// (transient error — retried by resumeRestore), or "conflict" (permanent
+// condition, listed and never retried).
+struct RestoreJournalItem {
+    QString assetId;
+    qint64 targetRevision = 0;
+    QString state;
+    QString reason;
+};
+
+// P-320 the durable restore journal. `status` is "in_progress" (an interrupted
+// restore that can be resumed), "completed", or "aborted". The plan (per-item
+// target + state) is persisted before any file is replaced, so a crash leaves a
+// restart-convergent record instead of a hidden half-restored state.
+struct RestoreJournal {
+    qint64 id = 0;
+    qint64 snapshotId = 0;
+    QString status;
+    QString started;
+    QString finished;
+    QVector<RestoreJournalItem> items;
+};
+
 // One library, one writer. Original imports are never modified.
 class Library {
 public:
@@ -388,6 +413,20 @@ public:
     // never were in the snapshot — are left completely untouched; this never
     // defaults to a whole-library mirror overwrite.
     QVector<RestoreItemResult> restoreConfirmed(qint64 snapshotId, const QStringList &confirmedAssetIds);
+    // P-320 restore journal + restart convergence (hard gate). The plan for a
+    // snapshot restore is persisted BEFORE any file is replaced (beginRestore),
+    // each item's completion is recorded (markRestoreItem), and the journal is
+    // closed with a status (finishRestore). An interrupted restore is surfaced
+    // on reopen (openRestore) and converged by re-running the not-yet-done items
+    // (resumeRestore). SQLite transactions and file replacement are NOT one
+    // transaction, so this log+reopen model — not "exception rollback" — is the
+    // honest convergence guarantee; a half-restored state is never hidden.
+    qint64 beginRestore(qint64 snapshotId, const QStringList &confirmedAssetIds);
+    void markRestoreItem(qint64 journalId, const QString &assetId, const QString &state,
+                         const QString &reason = QString());
+    void finishRestore(qint64 journalId, const QString &status); // "completed"/"aborted"
+    RestoreJournal openRestore() const; // the newest journal with unfinished items (id 0 when none)
+    QVector<RestoreItemResult> resumeRestore(qint64 journalId);
     QString root() const { return root_; }
 private:
     QString root_;
@@ -400,6 +439,10 @@ private:
     QHash<QString, QPair<qint64, qint64>> stableRecorded_;
     // P-305 schedule state (runtime only; the schedule is not a resident service).
     ScheduleState schedule_;
+    // P-320 the per-item executor shared by restoreConfirmed and resumeRestore:
+    // runs each listed asset through the normal restore path, records the item's
+    // outcome in the journal, and never lets one item's failure stop the rest.
+    QVector<RestoreItemResult> executeRestoreItems(qint64 journalId, const QStringList &assetIds);
     qint64 append(const Asset &asset, const QByteArray &bytes, const QString &note);
     qint64 appendFromFile(const Asset &asset, const QString &source, const QString &note);
     qint64 insertRevision(const Asset &asset, const QString &hash, qint64 size, const QString &note);

@@ -1234,6 +1234,83 @@ private slots:
         QCOMPARE(library.revisions(a.id).size(), 1);
         QCOMPARE(get(library.objectPath(aHash)), QByteArray("v1"));
     }
+    void restoreJournalConvergesAfterInterruption() {
+        QTemporaryDir dir;
+        const auto aSrc = dir.filePath("a.png");
+        const auto bSrc = dir.filePath("b.png");
+        put(aSrc, "a-v1"); put(bSrc, "b-v1");
+        const auto root = dir.filePath("library");
+        QString aId, aPath, bId, bPath;
+        qint64 snap = 0;
+        qint64 jid = 0;
+        {
+            Library library(root);
+            const auto a = library.importFile(aSrc);
+            const auto b = library.importFile(bSrc);
+            aId = a.id; aPath = a.path; bId = b.id; bPath = b.path;
+            snap = library.snapshotAll(QStringLiteral("锚点"));
+            QVERIFY(snap > 0);
+            // Both assets diverge after the snapshot (recorded, so a restore
+            // needs no auto-save protection).
+            put(aPath, "a-v2");
+            put(bPath, "b-v2");
+            QVERIFY(library.capture(a, QStringLiteral("a2")));
+            QVERIFY(library.capture(b, QStringLiteral("b2")));
+            // Phase 2 (写日志): the plan is persisted BEFORE any file is
+            // touched, and it is visible mid-run as an unfinished restore.
+            jid = library.beginRestore(snap, {aId, bId});
+            QVERIFY(jid > 0);
+            const auto mid = library.openRestore();
+            QCOMPARE(mid.id, jid);
+            QCOMPARE(mid.status, QStringLiteral("in_progress"));
+            QCOMPARE(mid.items.size(), 2);
+            QCOMPARE(mid.items.at(0).state, QStringLiteral("pending"));
+            QCOMPARE(mid.items.at(1).state, QStringLiteral("pending"));
+            QVERIFY(mid.items.at(0).targetRevision > 0);
+            QVERIFY(mid.items.at(1).targetRevision > 0);
+            // Crash simulation: item a fully completes (content restored, its
+            // journal item marked), then the process dies before item b runs —
+            // the journal is never closed (no finishRestore, no abort).
+            qint64 aAnchor = 0;
+            for (const auto &e : library.snapshotManifest(snap))
+                if (e.assetId == aId) aAnchor = e.revisionId;
+            QVERIFY(aAnchor > 0);
+            library.restore(a, aAnchor);
+            library.markRestoreItem(jid, aId, QStringLiteral("restored"));
+            QCOMPARE(get(aPath), QByteArray("a-v1"));
+        } // the Library destructs here = the crash: state left as-is.
+        {
+            Library reopened(root);
+            // Reopen surfaces the unfinished restore — a half-restored state is
+            // never hidden, and the per-item states are honest.
+            const auto journal = reopened.openRestore();
+            QCOMPARE(journal.id, jid);
+            QCOMPARE(journal.status, QStringLiteral("in_progress"));
+            QCOMPARE(journal.items.size(), 2);
+            const auto stateOf = [&](const QString &id) -> QString {
+                for (const auto &item : journal.items) if (item.assetId == id) return item.state;
+                return {};
+            };
+            QCOMPARE(stateOf(aId), QStringLiteral("restored"));
+            QCOMPARE(stateOf(bId), QStringLiteral("pending"));
+            // Resume converges: only the not-yet-done item re-runs; the
+            // completed one is untouched.
+            const auto results = reopened.resumeRestore(journal.id);
+            QCOMPARE(results.size(), 1);
+            QCOMPARE(results.at(0).assetId, bId);
+            QCOMPARE(results.at(0).state, QStringLiteral("restored"));
+            QCOMPARE(get(aPath), QByteArray("a-v1"));
+            QCOMPARE(get(bPath), QByteArray("b-v1"));
+            // a was not re-run by the resume (its history is v1/a2/restore = 3);
+            // b converged to the same shape.
+            QCOMPARE(reopened.revisions(aId).size(), 3);
+            QCOMPARE(reopened.revisions(bId).size(), 3);
+            // Nothing is left to converge: the journal is closed.
+            QCOMPARE(reopened.openRestore().id, qint64(0));
+            // Resume on the closed journal is a clean no-op.
+            QVERIFY(reopened.resumeRestore(journal.id).isEmpty());
+        }
+    }
 };
 QTEST_GUILESS_MAIN(HistoryTest)
 #include "library_test.moc"
