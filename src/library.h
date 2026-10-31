@@ -326,7 +326,16 @@ public:
     // The asset's availability state (Present / Missing / Tombstone).
     AssetState assetState(const QString &assetId) const;
     void restore(const Asset &asset, qint64 revisionId);
-    void exportRevision(const QString &assetId, qint64 revisionId, const QString &destination) const;
+    // P-319 history copy export: verifies the revision belongs to the asset and
+    // re-verifies the object hash (via the object read), then writes the copy
+    // OUTSIDE the library. The destination is checked by its REAL path: a
+    // symlink is rejected outright, a path resolving into the library (objects/
+    // working files) is rejected, an existing file is only replaced when
+    // `overwrite` is true (explicit confirmation), and a disk-full condition
+    // fails before any byte is written. The export never touches library-
+    // internal data and never modifies the index or any repository.
+    void exportRevision(const QString &assetId, qint64 revisionId, const QString &destination,
+                        bool overwrite = false) const;
     QString objectPath(const QString &hash) const;
     QByteArray readObject(const QString &hash) const;
     // P-302 content object store. Streams the file at `source` through a

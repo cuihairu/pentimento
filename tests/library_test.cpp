@@ -1176,6 +1176,64 @@ private slots:
         // The healthy item still ran to completion — failures are per-item.
         QCOMPARE(get(c.path), QByteArray("c-v1"));
     }
+    void exportVerifiesOwnershipAndRejectsUnsafeTargets() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("a.png");
+        put(source, "v1");
+        Library library(dir.filePath("library"));
+        const auto a = library.importFile(source);
+        const auto b = library.importFile(source); // second asset, same content
+        const qint64 revA = library.revisions(a.id).first().id;
+        const QString aHash = library.revisions(a.id).first().hash;
+        const auto out = dir.filePath("out.png");
+        // A clean export lands the verified bytes outside the library.
+        library.exportRevision(a.id, revA, out);
+        QCOMPARE(get(out), QByteArray("v1"));
+        // Ownership: another asset's revision id cannot be exported through this
+        // asset (and a nonexistent id is equally refused).
+        QVERIFY_EXCEPTION_THROWN(library.exportRevision(b.id, revA, dir.filePath("x.png")), std::runtime_error);
+        QVERIFY_EXCEPTION_THROWN(library.exportRevision(a.id, 999999, dir.filePath("x.png")), std::runtime_error);
+        QVERIFY(!QFile::exists(dir.filePath("x.png")));
+        // Corrupt object: export refuses unverified bytes (hash re-checked) and
+        // writes nothing.
+        QVERIFY(platform::makeMutable(library.objectPath(aHash)));
+        put(library.objectPath(aHash), "corrupt");
+        QVERIFY_EXCEPTION_THROWN(library.exportRevision(a.id, revA, dir.filePath("y.png")), std::runtime_error);
+        QVERIFY(!QFile::exists(dir.filePath("y.png")));
+        put(library.objectPath(aHash), "v1"); // object valid again for the rest
+        // An existing destination is never silently clobbered: without explicit
+        // confirmation the export refuses; with it, the file is replaced.
+        put(out, "precious");
+        QVERIFY_EXCEPTION_THROWN(library.exportRevision(a.id, revA, out), std::runtime_error);
+        QCOMPARE(get(out), QByteArray("precious"));
+        library.exportRevision(a.id, revA, out, true);
+        QCOMPARE(get(out), QByteArray("v1"));
+        // A symlink destination is rejected outright — even one that lives
+        // outside the library, and even with overwrite confirmed.
+        const auto linkOut = dir.filePath("link-out.png");
+        QVERIFY(QFile::link(out, linkOut));
+        QVERIFY_EXCEPTION_THROWN(library.exportRevision(a.id, revA, linkOut, true), std::runtime_error);
+        // The dangerous case: a symlink pointing INTO the library's object store.
+        const auto linkIn = dir.filePath("link-in.png");
+        QVERIFY(QFile::link(library.objectPath(aHash), linkIn));
+        QVERIFY_EXCEPTION_THROWN(library.exportRevision(a.id, revA, linkIn, true), std::runtime_error);
+        // The library's own working file as target: the real path is inside the
+        // library, refused (never overwrite library-internal data).
+        QVERIFY_EXCEPTION_THROWN(library.exportRevision(a.id, revA, a.path, true), std::runtime_error);
+        QCOMPARE(get(a.path), QByteArray("v1"));
+        // A destination directory that does not exist is refused up front.
+        QVERIFY_EXCEPTION_THROWN(library.exportRevision(a.id, revA, dir.filePath("no/such/dir/x.png")), std::runtime_error);
+        // Disk-full pre-check: /proc reports 0 bytes available, so the export
+        // fails BEFORE any byte is written (clear failure, no partial output).
+        if (QFileInfo::exists(QStringLiteral("/proc"))) {
+            const auto procOut = QStringLiteral("/proc/pentimento-export-check");
+            QVERIFY_EXCEPTION_THROWN(library.exportRevision(a.id, revA, procOut, true), std::runtime_error);
+            QVERIFY(!QFile::exists(procOut));
+        }
+        // The export changed nothing inside the library: index and objects intact.
+        QCOMPARE(library.revisions(a.id).size(), 1);
+        QCOMPARE(get(library.objectPath(aHash)), QByteArray("v1"));
+    }
 };
 QTEST_GUILESS_MAIN(HistoryTest)
 #include "library_test.moc"

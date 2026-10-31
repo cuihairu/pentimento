@@ -341,7 +341,9 @@ void MainWindow::exportFile() {
     if (row < 0) return;
     const auto path = QFileDialog::getSaveFileName(this, QStringLiteral("导出历史版本"), selected().name);
     if (path.isEmpty()) return;
-    try { library_.exportRevision(selected().id, revisions_.at(row).revisionId, path); }
+    // overwrite=true: the save dialog's own "replace existing file" prompt is
+    // the explicit confirmation P-319 requires before an existing file is replaced.
+    try { library_.exportRevision(selected().id, revisions_.at(row).revisionId, path, true); }
     catch (const std::exception &error) { report(error); }
 }
 

@@ -844,17 +844,49 @@ void Library::restore(const Asset &asset, qint64 revisionId) {
     fail(QStringLiteral("找不到属于当前素材的历史版本"));
 }
 
-void Library::exportRevision(const QString &assetId, qint64 revisionId, const QString &destination) const {
-    // Never export into the managed library (would permit overwriting immutable objects).
-    const QString dest = QFileInfo(destination).absoluteFilePath();
-    const QString parent = QFileInfo(dest).dir().canonicalPath();
+void Library::exportRevision(const QString &assetId, qint64 revisionId, const QString &destination,
+                             bool overwrite) const {
+    // P-319: verify version ownership + object hash, then write the copy OUTSIDE
+    // the library. The destination's REAL path is checked (a symlink target or a
+    // path resolving into the library's objects/working tree is rejected), an
+    // existing file is only replaced on explicit overwrite confirmation, and a
+    // disk-full condition fails before any byte is written. The export never
+    // touches library-internal data and never modifies the index (const) — it
+    // is a pure copy out, no backend change, no repository commit.
+    const QFileInfo destInfo(destination);
+    const QString dest = destInfo.absoluteFilePath();
     const QString canonicalRoot = QDir(root_).canonicalPath();
-    if (parent.isEmpty() || parent == canonicalRoot || parent.startsWith(canonicalRoot + '/'))
-        fail(QStringLiteral("请导出到素材库之外的现有目录"));
-    for (const auto &revision : revisions(assetId)) {
-        if (revision.id == revisionId) { writeFile(dest, readObject(revision.hash)); return; }
+    // A symlink destination is rejected outright: resolving and writing through
+    // it is never safe, and QSaveFile would replace the link with a plain file.
+    if (destInfo.isSymLink())
+        fail(QStringLiteral("目标为符号链接，已拒绝导出"));
+    // Existing destination: resolve its real path so a path that merely points
+    // into the library (or into an object/working file via a mount) is caught.
+    if (destInfo.exists()) {
+        const QString real = destInfo.canonicalFilePath();
+        if (real == canonicalRoot || real.startsWith(canonicalRoot + '/'))
+            fail(QStringLiteral("目标真实路径指向库内（对象或工作文件），已拒绝导出"));
+        // Overwrite needs explicit confirmation; a silent clobber is never allowed.
+        if (!overwrite)
+            fail(QStringLiteral("目标已存在；未经确认不覆盖"));
+    } else {
+        // Not yet created: judge by its parent, which must exist outside the library.
+        const QString parent = destInfo.dir().canonicalPath();
+        if (parent.isEmpty())
+            fail(QStringLiteral("导出目录不存在"));
+        if (parent == canonicalRoot || parent.startsWith(canonicalRoot + '/'))
+            fail(QStringLiteral("请导出到素材库之外的现有目录"));
     }
-    fail(QStringLiteral("找不到历史版本"));
+    for (const auto &revision : revisions(assetId)) {
+        if (revision.id != revisionId) continue;
+        // Disk-full check before any byte is written (a clear failure, no partial
+        // output); readObject re-verifies the object hash before returning bytes.
+        if (QStorageInfo(destInfo.dir().canonicalPath()).bytesAvailable() < revision.size)
+            fail(QStringLiteral("目标磁盘空间不足"));
+        writeFile(dest, readObject(revision.hash));
+        return;
+    }
+    fail(QStringLiteral("找不到属于当前素材的历史版本"));
 }
 
 int Library::hardenObjects() {
