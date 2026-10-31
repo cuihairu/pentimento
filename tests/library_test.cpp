@@ -2,12 +2,16 @@
 #include "backend.h"
 #include "platform_immutable.h"
 #include "storage.h"
+#include "taskqueue.h"
 #include <QFile>
 #include <QFileInfo>
 #include <QTemporaryDir>
 #include <QtTest>
 #include <sys/stat.h>
 #include <unistd.h>
+
+#include <algorithm>
+#include <atomic>
 
 namespace {
 void put(const QString &path, const QByteArray &data) {
@@ -228,6 +232,51 @@ private slots:
             QVERIFY(::chmod(dir.filePath("ro.png").toLocal8Bit().constData(), 0444) == 0);
             QCOMPARE(statSource(dir.filePath("ro.png")).state, SourceState::ReadOnly);
         }
+    }
+    void taskQueueRunsOffThreadAndReportsProgressCancelAndResults() {
+        TaskQueue queue;
+        // A long task: reports progress, accumulates per-item results, and stops
+        // cooperatively when cancelled at a safe item boundary.
+        std::atomic_int started = 0;
+        std::atomic_int finished = 0;
+        QObject::connect(&queue, &TaskQueue::taskFinished, [&](qint64, bool ok, const QString &err) {
+            Q_UNUSED(ok); Q_UNUSED(err);
+            ++finished;
+        });
+        const qint64 id = queue.submit("import", [&](TaskQueue::Progress &p) {
+            ++started;
+            for (int i = 0; i < 100; ++i) {
+                if (p.cancelled()) break;
+                p.setPercent(i);
+                p.setCurrent(QString("file %1").arg(i));
+                p.addItem({QString("file %1").arg(i), true, QString()});
+                QThread::msleep(1);
+            }
+            p.setPercent(100);
+        });
+        QTRY_VERIFY_WITH_TIMEOUT(started.load() > 0, 5000);
+        queue.cancel(id);
+        QTRY_COMPARE_WITH_TIMEOUT(finished.load(), 1, 5000);
+        // The queue reports a single result with the items accumulated before cancel.
+        const auto statuses = queue.statuses();
+        QCOMPARE(statuses.size(), 1);
+        QCOMPARE(statuses.first().id, id);
+        QVERIFY(statuses.first().done);
+        QVERIFY(statuses.first().items.size() < 100);
+        // A second (non-cancelled) task completes fully with a clean result list.
+        std::atomic_int done = 0;
+        const qint64 id2 = queue.submit("hash", [&](TaskQueue::Progress &p) {
+            for (int i = 0; i < 3; ++i) { p.addItem({QString("h%1").arg(i), true, QString()}); }
+            p.setPercent(100);
+            ++done;
+        }, /*write=*/false);
+        QTRY_COMPARE_WITH_TIMEOUT(done.load(), 1, 5000);
+        const auto all = queue.statuses();
+        QCOMPARE(all.size(), 2);
+        const auto s2 = std::find_if(all.begin(), all.end(), [&](const TaskQueue::Status &s) { return s.id == id2; });
+        QVERIFY(s2 != all.end());
+        QCOMPARE(s2->items.size(), 3);
+        QVERIFY(s2->done);
     }
     void historyObjectsSurviveWorkspaceEncryption() {
         QTemporaryDir dir;
