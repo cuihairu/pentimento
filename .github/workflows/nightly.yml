@@ -1,0 +1,48 @@
+name: nightly
+
+on:
+  schedule:
+    - cron: '30 20 * * *'  # UTC 20:30 = CST 04:30
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt6
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qt6-base-dev qt6-base-dev-tools ninja-build
+
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          BIN=$(find build -maxdepth 3 -type f -name pentimento -executable | head -1)
+          test -n "$BIN"
+          cp "$BIN" dist/pentimento-linux-x64
+          cp README.md LICENSE dist/
+          cd dist && sha256sum * > SHA256SUMS
+
+      - name: Upload to rolling nightly release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete nightly --yes --cleanup-tag 2>/dev/null || true
+          gh release create nightly dist/* \
+            --prerelease --latest=false \
+            --title "rolling nightly" \
+            --notes "滚动夜间构建（自最新 main）。未经充分验证，供试用；版本号以正式发布为准。"
