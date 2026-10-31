@@ -75,6 +75,12 @@ Library::~Library() {
     QSqlDatabase::removeDatabase(connection_);
 }
 
+BackendInfo Library::backendInfo() const {
+    // V1 only ever hosts the self-built backend. Git/SVN (read-only) and Time
+    // Machine are deferred to V1.x; they must not be assumed writable here.
+    return selfBackendInfo();
+}
+
 QVector<Asset> Library::assets() const {
     QSqlQuery q(db_);
     q.prepare("SELECT id,name,path FROM assets ORDER BY name,id");

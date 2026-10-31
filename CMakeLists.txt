@@ -47,7 +47,7 @@ endfunction()
 #   GIT_REPOSITORY https://github.com/richgel999/miniz.git
 #   GIT_TAG        3.0.2)
 
-add_library(pentimento_core src/library.cpp src/library.h src/platform_immutable.cpp src/platform_immutable.h src/sentinel.cpp src/sentinel.h)
+add_library(pentimento_core src/backend.cpp src/backend.h src/library.cpp src/library.h src/platform_immutable.cpp src/platform_immutable.h src/sentinel.cpp src/sentinel.h)
 target_include_directories(pentimento_core PUBLIC src)
 target_link_libraries(pentimento_core PUBLIC Qt6::Core Qt6::Sql)
 add_executable(pentimento WIN32 MACOSX_BUNDLE src/main.cpp src/mainwindow.cpp src/mainwindow.h)

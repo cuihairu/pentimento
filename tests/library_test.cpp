@@ -1,4 +1,5 @@
 #include "library.h"
+#include "backend.h"
 #include "platform_immutable.h"
 #include <QFile>
 #include <QFileInfo>
@@ -169,6 +170,29 @@ private slots:
         Library reopened(dir.filePath("library"));
         const auto revision = reopened.revisions(reopened.assets().first().id).first();
         QVERIFY(platform::isImmutable(reopened.objectPath(revision.hash)));
+    }
+    void backendCapabilityQueryDistinguishesIndependentCapabilities() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("asset.dat");
+        put(source, "content");
+        Library library(dir.filePath("library"));
+        const BackendInfo info = library.backendInfo();
+        // V1 self-built backend: writable, with history / tree snapshot / restore
+        // / lock; no remote objects to fetch.
+        QCOMPARE(info.name, QString("self"));
+        QVERIFY(info.writable);
+        QVERIFY(info.supports(Capability::History));
+        QVERIFY(info.supports(Capability::SnapshotTree));
+        QVERIFY(info.supports(Capability::Restore));
+        QVERIFY(info.supports(Capability::Lock));
+        QVERIFY(!info.supports(Capability::RemoteFetch));
+        // The unsupported capability carries a stable, human-readable reason.
+        const QString reason = info.unsupportedReason(Capability::RemoteFetch);
+        QVERIFY(!reason.isEmpty());
+        QCOMPARE(reason, info.unsupportedReason(Capability::RemoteFetch));
+        // Supported capabilities must not report an "unsupported" reason for the
+        // self backend; the UI hides an action only when the capability is absent.
+        QVERIFY(info.unsupportedReason(Capability::History).contains(QStringLiteral("此后端")));
     }
     void historyObjectsSurviveWorkspaceEncryption() {
         QTemporaryDir dir;

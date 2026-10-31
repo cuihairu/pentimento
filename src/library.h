@@ -1,5 +1,7 @@
 #pragma once
 
+#include "backend.h"
+
 #include <QSqlDatabase>
 #include <QString>
 #include <QVector>
@@ -56,6 +58,8 @@ public:
     // later history is preserved rather than destroyed. Returns how many assets
     // actually changed. Assets already at the anchor content are skipped.
     int rollbackAll(qint64 snapshotId);
+    // Version-backend capability report (P-103): the self-built backend.
+    BackendInfo backendInfo() const;
     QString root() const { return root_; }
 private:
     QString root_;
