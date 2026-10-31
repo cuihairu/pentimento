@@ -1079,6 +1079,103 @@ private slots:
         QCOMPARE(get(asset.path), QByteArray("B"));
         QCOMPARE(library.revisions(asset.id).size(), 4);
     }
+    void restoreConfirmedRestoresOnlyConfirmedItems() {
+        QTemporaryDir dir;
+        const auto aSrc = dir.filePath("a.png");
+        const auto bSrc = dir.filePath("b.png");
+        const auto cSrc = dir.filePath("c.png");
+        const auto dSrc = dir.filePath("d.png");
+        put(aSrc, "a-v1"); put(bSrc, "b-v1"); put(cSrc, "c-v1"); put(dSrc, "d-v1");
+        Library library(dir.filePath("library"));
+        const auto a = library.importFile(aSrc);
+        const auto b = library.importFile(bSrc);
+        const auto c = library.importFile(cSrc);
+        // Distinct metadata per asset, recorded BEFORE the snapshot.
+        QVERIFY(library.updateMetadata(a.id, Metadata{QStringLiteral("甲"), {"tag-a"}, 4,
+                                                      QStringLiteral("note-a"), QStringLiteral("src-a")}).revisionId > 0);
+        QVERIFY(library.updateMetadata(b.id, Metadata{QStringLiteral("乙"), {"tag-b"}, 3,
+                                                      QStringLiteral("note-b"), QStringLiteral("src-b")}).revisionId > 0);
+        QVERIFY(library.updateMetadata(c.id, Metadata{QStringLiteral("丙"), {"tag-c"}, 2,
+                                                      QStringLiteral("note-c"), QStringLiteral("src-c")}).revisionId > 0);
+        const qint64 snap = library.snapshotAll(QStringLiteral("确认恢复锚点"));
+        QVERIFY(snap > 0);
+        // Diverge after the snapshot: a's content AND metadata change; b's
+        // metadata only; c stays identical to the snapshot.
+        put(a.path, "a-v2");
+        QVERIFY(library.capture(a, QStringLiteral("a 第二版")));
+        QVERIFY(library.updateMetadata(a.id, Metadata{QStringLiteral("甲改"), {"tag-a2"}, 5,
+                                                      QStringLiteral("note-a2"), QStringLiteral("src-a2")}).revisionId > 0);
+        QVERIFY(library.updateMetadata(b.id, Metadata{QStringLiteral("乙改"), {"tag-b2"}, 1,
+                                                      QStringLiteral("note-b2"), QStringLiteral("src-b2")}).revisionId > 0);
+        // A brand-new asset imported after the snapshot: never in the manifest.
+        const auto d = library.importFile(dSrc);
+        // Confirm ONLY a and b (what the preview showed and the user confirmed).
+        const auto results = library.restoreConfirmed(snap, {a.id, b.id});
+        QCOMPARE(results.size(), 2);
+        QCOMPARE(results.at(0).assetId, a.id);
+        QCOMPARE(results.at(0).state, QStringLiteral("restored"));
+        QCOMPARE(results.at(1).assetId, b.id);
+        QCOMPARE(results.at(1).state, QStringLiteral("restored"));
+        // a: content reverted to the snapshot AND metadata reverted.
+        QCOMPARE(get(a.path), QByteArray("a-v1"));
+        const auto aMeta = library.metadata(a.id);
+        QCOMPARE(aMeta.name, QStringLiteral("甲"));
+        QCOMPARE(aMeta.rating, 4);
+        QCOMPARE(aMeta.tags, QStringList{"tag-a"});
+        // b: content already at the snapshot (no rewrite); metadata reverted.
+        QCOMPARE(get(b.path), QByteArray("b-v1"));
+        QCOMPARE(library.metadata(b.id).name, QStringLiteral("乙"));
+        // c was NOT confirmed: completely untouched (content and metadata).
+        QCOMPARE(get(c.path), QByteArray("c-v1"));
+        QCOMPARE(library.metadata(c.id).name, QStringLiteral("丙"));
+        // d (imported after the snapshot) was never confirmed nor snapshotted:
+        // still present — no default whole-library mirror overwrite or deletion.
+        QVERIFY(QFile::exists(d.path));
+        QCOMPARE(get(d.path), QByteArray("d-v1"));
+        // The restore appended new versions rather than erasing history.
+        QVERIFY(library.revisions(a.id).size() > 2);
+        // Restart convergence: re-running a finished restore yields all
+        // "skipped" (no duplicate churn, no data change).
+        const auto again = library.restoreConfirmed(snap, {a.id, b.id});
+        QCOMPARE(again.size(), 2);
+        QCOMPARE(again.at(0).state, QStringLiteral("skipped"));
+        QCOMPARE(again.at(1).state, QStringLiteral("skipped"));
+        // A confirmed id not in the manifest (the new asset d) is reported as a
+        // conflict and d is left untouched — never a silent mirror overwrite.
+        const auto outside = library.restoreConfirmed(snap, {d.id});
+        QCOMPARE(outside.size(), 1);
+        QCOMPARE(outside.at(0).state, QStringLiteral("conflict"));
+        QVERIFY(outside.at(0).reason.contains(QStringLiteral("不在该快照清单中")));
+        QCOMPARE(get(d.path), QByteArray("d-v1"));
+    }
+    void restoreConfirmedIsolatesItemFailures() {
+        QTemporaryDir dir;
+        const auto bSrc = dir.filePath("b.png");
+        const auto cSrc = dir.filePath("c.png");
+        put(bSrc, "b-v1"); put(cSrc, "c-v1");
+        Library library(dir.filePath("library"));
+        const auto b = library.importFile(bSrc);
+        const auto c = library.importFile(cSrc);
+        const qint64 snap = library.snapshotAll(QStringLiteral("锚点"));
+        QVERIFY(snap > 0);
+        // Corrupt b's recovery anchor object (content no longer matches hash).
+        const QString bAnchor = library.revisions(b.id).first().hash;
+        QVERIFY(platform::makeMutable(library.objectPath(bAnchor)));
+        put(library.objectPath(bAnchor), "corrupt");
+        // Confirming BOTH b (corrupt anchor -> conflict) and c (already matching
+        // -> skipped): the conflict does not stop the other item from running.
+        const auto results = library.restoreConfirmed(snap, {b.id, c.id});
+        QCOMPARE(results.size(), 2);
+        QCOMPARE(results.at(0).assetId, b.id);
+        QCOMPARE(results.at(0).state, QStringLiteral("conflict"));
+        QVERIFY(results.at(0).reason.contains(QStringLiteral("锚点版本对象缺失或校验失败")));
+        QCOMPARE(results.at(1).assetId, c.id);
+        QCOMPARE(results.at(1).state, QStringLiteral("skipped"));
+        // The conflicted item's working copy is untouched (no unverified bytes).
+        QCOMPARE(get(b.path), QByteArray("b-v1"));
+        // The healthy item still ran to completion — failures are per-item.
+        QCOMPARE(get(c.path), QByteArray("c-v1"));
+    }
 };
 QTEST_GUILESS_MAIN(HistoryTest)
 #include "library_test.moc"

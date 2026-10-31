@@ -225,6 +225,23 @@ struct RestoreGuard {
     qint64 freeBytes = 0;    // free space on the target volume at check time
 };
 
+// P-318 one confirmed item's outcome of a snapshot restore. `state` is:
+//   "restored" — the item's content and/or metadata actually changed;
+//   "skipped"  — the item already matches the snapshot (content AND metadata),
+//                nothing was written (re-running a finished restore converges
+//                here, so an interrupted run can simply be re-run);
+//   "conflict" — the item cannot be carried out (target unwritable / anchor
+//                missing or corrupt / asset no longer in the library); listed
+//                with a reason, never silently resolved;
+//   "failed"   — the item's restore threw (disk error etc.); the reason says
+//                what, and LATER ITEMS STILL RUN (per-item completion, not a
+//                whole-library all-or-nothing claim).
+struct RestoreItemResult {
+    QString assetId;
+    QString state;
+    QString reason;
+};
+
 // One library, one writer. Original imports are never modified.
 class Library {
 public:
@@ -352,6 +369,16 @@ public:
     // proceed on anything but ready/unrecorded/missing; on protection failure it
     // stops (no unprotected overwrite). Never claims editor-unsaved content.
     RestoreGuard checkRestore(const Asset &asset, qint64 revisionId) const;
+    // P-318 restore ONLY the snapshot items the user confirmed in the P-315
+    // preview. Each confirmed asset's content AND metadata (as recorded in the
+    // snapshot manifest) are restored through the normal "restore forms a new
+    // version" path, so later history is preserved; each item reports its own
+    // outcome (restored / skipped / conflict / failed) and a failure does not
+    // stop the rest (per-item completion, restartable: re-running a finished
+    // restore yields all "skipped"). Assets NOT confirmed — and new assets that
+    // never were in the snapshot — are left completely untouched; this never
+    // defaults to a whole-library mirror overwrite.
+    QVector<RestoreItemResult> restoreConfirmed(qint64 snapshotId, const QStringList &confirmedAssetIds);
     QString root() const { return root_; }
 private:
     QString root_;

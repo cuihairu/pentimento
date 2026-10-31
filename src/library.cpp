@@ -124,7 +124,7 @@ Library::Library(const QString &root)
              QStringLiteral("CREATE TABLE IF NOT EXISTS revisions(id INTEGER PRIMARY KEY AUTOINCREMENT,asset_id TEXT NOT NULL REFERENCES assets(id),hash TEXT NOT NULL,created TEXT NOT NULL,note TEXT NOT NULL,size INTEGER NOT NULL,pinned INTEGER NOT NULL DEFAULT 0,pin_reason TEXT NOT NULL DEFAULT '',tombstone INTEGER NOT NULL DEFAULT 0)"),
              QStringLiteral("CREATE INDEX IF NOT EXISTS revisions_asset ON revisions(asset_id,id)"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS snapshots(id INTEGER PRIMARY KEY AUTOINCREMENT,created TEXT NOT NULL,note TEXT NOT NULL,boundary INTEGER NOT NULL DEFAULT 0)"),
-             QStringLiteral("CREATE TABLE IF NOT EXISTS snapshot_assets(snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),asset_id TEXT NOT NULL REFERENCES assets(id),revision_id INTEGER NOT NULL,hash TEXT NOT NULL DEFAULT '',path TEXT NOT NULL DEFAULT '',state TEXT NOT NULL DEFAULT 'present',PRIMARY KEY(snapshot_id,asset_id))"),
+             QStringLiteral("CREATE TABLE IF NOT EXISTS snapshot_assets(snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),asset_id TEXT NOT NULL REFERENCES assets(id),revision_id INTEGER NOT NULL,hash TEXT NOT NULL DEFAULT '',path TEXT NOT NULL DEFAULT '',state TEXT NOT NULL DEFAULT 'present',name TEXT NOT NULL DEFAULT '',tags TEXT NOT NULL DEFAULT '',rating INTEGER,note TEXT NOT NULL DEFAULT '',source TEXT NOT NULL DEFAULT '',PRIMARY KEY(snapshot_id,asset_id))"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS exclusion_rules(id INTEGER PRIMARY KEY AUTOINCREMENT,kind TEXT NOT NULL,pattern TEXT NOT NULL,reason TEXT NOT NULL,created TEXT NOT NULL)"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS snapshot_exclusions(snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),asset_id TEXT NOT NULL REFERENCES assets(id),reason TEXT NOT NULL,path TEXT NOT NULL DEFAULT '',PRIMARY KEY(snapshot_id,asset_id))"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS metadata_changes(id INTEGER PRIMARY KEY AUTOINCREMENT,asset_id TEXT NOT NULL REFERENCES assets(id),revision_id INTEGER NOT NULL,field TEXT NOT NULL,old_value TEXT NOT NULL,new_value TEXT NOT NULL,changed TEXT NOT NULL)")}) {
@@ -206,7 +206,15 @@ Library::Library(const QString &root)
         const QList<QPair<QString, QString>> entryAdditions = {
             {QStringLiteral("hash"), QStringLiteral("TEXT NOT NULL DEFAULT ''")},
             {QStringLiteral("path"), QStringLiteral("TEXT NOT NULL DEFAULT ''")},
-            {QStringLiteral("state"), QStringLiteral("TEXT NOT NULL DEFAULT 'present'")}};
+            {QStringLiteral("state"), QStringLiteral("TEXT NOT NULL DEFAULT 'present'")},
+            // P-318: the snapshot also records each asset's metadata as of the
+            // snapshot, so a confirmed-item restore reverts resources AND the
+            // metadata shown in the preview (no fabrication of values).
+            {QStringLiteral("name"), QStringLiteral("TEXT NOT NULL DEFAULT ''")},
+            {QStringLiteral("tags"), QStringLiteral("TEXT NOT NULL DEFAULT ''")},
+            {QStringLiteral("rating"), QStringLiteral("INTEGER")},
+            {QStringLiteral("note"), QStringLiteral("TEXT NOT NULL DEFAULT ''")},
+            {QStringLiteral("source"), QStringLiteral("TEXT NOT NULL DEFAULT ''")}};
         for (const auto &column : entryAdditions) {
             if (entryNames.contains(column.first)) continue;
             QSqlQuery alter(db_);
@@ -875,7 +883,10 @@ qint64 Library::snapshotAll(const QString &note) {
         // sequence point (boundary = max revision id) is fixed; every anchor is
         // a completed revision at or before it, so the listing is a single
         // consistent whole-library set — never a per-file scan.
-        struct Entry { QString assetId; QString path; QString hash; QString state; qint64 revisionId; };
+        // P-318: the manifest entry also carries the asset's metadata as of the
+        // snapshot, so a confirmed-item restore reverts resources and metadata.
+        struct Entry { QString assetId; QString path; QString hash; QString state; qint64 revisionId;
+                       QString name; QString tags; int rating; QString note; QString source; };
         QVector<Entry> entries;
         const auto all = assets();
         for (const auto &asset : all) {
@@ -930,7 +941,9 @@ qint64 Library::snapshotAll(const QString &note) {
             if (asset.deleted) state = QStringLiteral("tombstone");
             else if (currentHash.isEmpty()) state = QStringLiteral("missing");
             entries.push_back({asset.id, QDir(root_).relativeFilePath(asset.path),
-                               anchorHash, state, anchor});
+                               anchorHash, state, anchor,
+                               asset.name, tagsToStore(asset.tags), asset.rating,
+                               asset.note, asset.source});
         }
         // The sequence point: everything above is a completed revision <= this.
         qint64 boundary = 0;
@@ -949,13 +962,18 @@ qint64 Library::snapshotAll(const QString &note) {
             if (entry.revisionId > boundary)
                 fail(QStringLiteral("快照不完整：锚点超出序列点，未发布"));
             QSqlQuery ins(db_);
-            ins.prepare("INSERT OR REPLACE INTO snapshot_assets(snapshot_id,asset_id,revision_id,hash,path,state) VALUES(?,?,?,?,?,?)");
+            ins.prepare("INSERT OR REPLACE INTO snapshot_assets(snapshot_id,asset_id,revision_id,hash,path,state,name,tags,rating,note,source) VALUES(?,?,?,?,?,?,?,?,?,?,?)");
             ins.addBindValue(snapshotId);
             ins.addBindValue(entry.assetId);
             ins.addBindValue(entry.revisionId);
             ins.addBindValue(entry.hash);
             ins.addBindValue(entry.path);
             ins.addBindValue(entry.state);
+            ins.addBindValue(entry.name);
+            ins.addBindValue(entry.tags);
+            ins.addBindValue(entry.rating);
+            ins.addBindValue(entry.note);
+            ins.addBindValue(entry.source);
             execute(ins);
         }
         if (!db_.commit()) fail(db_.lastError().text());
@@ -1162,4 +1180,128 @@ RestoreGuard Library::checkRestore(const Asset &asset, qint64 revisionId) const 
     if (guard.freeBytes < guard.protectBytes + guard.restoreBytes)
         guard.state = QStringLiteral("nospace");
     return guard;
+}
+
+QVector<RestoreItemResult> Library::restoreConfirmed(qint64 snapshotId, const QStringList &confirmedAssetIds) {
+    // P-318: restore ONLY the snapshot items the user confirmed in the P-315
+    // preview. Each confirmed asset's content (and metadata, as recorded in the
+    // manifest at snapshot time) is restored through the normal "restore forms a
+    // new version" path, so later history stays intact. Each item reports its
+    // own outcome (restored / skipped / conflict / failed); a failure records
+    // itself and the NEXT confirmed item still runs (per-item completion — this
+    // never claims a whole-library atomic operation it cannot provide). A
+    // finished item re-run converges to "skipped", so an interrupted run is
+    // simply re-run. Items NOT confirmed, and new assets that never were in the
+    // snapshot, are left completely untouched — no default mirror overwrite, no
+    // deletion of out-of-snapshot assets.
+    if (confirmedAssetIds.isEmpty()) return {};
+    QHash<QString, Asset> byId;
+    for (const auto &asset : assets()) byId.insert(asset.id, asset);
+    struct ManifestEntry {
+        qint64 anchorId = 0;
+        QString hash;
+        QString state;
+        QString name;
+        QString tags;
+        int rating = -1;
+        QString note;
+        QString source;
+    };
+    QHash<QString, ManifestEntry> manifest;
+    QSqlQuery q(db_);
+    q.prepare("SELECT asset_id,revision_id,hash,state,name,tags,rating,note,source FROM snapshot_assets "
+              "WHERE snapshot_id=? ORDER BY path, asset_id");
+    q.addBindValue(snapshotId);
+    execute(q);
+    while (q.next()) {
+        const QString assetId = q.value(0).toString();
+        ManifestEntry e;
+        e.anchorId = q.value(1).toLongLong();
+        e.hash = q.value(2).toString();
+        e.state = q.value(3).toString();
+        e.name = q.value(4).toString();
+        e.tags = q.value(5).toString();
+        e.rating = q.value(6).isNull() ? -1 : q.value(6).toInt();
+        e.note = q.value(7).toString();
+        e.source = q.value(8).toString();
+        manifest.insert(assetId, e);
+    }
+    QVector<RestoreItemResult> results;
+    for (const auto &assetId : confirmedAssetIds) {
+        RestoreItemResult result;
+        result.assetId = assetId;
+        const auto mit = manifest.constFind(assetId);
+        if (mit == manifest.constEnd()) {
+            // Not in this snapshot's manifest (excluded, or a new asset that was
+            // never snapshotted). The preview could not have confirmed it; the
+            // item stays untouched and the reason is reported honestly.
+            result.state = QStringLiteral("conflict");
+            result.reason = QStringLiteral("不在该快照清单中（已排除或快照后新增）");
+            results.push_back(result);
+            continue;
+        }
+        const ManifestEntry &entry = mit.value();
+        const auto ait = byId.constFind(assetId);
+        if (ait == byId.constEnd()) {
+            result.state = QStringLiteral("conflict");
+            result.reason = QStringLiteral("素材已不存在于当前库");
+            results.push_back(result);
+            continue;
+        }
+        const Asset &asset = ait.value();
+        // The recovery anchor must exist and verify, else the item is a conflict
+        // (listed, never silently resolved).
+        bool anchorFound = false;
+        for (const auto &rev : revisions(assetId)) {
+            if (rev.id != entry.anchorId) continue;
+            try { anchorFound = rev.hash == entry.hash
+                    && streamDigest(objectPath(entry.hash)) == entry.hash; }
+            catch (...) { anchorFound = false; }
+            break;
+        }
+        if (!anchorFound) {
+            result.state = QStringLiteral("conflict");
+            result.reason = QStringLiteral("锚点版本对象缺失或校验失败");
+            results.push_back(result);
+            continue;
+        }
+        // Per-item completion: a failure here is recorded and the next confirmed
+        // item still runs (no all-or-nothing claim across the library).
+        try {
+            const Metadata snapshotMeta{entry.name, tagsFromStore(entry.tags),
+                                        entry.rating, entry.note, entry.source};
+            const auto currentMeta = metadata(assetId);
+            const bool contentMatches = QFileInfo::exists(asset.path)
+                && readFile(asset.path) == readObject(entry.hash);
+            bool changed = false;
+            // Content: restore through the normal path (protects unrecorded
+            // content first, appends a new version, rewrites the working copy).
+            if (!contentMatches) {
+                restore(asset, entry.anchorId);
+                changed = true;
+            }
+            // Metadata: revert to the snapshot's recorded values (a no-op when
+            // already identical — updateMetadata then reports unchanged).
+            const bool metaSame = snapshotMeta.name == currentMeta.name
+                && snapshotMeta.tags == currentMeta.tags
+                && snapshotMeta.rating == currentMeta.rating
+                && snapshotMeta.note == currentMeta.note
+                && snapshotMeta.source == currentMeta.source;
+            if (!metaSame) {
+                updateMetadata(assetId, snapshotMeta, QStringLiteral("恢复快照元数据"));
+                changed = true;
+            }
+            result.state = changed ? QStringLiteral("restored") : QStringLiteral("skipped");
+            results.push_back(result);
+        } catch (const std::exception &e) {
+            result.state = QStringLiteral("failed");
+            result.reason = QString::fromLocal8Bit(e.what());
+            results.push_back(result);
+        } catch (...) {
+            result.state = QStringLiteral("failed");
+            result.reason = QStringLiteral("恢复失败");
+            results.push_back(result);
+        }
+    }
+    return results;
 }
