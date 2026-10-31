@@ -171,6 +171,17 @@ struct SnapshotEntry {
     qint64 revisionId = 0;
 };
 
+// P-312 one exclusion recorded against a snapshot: the asset was left out of
+// that snapshot by a P-306 exclusion rule, and `reason` says why. `path` is the
+// root-relative path as of the snapshot (never the current index). Read-only;
+// shown by the time-point browsing surface so an excluded asset is not silently
+// absent from the directory (it existed then but was never a rollback anchor).
+struct SnapshotExclusion {
+    QString assetId;
+    QString reason;
+    QString path;
+};
+
 // One library, one writer. Original imports are never modified.
 class Library {
 public:
@@ -275,6 +286,11 @@ public:
     // with its root-relative path and anchored content hash, all from one
     // sequence point. Read-only; drives time-point browsing (P-312).
     QVector<SnapshotEntry> snapshotManifest(qint64 snapshotId) const;
+    // P-312 the assets a snapshot excluded (rule-matched, never a rollback
+    // anchor), with the recorded reason each. Read-only, never mixed with the
+    // current index; the browsing surface shows these so the directory tree of
+    // that time point is complete and honest.
+    QVector<SnapshotExclusion> snapshotExclusions(qint64 snapshotId) const;
     // Anti-ransomware: one-click whole-tree rollback to a snapshot anchor. Each
     // asset is restored via the normal "restore forms a new version" path, so
     // later history is preserved rather than destroyed. Returns how many assets

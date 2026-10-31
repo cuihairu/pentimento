@@ -1,8 +1,12 @@
 #include "mainwindow.h"
 #include "sentinel.h"
+#include <QComboBox>
 #include <QDateTime>
 #include <QDesktopServices>
+#include <QDialog>
 #include <QFileDialog>
+#include <QHeaderView>
+#include <QTableWidget>
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QImageReader>
@@ -43,6 +47,9 @@ MainWindow::MainWindow(Library &library) : library_(library) {
     });
     // Anti-ransomware Layer 3: one-click rollback to a pre-infection anchor.
     toolbar->addAction(QStringLiteral("恢复到锚点"), this, &MainWindow::rollbackToSnapshot);
+    // P-312 read-only time-point browsing: switch snapshots and see the
+    // directory tree and deletion/exclusion state as of that moment.
+    toolbar->addAction(QStringLiteral("浏览时间点"), this, &MainWindow::browseTimePoint);
     // P-305 scheduled snapshots: default OFF, 15/30/60-minute periods, pausable.
     auto *scheduleMenu = new QMenu(this);
     const QList<int> periods = {15, 30, 60};
@@ -365,6 +372,73 @@ void MainWindow::rollbackToSnapshot() {
         if (sentinel_) sentinel_->resetBaseline();
         statusBar()->showMessage(QStringLiteral("已恢复到锚点 #%1（%2 个素材回滚）").arg(snapshotId).arg(restored));
     } catch (const std::exception &error) { report(error); }
+}
+
+void MainWindow::browseTimePoint() {
+    const auto snapshots = library_.snapshots();
+    if (snapshots.isEmpty()) {
+        statusBar()->showMessage(QStringLiteral("还没有快照可浏览"));
+        return;
+    }
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("浏览时间点（只读）"));
+    dialog.resize(760, 520);
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *title = new QLabel(QStringLiteral("时间点目录浏览"));
+    title->setStyleSheet("font-size:16px;font-weight:600;");
+    auto *note = new QLabel(QStringLiteral("只读：切换时间点不写回。目录树按该快照的完整清单显示，不混用当前索引；"
+                                          "删除/缺失/排除状态以当时为准。"));
+    note->setWordWrap(true);
+    auto *combo = new QComboBox;
+    for (const auto &snapshot : snapshots)
+        combo->addItem(QStringLiteral("#%1 %2 · %3 个素材 · %4")
+                           .arg(snapshot.id).arg(snapshot.created)
+                           .arg(snapshot.assets).arg(snapshot.note), snapshot.id);
+    auto *table = new QTableWidget(0, 4);
+    table->setHorizontalHeaderLabels({QStringLiteral("路径"), QStringLiteral("名称"),
+                                      QStringLiteral("状态"), QStringLiteral("备注")});
+    table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+    table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    layout->addWidget(title);
+    layout->addWidget(note);
+    layout->addWidget(combo);
+    layout->addWidget(table, 1);
+    const auto fill = [&](int index) {
+        if (index < 0 || index >= snapshots.size()) return;
+        const qint64 snapshotId = snapshots.at(index).id;
+        const auto manifest = library_.snapshotManifest(snapshotId);
+        const auto exclusions = library_.snapshotExclusions(snapshotId);
+        table->setRowCount(manifest.size() + exclusions.size());
+        int row = 0;
+        for (const auto &entry : manifest) {
+            QString state;
+            if (entry.state == QStringLiteral("present")) state = QStringLiteral("存在");
+            else if (entry.state == QStringLiteral("tombstone")) state = QStringLiteral("已删除（墓碑保留历史）");
+            else if (entry.state == QStringLiteral("missing")) state = QStringLiteral("缺失（工作副本不在）");
+            else state = entry.state;
+            table->setItem(row, 0, new QTableWidgetItem(entry.path));
+            table->setItem(row, 1, new QTableWidgetItem(QFileInfo(entry.path).fileName()));
+            table->setItem(row, 2, new QTableWidgetItem(state));
+            table->setItem(row, 3, new QTableWidgetItem(QStringLiteral("版本 #%1").arg(entry.revisionId)));
+            table->item(row, 0)->setToolTip(entry.assetId);
+            ++row;
+        }
+        for (const auto &exclusion : exclusions) {
+            table->setItem(row, 0, new QTableWidgetItem(exclusion.path));
+            table->setItem(row, 1, new QTableWidgetItem(QFileInfo(exclusion.path).fileName()));
+            table->setItem(row, 2, new QTableWidgetItem(QStringLiteral("已排除")));
+            table->setItem(row, 3, new QTableWidgetItem(exclusion.reason));
+            table->item(row, 0)->setToolTip(exclusion.assetId);
+            ++row;
+        }
+    };
+    connect(combo, QOverload<int>::of(&QComboBox::currentIndexChanged), &dialog, fill);
+    fill(combo->currentIndex());
+    dialog.exec();
 }
 
 void MainWindow::resizeEvent(QResizeEvent *event) { QMainWindow::resizeEvent(event); showRevision(); }

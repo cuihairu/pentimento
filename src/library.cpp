@@ -124,7 +124,7 @@ Library::Library(const QString &root)
              QStringLiteral("CREATE TABLE IF NOT EXISTS snapshots(id INTEGER PRIMARY KEY AUTOINCREMENT,created TEXT NOT NULL,note TEXT NOT NULL,boundary INTEGER NOT NULL DEFAULT 0)"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS snapshot_assets(snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),asset_id TEXT NOT NULL REFERENCES assets(id),revision_id INTEGER NOT NULL,hash TEXT NOT NULL DEFAULT '',path TEXT NOT NULL DEFAULT '',state TEXT NOT NULL DEFAULT 'present',PRIMARY KEY(snapshot_id,asset_id))"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS exclusion_rules(id INTEGER PRIMARY KEY AUTOINCREMENT,kind TEXT NOT NULL,pattern TEXT NOT NULL,reason TEXT NOT NULL,created TEXT NOT NULL)"),
-             QStringLiteral("CREATE TABLE IF NOT EXISTS snapshot_exclusions(snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),asset_id TEXT NOT NULL REFERENCES assets(id),reason TEXT NOT NULL,PRIMARY KEY(snapshot_id,asset_id))"),
+             QStringLiteral("CREATE TABLE IF NOT EXISTS snapshot_exclusions(snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),asset_id TEXT NOT NULL REFERENCES assets(id),reason TEXT NOT NULL,path TEXT NOT NULL DEFAULT '',PRIMARY KEY(snapshot_id,asset_id))"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS metadata_changes(id INTEGER PRIMARY KEY AUTOINCREMENT,asset_id TEXT NOT NULL REFERENCES assets(id),revision_id INTEGER NOT NULL,field TEXT NOT NULL,old_value TEXT NOT NULL,new_value TEXT NOT NULL,changed TEXT NOT NULL)")}) {
         if (!q.exec(sql)) fail(q.lastError().text());
     }
@@ -210,6 +210,20 @@ Library::Library(const QString &root)
             QSqlQuery alter(db_);
             if (!alter.exec(QStringLiteral("ALTER TABLE snapshot_assets ADD COLUMN %1 %2")
                                 .arg(column.first, column.second)))
+                fail(alter.lastError().text());
+        }
+        // P-312: record the excluded asset's path as of the snapshot, so the
+        // time-point browsing surface shows a faithful 当时路径 (never the
+        // current index) for excluded assets too.
+        QSqlQuery exColumns(db_);
+        exColumns.prepare("PRAGMA table_info(snapshot_exclusions)");
+        execute(exColumns);
+        QStringList exNames;
+        while (exColumns.next()) exNames << exColumns.value(1).toString();
+        if (!exNames.contains(QStringLiteral("path"))) {
+            QSqlQuery alter(db_);
+            if (!alter.exec(QStringLiteral(
+                    "ALTER TABLE snapshot_exclusions ADD COLUMN path TEXT NOT NULL DEFAULT ''")))
                 fail(alter.lastError().text());
         }
     }
@@ -868,10 +882,11 @@ qint64 Library::snapshotAll(const QString &note) {
             QString excludeReason;
             if (isExcluded(asset, &excludeReason)) {
                 QSqlQuery ex(db_);
-                ex.prepare("INSERT OR REPLACE INTO snapshot_exclusions(snapshot_id,asset_id,reason) VALUES(?,?,?)");
+                ex.prepare("INSERT OR REPLACE INTO snapshot_exclusions(snapshot_id,asset_id,reason,path) VALUES(?,?,?,?)");
                 ex.addBindValue(snapshotId);
                 ex.addBindValue(asset.id);
                 ex.addBindValue(excludeReason);
+                ex.addBindValue(QDir(root_).relativeFilePath(asset.path));
                 execute(ex);
                 continue;
             }
@@ -961,6 +976,16 @@ QVector<SnapshotEntry> Library::snapshotManifest(qint64 snapshotId) const {
                           q.value(2).toString(), q.value(3).toString(),
                           q.value(4).toLongLong()});
     }
+    return result;
+}
+
+QVector<SnapshotExclusion> Library::snapshotExclusions(qint64 snapshotId) const {
+    QSqlQuery q(db_);
+    q.prepare("SELECT asset_id,reason,path FROM snapshot_exclusions WHERE snapshot_id=? ORDER BY path,asset_id");
+    q.addBindValue(snapshotId);
+    execute(q);
+    QVector<SnapshotExclusion> result;
+    while (q.next()) result.push_back({q.value(0).toString(), q.value(1).toString(), q.value(2).toString()});
     return result;
 }
 

@@ -892,6 +892,68 @@ private slots:
         QVERIFY(!byAsset(manifest, b.id));
         QCOMPARE(library.snapshotExclusionReason(snap4, b.id), QStringLiteral("不追踪 PSD"));
     }
+    void timePointBrowseShowsSnapshotStateNotCurrentIndex() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("a.png");
+        put(source, "v1");
+        Library library(dir.filePath("library"));
+        const auto a = library.importFile(source);
+        const QString relative = QDir(library.root()).relativeFilePath(a.path);
+        QVERIFY(relative.endsWith(QStringLiteral("/a.png")));
+        // Snapshot 1: the asset is present at its then-path.
+        const qint64 snap1 = library.snapshotAll(QStringLiteral("时间点一"));
+        QVERIFY(snap1 > 0);
+        const auto s1 = library.snapshots().first();
+        auto manifest = library.snapshotManifest(snap1);
+        QCOMPARE(manifest.size(), 1);
+        QCOMPARE(manifest.first().assetId, a.id);
+        QCOMPARE(manifest.first().path, relative); // root-relative as of t1
+        QCOMPARE(manifest.first().state, QStringLiteral("present"));
+        QVERIFY(manifest.first().revisionId <= s1.boundary);
+        // Later: the asset is edited, then in-app deleted (tombstone) after the
+        // snapshot. The current index now shows a deleted, file-less asset.
+        put(a.path, "v2");
+        QVERIFY(library.capture(a, QStringLiteral("第二版")));
+        const qint64 tombstoneId = library.revisions(a.id).first().id;
+        library.deleteAsset(a, QStringLiteral("清理"));
+        QCOMPARE(library.assetState(a.id), AssetState::Tombstone);
+        QVERIFY(!QFile::exists(a.path));
+        // The browse surface must read the SNAPSHOT manifest, never the current
+        // index: at t1 the asset was present at its then-path, even though today
+        // it is tombstoned and its working copy is gone. This is the "历史目录 vs
+        // 当前目录差异正确" rule — mixing the current index would wrongly show
+        // today's path/state for the historical time point.
+        manifest = library.snapshotManifest(snap1);
+        QCOMPARE(manifest.size(), 1);
+        QCOMPARE(manifest.first().state, QStringLiteral("present"));
+        QCOMPARE(manifest.first().path, relative);
+        // The tombstone happened after the sequence point, so it is NOT part of
+        // snapshot 1's manifest (boundary is a fixed point, not re-read later).
+        QVERIFY(tombstoneId > s1.boundary);
+        // A later snapshot DOES reflect the tombstone state at its own time.
+        const qint64 snap2 = library.snapshotAll(QStringLiteral("时间点二"));
+        QVERIFY(snap2 > 0);
+        manifest = library.snapshotManifest(snap2);
+        QCOMPARE(manifest.size(), 1);
+        QCOMPARE(manifest.first().state, QStringLiteral("tombstone"));
+        QCOMPARE(manifest.first().path, relative);
+        // Exclusion: an excluded asset is listed separately (with its then-path
+        // and reason) and stays out of the manifest, so the browse surface can
+        // show 排除状态 honestly rather than silently omitting it.
+        library.addExclusionRule(QStringLiteral("extension"), QStringLiteral(".png"),
+                                 QStringLiteral("不追踪 PNG"));
+        const qint64 snap3 = library.snapshotAll(QStringLiteral("时间点三"));
+        QVERIFY(snap3 > 0);
+        const auto exclusions = library.snapshotExclusions(snap3);
+        QCOMPARE(exclusions.size(), 1);
+        QCOMPARE(exclusions.first().assetId, a.id);
+        QCOMPARE(exclusions.first().path, relative);
+        QCOMPARE(exclusions.first().reason, QStringLiteral("不追踪 PNG"));
+        manifest = library.snapshotManifest(snap3);
+        QCOMPARE(manifest.size(), 0); // excluded asset is not a manifest anchor
+        // A snapshot that excluded nothing returns an empty exclusion listing.
+        QCOMPARE(library.snapshotExclusions(snap1).size(), 0);
+    }
 };
 QTEST_GUILESS_MAIN(HistoryTest)
 #include "library_test.moc"

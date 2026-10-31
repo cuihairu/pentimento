@@ -44,6 +44,10 @@ private:
     void exportFile();
     void scanChanges();
     void rollbackToSnapshot();
+    // P-312 read-only time-point directory browsing: pick a snapshot, see the
+    // directory tree and deletion/exclusion state as of that moment, from the
+    // snapshot manifest only (never the current index).
+    void browseTimePoint();
     void updateScheduleStatus();
     void report(const std::exception &error);
 protected:
