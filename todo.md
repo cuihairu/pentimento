@@ -152,3 +152,22 @@
 - [x] 审核发现：`rollbackAll` 中 `anchorBytes.isEmpty()` 作为「锚点修订消失」的防御判断不可靠——若锚点修订的内容本身为**空字节**（合法对象），`readObject` 返回空 `QByteArray`，会被误判为「锚点消失」而 `continue` 跳过该素材，导致静默不回滚（src/library.cpp:277-280）。空内容虽罕见（导入空文件即产生空对象），但 append 对空内容同样可生成对象，故该防御以内容非空判存在存在逻辑缺口（src/library.cpp:280）。**已核实属实并修复**：`rollbackAll`（src/library.cpp:289-297）改以**修订 id 存在性**（`anchorFound`）而非内容非空判断锚点是否消失——空内容锚点照常回滚；回归测试 `rollbackHandlesEmptyAnchorObject`（tests/security_test.cpp，导入空文件→快照→改内容→回滚→断言恢复空内容）；ctest `security_sentinel` 通过（1/1 绿）；测试函数 9/9 绿。提交 687bc87
 - [x] 审核发现：`MainWindow::rollbackToSnapshot` 的标签构造 `QStringLiteral("#%1 %2 · %3 个素材").arg(snapshot.id).arg(snapshot.created, snapshot.assets)` 中，`QString::arg(const QString&, int)` 二参重载把 `snapshot.created` 当作字符串、`snapshot.assets` 当作 `fieldWidth` 而非替换 `%3`，导致 `%3` 未被替换而原样显示为字面量；已实测确认（输出 `#5 2026-10-31T00:00:00 · %3 个素材`），快照列表标签缺失素材数量（src/mainwindow.cpp:286）。**已核实属实并修复**：`src/mainwindow.cpp:286-289` 改为三个独立 `.arg()` 链式调用（`.arg(snapshot.id).arg(snapshot.created).arg(snapshot.assets)`），`%3` 正确替换为素材数量；构建通过、ctest 全绿（library_history + security_sentinel 2/2）。提交 687bc87
 - [x] 审核发现：`snapshotAll` 的锚点若为「空内容对象」时，`append` 内 `readObject(hash) != bytes` 分支中 `readObject` 返回空 `QByteArray` 与 `bytes`（空）相等，不触发失败，但 `hardenObjects`/`makeImmutable` 对空对象照常执行；此路径本身无错，但与 `rollbackAll` 的 `anchorBytes.isEmpty()` 误判共同构成「空对象无法回滚」的组合缺陷（见上条），建议以显式存在性/修订 id 校验替代内容非空判断（src/library.cpp:280）。**已核实属实并修复**：`rollbackAll`（src/library.cpp:289-297）以修订 id 存在性替代内容非空判断，空内容锚点可正常回滚；组合缺陷消除——`snapshotAll` 空对象锚点 + `rollbackAll` 修订 id 校验均正常；回归测试 `rollbackHandlesEmptyAnchorObject`（tests/security_test.cpp）；ctest `security_sentinel` 通过（1/1 绿）；测试函数 9/9 绿。提交 687bc87
+
+## 对标缺口复核
+
+> 对标调研（[docs/zh/design/90-benchmark.md](docs/zh/design/90-benchmark.md) 第四节）共 14 条功能缺口逐条复核：属于 V1 范围（含待拍板决策点 D-xx）的登记为 open 项，随对应决策点拍板；不属于的勾掉并注明排除理由。逐家详表/矩阵/来源见 90-benchmark.md。
+
+- [ ] B-001 智能文件夹/保存的搜索。Eagle/Billfish/Bridge 智能集合均有；pentimento 仅一次性组合筛选。**属 V1**：对应 R03 组合筛选，D-03 待拍板时一并确认「另存为智能文件夹」（做法 9）。
+- [ ] B-002 颜色搜索/按颜色筛选。Eagle/Billfish 有；pentimento 已提取色彩元数据。**属 V1**：对应 R03/R05 检索，补颜色检索入口（做法 11）。
+- [ ] B-003 导入去重的用户流程。Eagle/Billfish 有；pentimento 有内容寻址去重但未暴露。**属 V1**：对应 R02 导入，补「导入时重复询问 + 事后重复扫描合并」（做法 10）。
+- [x] B-004 浏览器扩展/剪贴板采集。**排除**：R02 范围为文件复制导入，浏览器扩展/剪贴板需扩展基础设施，超出 V1 范围；列为 V2 候选——但「参考图收集」场景是 Eagle 体验核心，★ 建议进入需求评审（90-benchmark.md 第六节做法）。
+- [x] B-005 图上标注/批注。**排除**：R05 范围为标签/评分/备注/来源授权文字记录，图上批注超出；列为 V2 候选。
+- [ ] B-006 库内文件夹组织与改名/移动后历史归属保持。Eagle/Billfish 天然支持；pentimento P-216/D-05 明确未决。**属 V1 决策**：D-05 待拍板（库内移动/改名后路径语义与历史归属）。
+- [x] B-007 格式广度。**排除**：R04 已定 V1 首批格式（PNG/JPEG/WebP/TGA/BMP），PSD 合成预览仅评估（D-04）；更大广度（字体免安装预览/音频悬停/视频逐帧等）为 V2 候选。
+- [ ] B-008 Windows 上基于 USN change journal 的变更监听。Windows 文件历史/Anchorpoint Auto Fetch 有事件驱动先例。**属 V1 决策**：对应 D-06（启发式 vs 文件监视器），USN journal 为现成答案（做法 7）。
+- [x] B-009 版本历史的缩略图条。**排除**：V1 时间轴已实现缩略图维度（带缩略图的版本时间轴，见 README「当前可用」）；Alienbrain 式「整条缩略图浏览历史」强化为 V2 候选，非 V1 缺口。
+- [x] B-010 编辑器/DCC 集成。**排除（定位外）**：单机素材库无此定位（调研原文即标注「定位外缺口，不建议 V1 做」）；R01–R19 无 DCC 集成需求。
+- [x] B-011 协作锁。**排除（定位外）**：单机定位外（矩阵已标注「R 需求未含」）；做法 12 的单机「锁定防误改」已列为 V2 候选（90-benchmark.md 第六节）。
+- [x] B-012 NAS/外部目标的自动化定期备份。**排除**：R19 范围为备份包导出+校验+一致性检查+保留策略预演，无自动调度语义；自动定期备份需后台调度服务，超出 V1 范围，列为 V2 候选（★ 建议进入需求评审）。
+- [ ] B-013 保留策略的显式设置界面。Time Machine/文件历史有可视化保留规则；pentimento 因「无历史删除」约定只能做「仅预演」。**属 V1 决策**：对应 R19/D-19（预演 vs 实际清理），界面形态可抄前两者。
+- [ ] B-014 断连目标的友好降级。Time Machine 断连自动续备+本地快照兜底、文件历史低优先级 I/O 可断可续。**属 V1**：对应 R18 断线重连状态机（D-18 待拍板），本地锚点兜底可抄做法 6（防勒索紧急锚点）。
