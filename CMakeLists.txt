@@ -29,6 +29,8 @@ endif()
 include(FetchContent)
 # FetchContent_MakeAvailable_once：<名字> <GIT_REPOSITORY ...> <GIT_TAG ...>
 # 同名依赖只取第一次声明，防止传递依赖重复拉取。
+# 去重判据：依赖须提供与 <名字> 同名的 CMake target；仅提供别名/不同名 target 或纯头文件依赖时，
+# 需额外用 FetchContent_GetProperties 显式处理，或保证首次声明即设置 FETCH_DEP_<名字>_DONE。
 function(fetch_dep name)
     if(TARGET ${name} OR DEFINED FETCH_DEP_${name}_DONE)
         return()
