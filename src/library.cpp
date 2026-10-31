@@ -118,8 +118,8 @@ Library::Library(const QString &root)
     QSqlQuery q(db_);
     for (const QString &sql : {
              QStringLiteral("PRAGMA foreign_keys=ON"),
-             QStringLiteral("CREATE TABLE IF NOT EXISTS assets(id TEXT PRIMARY KEY,name TEXT NOT NULL,path TEXT NOT NULL,tags TEXT NOT NULL DEFAULT '',rating INTEGER,note TEXT NOT NULL DEFAULT '',source TEXT NOT NULL DEFAULT '')"),
-             QStringLiteral("CREATE TABLE IF NOT EXISTS revisions(id INTEGER PRIMARY KEY AUTOINCREMENT,asset_id TEXT NOT NULL REFERENCES assets(id),hash TEXT NOT NULL,created TEXT NOT NULL,note TEXT NOT NULL,size INTEGER NOT NULL,pinned INTEGER NOT NULL DEFAULT 0,pin_reason TEXT NOT NULL DEFAULT '')"),
+             QStringLiteral("CREATE TABLE IF NOT EXISTS assets(id TEXT PRIMARY KEY,name TEXT NOT NULL,path TEXT NOT NULL,tags TEXT NOT NULL DEFAULT '',rating INTEGER,note TEXT NOT NULL DEFAULT '',source TEXT NOT NULL DEFAULT '',deleted INTEGER NOT NULL DEFAULT 0)"),
+             QStringLiteral("CREATE TABLE IF NOT EXISTS revisions(id INTEGER PRIMARY KEY AUTOINCREMENT,asset_id TEXT NOT NULL REFERENCES assets(id),hash TEXT NOT NULL,created TEXT NOT NULL,note TEXT NOT NULL,size INTEGER NOT NULL,pinned INTEGER NOT NULL DEFAULT 0,pin_reason TEXT NOT NULL DEFAULT '',tombstone INTEGER NOT NULL DEFAULT 0)"),
              QStringLiteral("CREATE INDEX IF NOT EXISTS revisions_asset ON revisions(asset_id,id)"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS snapshots(id INTEGER PRIMARY KEY AUTOINCREMENT,created TEXT NOT NULL,note TEXT NOT NULL)"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS snapshot_assets(snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),asset_id TEXT NOT NULL REFERENCES assets(id),revision_id INTEGER NOT NULL,PRIMARY KEY(snapshot_id,asset_id))"),
@@ -149,6 +149,12 @@ Library::Library(const QString &root)
                     "ALTER TABLE revisions ADD COLUMN pin_reason TEXT NOT NULL DEFAULT ''")))
                 fail(alter.lastError().text());
         }
+        if (!names.contains(QStringLiteral("tombstone"))) {
+            QSqlQuery alter(db_);
+            if (!alter.exec(QStringLiteral(
+                    "ALTER TABLE revisions ADD COLUMN tombstone INTEGER NOT NULL DEFAULT 0")))
+                fail(alter.lastError().text());
+        }
     }
     // P-309: libraries created before metadata carry no metadata columns.
     // Tags are stored as a JSON array text; rating is NULL when "no rating".
@@ -170,6 +176,12 @@ Library::Library(const QString &root)
                                 .arg(column.first, column.second)))
                 fail(alter.lastError().text());
         }
+        if (!names.contains(QStringLiteral("deleted"))) {
+            QSqlQuery alter(db_);
+            if (!alter.exec(QStringLiteral(
+                    "ALTER TABLE assets ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0")))
+                fail(alter.lastError().text());
+        }
     }
     // Opening an existing library must re-apply immutability to any object that
     // a tamperer left writable (idempotent, best-effort). Documented promise in
@@ -185,7 +197,7 @@ Library::~Library() {
 
 QVector<Asset> Library::assets() const {
     QSqlQuery q(db_);
-    q.prepare("SELECT id,name,path,tags,rating,note,source FROM assets ORDER BY name,id");
+    q.prepare("SELECT id,name,path,tags,rating,note,source,deleted FROM assets ORDER BY name,id");
     execute(q);
     QVector<Asset> result;
     while (q.next()) {
@@ -197,6 +209,7 @@ QVector<Asset> Library::assets() const {
         asset.rating = q.isNull(4) ? -1 : q.value(4).toInt();
         asset.note = q.value(5).toString();
         asset.source = q.value(6).toString();
+        asset.deleted = q.value(7).toBool();
         result.push_back(asset);
     }
     return result;
@@ -204,13 +217,13 @@ QVector<Asset> Library::assets() const {
 
 QVector<Revision> Library::revisions(const QString &assetId) const {
     QSqlQuery q(db_);
-    q.prepare("SELECT id,hash,created,note,size,pinned,pin_reason FROM revisions WHERE asset_id=? ORDER BY id DESC");
+    q.prepare("SELECT id,hash,created,note,size,pinned,pin_reason,tombstone FROM revisions WHERE asset_id=? ORDER BY id DESC");
     q.addBindValue(assetId);
     execute(q);
     QVector<Revision> result;
     while (q.next()) result.push_back({q.value(0).toLongLong(), q.value(1).toString(),
         q.value(2).toString(), q.value(3).toString(), q.value(4).toLongLong(),
-        q.value(5).toBool(), q.value(6).toString()});
+        q.value(5).toBool(), q.value(6).toString(), q.value(7).toBool()});
     return result;
 }
 
@@ -702,6 +715,45 @@ bool Library::capture(const Asset &asset, const QString &note) {
     return !recordVersion(asset, note).unchanged;
 }
 
+void Library::deleteAsset(const Asset &asset, const QString &note) {
+    if (assetState(asset.id) == AssetState::Tombstone)
+        fail(QStringLiteral("素材已删除"));
+    const auto history = revisions(asset.id);
+    if (history.isEmpty()) fail(QStringLiteral("找不到属于当前素材的历史版本"));
+    const auto newest = history.first();
+    // Tombstone revision reuses the last content hash — no new content object;
+    // history and objects are retained so the asset stays findable/recoverable.
+    if (!db_.transaction()) fail(db_.lastError().text());
+    try {
+        QSqlQuery ins(db_);
+        ins.prepare("INSERT INTO revisions(asset_id,hash,created,note,size,tombstone) VALUES(?,?,?,?,?,1)");
+        ins.addBindValue(asset.id);
+        ins.addBindValue(newest.hash);
+        ins.addBindValue(QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
+        ins.addBindValue(note.isEmpty() ? QStringLiteral("删除") : note);
+        ins.addBindValue(newest.size);
+        execute(ins);
+        QSqlQuery up(db_);
+        up.prepare("UPDATE assets SET deleted=1 WHERE id=?");
+        up.addBindValue(asset.id);
+        execute(up);
+        if (!db_.commit()) fail(db_.lastError().text());
+    } catch (...) { db_.rollback(); throw; }
+    // Best-effort removal of the managed working copy after the tombstone is
+    // recorded; if removal fails the asset is still tombstoned and recoverable.
+    if (QFileInfo::exists(asset.path)) QFile::remove(asset.path);
+}
+
+AssetState Library::assetState(const QString &assetId) const {
+    QSqlQuery q(db_);
+    q.prepare("SELECT deleted,path FROM assets WHERE id=?");
+    q.addBindValue(assetId);
+    execute(q);
+    if (!q.next()) fail(QStringLiteral("找不到素材"));
+    if (q.value(0).toBool()) return AssetState::Tombstone;
+    return QFileInfo(q.value(1).toString()).exists() ? AssetState::Present : AssetState::Missing;
+}
+
 void Library::restore(const Asset &asset, qint64 revisionId) {
     const auto history = revisions(asset.id);
     for (const auto &revision : history) {
@@ -719,6 +771,12 @@ void Library::restore(const Asset &asset, qint64 revisionId) {
             append(asset, bytes, QStringLiteral("恢复历史版本 #%1").arg(revisionId));
             if (!QDir().mkpath(QFileInfo(asset.path).absolutePath())) fail(QStringLiteral("无法创建恢复目录"));
             writeFile(asset.path, bytes);
+            // P-310: recovering a tombstoned/missing asset brings it back to
+            // Present (the restore itself is the resurrection record).
+            QSqlQuery clear(db_);
+            clear.prepare("UPDATE assets SET deleted=0 WHERE id=?");
+            clear.addBindValue(asset.id);
+            execute(clear);
             replaced = true;
             if (!db_.commit()) fail(db_.lastError().text());
         } catch (...) {

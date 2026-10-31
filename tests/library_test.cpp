@@ -760,6 +760,53 @@ private slots:
         QCOMPARE(reopened.metadataHistory(asset.id).size(), 7);
         QCOMPARE(reopened.revisions(asset.id).first().id, metadataId);
     }
+    void deleteKeepsHistoryFindableAndMissingIsDistinct() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("a.png");
+        put(source, "v1");
+        Library library(dir.filePath("library"));
+        const auto asset = library.importFile(source);
+        put(asset.path, "v2");
+        const auto rev2 = library.recordVersion(asset, QStringLiteral("第二版")).revisionId;
+        QCOMPARE(library.assetState(asset.id), AssetState::Present);
+        const int objectsBefore = QDir(library.root() + QStringLiteral("/objects"))
+            .entryInfoList(QDir::Files | QDir::NoDotAndDotDot).size();
+        // In-app confirmed delete: tombstone revision, history retained, working
+        // copy removed, asset still findable (not erased from the index).
+        library.deleteAsset(asset, QStringLiteral("不再需要"));
+        QCOMPARE(library.assetState(asset.id), AssetState::Tombstone);
+        QVERIFY(!QFile::exists(asset.path));
+        const auto history = library.revisions(asset.id);
+        QCOMPARE(history.size(), 3); // v1, v2, tombstone — none erased
+        QCOMPARE(history.first().tombstone, true);
+        QCOMPARE(history.first().hash, history.at(1).hash); // reused last hash
+        QCOMPARE(history.first().note, QStringLiteral("不再需要"));
+        const auto all = library.assets();
+        QCOMPARE(all.size(), 1); // still findable
+        QCOMPARE(all.first().deleted, true);
+        const int objectsAfter = QDir(library.root() + QStringLiteral("/objects"))
+            .entryInfoList(QDir::Files | QDir::NoDotAndDotDot).size();
+        QCOMPARE(objectsAfter, objectsBefore); // tombstone adds no content object
+        // History query still finds the original content, intact and restorable.
+        QCOMPARE(library.readObject(history.at(1).hash), QByteArray("v2"));
+        library.restore(asset, rev2);
+        QCOMPARE(library.assetState(asset.id), AssetState::Present);
+        QCOMPARE(get(asset.path), QByteArray("v2"));
+        QCOMPARE(library.assets().first().deleted, false);
+        // Re-deleting after recovery works; deleting twice is rejected loudly.
+        library.deleteAsset(asset);
+        QVERIFY_EXCEPTION_THROWN(library.deleteAsset(asset), std::runtime_error);
+        // Recovery restores the asset to Present, then a manual (non-app)
+        // working-copy removal is a Missing state — NOT a user deletion, so no
+        // tombstone revision is written.
+        library.restore(asset, rev2);
+        QCOMPARE(library.assetState(asset.id), AssetState::Present);
+        const qint64 beforeMissing = library.revisions(asset.id).first().id;
+        QVERIFY(QFile::remove(asset.path));
+        QCOMPARE(library.assetState(asset.id), AssetState::Missing);
+        QCOMPARE(library.revisions(asset.id).first().id, beforeMissing);
+        QCOMPARE(library.revisions(asset.id).first().tombstone, false); // no new record
+    }
 };
 QTEST_GUILESS_MAIN(HistoryTest)
 #include "library_test.moc"

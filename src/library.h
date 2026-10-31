@@ -19,7 +19,16 @@ struct Asset {
     int rating = -1;
     QString note;
     QString source;
+    // P-310 in-app confirmed delete: the asset is tombstoned (deleted=1) but
+    // its history and objects are retained so it stays findable/recoverable.
+    bool deleted = false;
 };
+
+// P-310 asset availability state. Present = working copy exists; Tombstone =
+// user confirmed delete in-app (history retained); Missing = the working copy
+// is absent without a tombstone (accidental/external removal or a mount that
+// is not reachable) — NOT treated as a user deletion, no tombstone is written.
+enum class AssetState { Present, Missing, Tombstone };
 
 // P-309 one metadata snapshot. Rating -1 means "no rating" (a distinct state
 // from 0 stars). Tags serialize as a JSON array (robust for any tag text).
@@ -53,6 +62,9 @@ struct Revision {
     // candidate (see retentionCandidates); `pinReason` records why it was pinned.
     bool pinned = false;
     QString pinReason;
+    // P-310 deletion tombstone: this revision marks the in-app delete event
+    // (reuses the last content hash — no new content object, history retained).
+    bool tombstone = false;
 };
 
 // One whole-tree emergency anchor: each asset pinned to the revision that
@@ -219,6 +231,13 @@ public:
     // is returned so the caller can report "already up to date").
     RecordResult updateMetadata(const QString &assetId, const Metadata &newMeta,
                                 const QString &note = QString());
+    // P-310 deletion tombstone. In-app confirmed delete writes a tombstone
+    // revision (history and objects retained — the asset stays findable and
+    // recoverable via restore) and marks the asset deleted. Missing working
+    // copies are never tombstoned (that is NOT a user deletion).
+    void deleteAsset(const Asset &asset, const QString &note = QString());
+    // The asset's availability state (Present / Missing / Tombstone).
+    AssetState assetState(const QString &assetId) const;
     void restore(const Asset &asset, qint64 revisionId);
     void exportRevision(const QString &assetId, qint64 revisionId, const QString &destination) const;
     QString objectPath(const QString &hash) const;
