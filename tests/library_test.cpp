@@ -1045,6 +1045,40 @@ private slots:
         put(library.objectPath(library.revisions(b.id).first().hash), "corrupt");
         QCOMPARE(library.checkRestore(b, bV1).state, QStringLiteral("corrupt"));
     }
+    void singleAssetRestoreAppendsNewVersionKeepingHistory() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("a.png");
+        put(source, "A");
+        Library library(dir.filePath("library"));
+        const auto asset = library.importFile(source);
+        const qint64 revA = library.revisions(asset.id).first().id;
+        // A -> B (a second recorded version).
+        put(asset.path, "B");
+        const qint64 revB = library.recordVersion(asset, QStringLiteral("第二版")).revisionId;
+        QVERIFY(revB > revA);
+        // Restoring A creates a NEW revision C; the working copy lands on A and
+        // B stays in history (no rollback-and-erase).
+        library.restore(asset, revA);
+        QCOMPARE(get(asset.path), QByteArray("A"));
+        const auto history = library.revisions(asset.id);
+        QCOMPARE(history.size(), 3); // A, B, C(restore of A)
+        const qint64 revC = history.first().id;
+        QVERIFY(revC > revB);
+        QCOMPARE(history.first().note, QStringLiteral("恢复历史版本 #%1").arg(revA));
+        // The restore result C is queryable again (same content as A, its own id).
+        QCOMPARE(library.readObject(history.first().hash), QByteArray("A"));
+        // B is still browsable/exportable and untouched by the restore.
+        for (const auto &rev : history) if (rev.id == revB) {
+            QCOMPARE(library.readObject(rev.hash), QByteArray("B"));
+            library.exportRevision(asset.id, revB, dir.filePath("export-B.png"));
+            QCOMPARE(get(dir.filePath("export-B.png")), QByteArray("B"));
+        }
+        // The restored C content is a distinct revision; restoring it back again
+        // keeps growing history rather than erasing it.
+        library.restore(asset, revB);
+        QCOMPARE(get(asset.path), QByteArray("B"));
+        QCOMPARE(library.revisions(asset.id).size(), 4);
+    }
 };
 QTEST_GUILESS_MAIN(HistoryTest)
 #include "library_test.moc"
