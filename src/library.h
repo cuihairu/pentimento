@@ -74,6 +74,16 @@ struct ScheduleState {
     QString pauseReason;
 };
 
+// P-306 exclusion rule. `kind` is "extension" (match the asset name's suffix)
+// or "glob" (match the asset name or its path under the library root). `reason`
+// records why the match excludes the asset from snapshots.
+struct ExclusionRule {
+    qint64 id = 0;
+    QString kind;
+    QString pattern;
+    QString reason;
+};
+
 // One library, one writer. Original imports are never modified.
 class Library {
 public:
@@ -116,6 +126,16 @@ public:
     // the due time is reached; several missed periods collapse to one. Returns
     // the snapshot id, or 0 when none was taken (not due / disabled / paused).
     qint64 pumpSchedule(qint64 nowUtcMs);
+    // P-306 exclusion rules. A matched asset is left out of subsequent snapshots
+    // (never a rollback anchor) but stays in the library and keeps its history:
+    // being excluded is NOT being deleted. The matching rule's reason is recorded
+    // per snapshot.
+    QVector<ExclusionRule> exclusionRules() const;
+    qint64 addExclusionRule(const QString &kind, const QString &pattern, const QString &reason);
+    void removeExclusionRule(qint64 id);
+    bool isExcluded(const Asset &asset, QString *reason = nullptr) const;
+    // The recorded reason an asset was excluded from a snapshot (empty if not).
+    QString snapshotExclusionReason(qint64 snapshotId, const QString &assetId) const;
     void restore(const Asset &asset, qint64 revisionId);
     void exportRevision(const QString &assetId, qint64 revisionId, const QString &destination) const;
     QString objectPath(const QString &hash) const;

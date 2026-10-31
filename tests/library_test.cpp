@@ -479,6 +479,60 @@ private slots:
         QCOMPARE(state.periodMinutes, 0);
         QCOMPARE(library.pumpSchedule(library.scheduleState().nextUtcMs + 15 * 60000LL), 0);
     }
+    void exclusionRulesKeepAssetsOutOfSnapshots() {
+        QTemporaryDir dir;
+        const auto png = dir.filePath("a.png");
+        const auto psd = dir.filePath("b.psd");
+        const auto txt = dir.filePath("readme.txt");
+        put(png, "png1"); put(psd, "psd1"); put(txt, "readme1");
+        Library library(dir.filePath("library"));
+        const auto a = library.importFile(png);
+        const auto b = library.importFile(psd);
+        const auto c = library.importFile(txt);
+        // No rules yet: every asset is a snapshot anchor.
+        const qint64 first = library.snapshotAll(QStringLiteral("基线"));
+        QVERIFY(first > 0);
+        QCOMPARE(library.snapshots().first().assets, 3);
+        // An extension rule excludes a whole kind; the reason is recorded and
+        // the excluded asset is NOT deleted (it keeps its history and can still
+        // be recorded manually).
+        const qint64 psdRule = library.addExclusionRule(QStringLiteral("extension"),
+                                                        QStringLiteral(".psd"),
+                                                        QStringLiteral("不追踪 PSD 源文件"));
+        QVERIFY(psdRule > 0);
+        QString reason;
+        QVERIFY(library.isExcluded(b, &reason));
+        QCOMPARE(reason, QStringLiteral("不追踪 PSD 源文件"));
+        QVERIFY(!library.isExcluded(a));
+        QVERIFY(!library.isExcluded(c));
+        const qint64 second = library.snapshotAll(QStringLiteral("第二次"));
+        QVERIFY(second > 0);
+        QCOMPARE(library.snapshots().first().assets, 2);
+        QCOMPARE(library.snapshotExclusionReason(second, b.id),
+                 QStringLiteral("不追踪 PSD 源文件"));
+        QCOMPARE(library.assets().size(), 3); // excluded != deleted
+        QVERIFY(library.recordVersion(b, QStringLiteral("仍可手动记录")).revisionId > 0);
+        // A glob rule also matches; only the first matching rule's reason counts.
+        const qint64 txtRule = library.addExclusionRule(QStringLiteral("glob"),
+                                                        QStringLiteral("*.txt"),
+                                                        QStringLiteral("跳过文本"));
+        QVERIFY(txtRule > 0);
+        QCOMPARE(library.exclusionRules().size(), 2);
+        const qint64 third = library.snapshotAll(QStringLiteral("第三次"));
+        QVERIFY(third > 0);
+        QCOMPARE(library.snapshots().first().assets, 1);
+        QCOMPARE(library.snapshotExclusionReason(third, c.id), QStringLiteral("跳过文本"));
+        // Removal restores the asset to snapshots again.
+        library.removeExclusionRule(txtRule);
+        QCOMPARE(library.exclusionRules().size(), 1);
+        const qint64 fourth = library.snapshotAll(QStringLiteral("第四次"));
+        QVERIFY(fourth > 0);
+        QCOMPARE(library.snapshots().first().assets, 2);
+        QCOMPARE(library.snapshotExclusionReason(fourth, c.id), QString());
+        // Invalid rules are rejected loudly.
+        QVERIFY_EXCEPTION_THROWN(library.addExclusionRule(QStringLiteral("bogus"), QStringLiteral("x"), QString()), std::runtime_error);
+        QVERIFY_EXCEPTION_THROWN(library.addExclusionRule(QStringLiteral("extension"), QString(), QString()), std::runtime_error);
+    }
 };
 QTEST_GUILESS_MAIN(HistoryTest)
 #include "library_test.moc"

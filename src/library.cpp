@@ -9,6 +9,7 @@
 #include <QFileInfo>
 #include <QHash>
 #include <QLockFile>
+#include <QRegularExpression>
 #include <QSaveFile>
 #include <QSqlError>
 #include <QSqlQuery>
@@ -106,7 +107,9 @@ Library::Library(const QString &root)
              QStringLiteral("CREATE TABLE IF NOT EXISTS revisions(id INTEGER PRIMARY KEY AUTOINCREMENT,asset_id TEXT NOT NULL REFERENCES assets(id),hash TEXT NOT NULL,created TEXT NOT NULL,note TEXT NOT NULL,size INTEGER NOT NULL)"),
              QStringLiteral("CREATE INDEX IF NOT EXISTS revisions_asset ON revisions(asset_id,id)"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS snapshots(id INTEGER PRIMARY KEY AUTOINCREMENT,created TEXT NOT NULL,note TEXT NOT NULL)"),
-             QStringLiteral("CREATE TABLE IF NOT EXISTS snapshot_assets(snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),asset_id TEXT NOT NULL REFERENCES assets(id),revision_id INTEGER NOT NULL,PRIMARY KEY(snapshot_id,asset_id))")}) {
+             QStringLiteral("CREATE TABLE IF NOT EXISTS snapshot_assets(snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),asset_id TEXT NOT NULL REFERENCES assets(id),revision_id INTEGER NOT NULL,PRIMARY KEY(snapshot_id,asset_id))"),
+             QStringLiteral("CREATE TABLE IF NOT EXISTS exclusion_rules(id INTEGER PRIMARY KEY AUTOINCREMENT,kind TEXT NOT NULL,pattern TEXT NOT NULL,reason TEXT NOT NULL,created TEXT NOT NULL)"),
+             QStringLiteral("CREATE TABLE IF NOT EXISTS snapshot_exclusions(snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),asset_id TEXT NOT NULL REFERENCES assets(id),reason TEXT NOT NULL,PRIMARY KEY(snapshot_id,asset_id))")}) {
         if (!q.exec(sql)) fail(q.lastError().text());
     }
     // Opening an existing library must re-apply immutability to any object that
@@ -344,6 +347,75 @@ qint64 Library::pumpSchedule(qint64 nowUtcMs) {
     return id;
 }
 
+QVector<ExclusionRule> Library::exclusionRules() const {
+    QSqlQuery q(db_);
+    q.prepare("SELECT id,kind,pattern,reason FROM exclusion_rules ORDER BY id");
+    execute(q);
+    QVector<ExclusionRule> result;
+    while (q.next()) {
+        result.push_back({q.value(0).toLongLong(), q.value(1).toString(),
+                          q.value(2).toString(), q.value(3).toString()});
+    }
+    return result;
+}
+
+qint64 Library::addExclusionRule(const QString &kind, const QString &pattern, const QString &reason) {
+    if (kind != QStringLiteral("extension") && kind != QStringLiteral("glob"))
+        fail(QStringLiteral("排除规则类型须为 extension 或 glob"));
+    if (pattern.isEmpty()) fail(QStringLiteral("排除规则模式不能为空"));
+    QSqlQuery q(db_);
+    q.prepare("INSERT INTO exclusion_rules(kind,pattern,reason,created) VALUES(?,?,?,?)");
+    q.addBindValue(kind);
+    q.addBindValue(pattern);
+    q.addBindValue(reason);
+    q.addBindValue(QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
+    execute(q);
+    return q.lastInsertId().toLongLong();
+}
+
+void Library::removeExclusionRule(qint64 id) {
+    QSqlQuery q(db_);
+    q.prepare("DELETE FROM exclusion_rules WHERE id=?");
+    q.addBindValue(id);
+    execute(q);
+}
+
+bool Library::isExcluded(const Asset &asset, QString *reason) const {
+    QSqlQuery q(db_);
+    q.prepare("SELECT id,kind,pattern,reason FROM exclusion_rules ORDER BY id");
+    execute(q);
+    while (q.next()) {
+        const QString kind = q.value(1).toString();
+        const QString pattern = q.value(2).toString();
+        bool hit = false;
+        if (kind == QStringLiteral("extension")) {
+            QString p = pattern.toLower();
+            if (p.startsWith(QLatin1Char('.'))) p.remove(0, 1);
+            const QString ext = QFileInfo(asset.name).suffix().toLower();
+            hit = !ext.isEmpty() && ext == p;
+        } else if (kind == QStringLiteral("glob")) {
+            const QRegularExpression re(QRegularExpression::wildcardToRegularExpression(pattern),
+                                        QRegularExpression::CaseInsensitiveOption);
+            const QString rel = QDir(root_).relativeFilePath(asset.path);
+            hit = re.match(asset.name).hasMatch() || re.match(rel).hasMatch();
+        }
+        if (hit) {
+            if (reason) *reason = q.value(3).toString();
+            return true;
+        }
+    }
+    return false;
+}
+
+QString Library::snapshotExclusionReason(qint64 snapshotId, const QString &assetId) const {
+    QSqlQuery q(db_);
+    q.prepare("SELECT reason FROM snapshot_exclusions WHERE snapshot_id=? AND asset_id=?");
+    q.addBindValue(snapshotId);
+    q.addBindValue(assetId);
+    execute(q);
+    return q.next() ? q.value(0).toString() : QString();
+}
+
 Asset Library::importFile(const QString &source) {
     const auto bytes = readFile(source);
     const QFileInfo info(source);
@@ -458,6 +530,19 @@ qint64 Library::snapshotAll(const QString &note) {
             if (!anchor && !history.isEmpty()) anchor = history.first().id;
             if (!current.isEmpty() && (history.isEmpty() || history.first().hash != currentHash))
                 append(asset, current, QStringLiteral("紧急快照锚点"));
+            // P-306: an excluded asset is NOT deleted and keeps the emergency
+            // append above (history preserved), but it is never a rollback anchor:
+            // the exclusion reason is recorded and the snapshot_assets row skipped.
+            QString excludeReason;
+            if (isExcluded(asset, &excludeReason)) {
+                QSqlQuery ex(db_);
+                ex.prepare("INSERT OR REPLACE INTO snapshot_exclusions(snapshot_id,asset_id,reason) VALUES(?,?,?)");
+                ex.addBindValue(snapshotId);
+                ex.addBindValue(asset.id);
+                ex.addBindValue(excludeReason);
+                execute(ex);
+                continue;
+            }
             if (!anchor) continue; // no clean history to recover to
             QSqlQuery ins(db_);
             ins.prepare("INSERT OR REPLACE INTO snapshot_assets(snapshot_id,asset_id,revision_id) VALUES(?,?,?)");
