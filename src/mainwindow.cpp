@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "comparedialog.h"
 #include "sentinel.h"
 #include <QComboBox>
 #include <QDateTime>
@@ -112,11 +113,13 @@ MainWindow::MainWindow(Library &library) : library_(library) {
     historyList_->setSpacing(5);
     restore_ = new QPushButton(QStringLiteral("恢复此版本"));
     export_ = new QPushButton(QStringLiteral("导出此版本…"));
+    compare_ = new QPushButton(QStringLiteral("对比此版本…"));
     rightLayout->addWidget(historyTitle);
     rightLayout->addWidget(hint_);
     rightLayout->addWidget(historyList_, 1);
     rightLayout->addWidget(restore_);
     rightLayout->addWidget(export_);
+    rightLayout->addWidget(compare_);
     splitter->addWidget(left); splitter->addWidget(center); splitter->addWidget(right);
     splitter->setSizes({260, 660, 300});
     setCentralWidget(splitter);
@@ -128,6 +131,7 @@ MainWindow::MainWindow(Library &library) : library_(library) {
     connect(historyList_, &QListWidget::currentRowChanged, this, &MainWindow::showRevision);
     connect(restore_, &QPushButton::clicked, this, &MainWindow::restore);
     connect(export_, &QPushButton::clicked, this, &MainWindow::exportFile);
+    connect(compare_, &QPushButton::clicked, this, &MainWindow::compareVersions);
     auto *timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, &MainWindow::scanChanges);
     timer->start(2000);
@@ -244,6 +248,7 @@ void MainWindow::showRevision() {
     const int row = historyList_->currentRow();
     const bool valid = row >= 0 && row < revisions_.size();
     restore_->setEnabled(valid); export_->setEnabled(valid);
+    compare_->setEnabled(valid && revisions_.size() >= 2);
     if (!valid) return;
     const auto &revision = revisions_.at(row);
     details_->setText(QStringLiteral("%1\n%2 · %3 · #%4")
@@ -313,6 +318,13 @@ void MainWindow::exportFile() {
     if (path.isEmpty()) return;
     try { library_.exportRevision(selected().id, revisions_.at(row).revisionId, path); }
     catch (const std::exception &error) { report(error); }
+}
+
+void MainWindow::compareVersions() {
+    const int row = historyList_->currentRow();
+    if (row < 0 || revisions_.size() < 2) return;
+    CompareDialog dialog(selected().name, revisions_, row, library_, this);
+    dialog.exec();
 }
 
 void MainWindow::scanChanges() {

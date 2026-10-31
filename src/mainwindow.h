@@ -30,6 +30,7 @@ private:
     QLineEdit *search_;
     QPushButton *restore_;
     QPushButton *export_;
+    QPushButton *compare_;
     QLabel *scheduleLabel_;
     QAction *pauseAction_;
     std::unique_ptr<Sentinel> sentinel_;
@@ -42,6 +43,8 @@ private:
     void capture();
     void restore();
     void exportFile();
+    // P-313 dual-version side-by-side comparison from the selected revision.
+    void compareVersions();
     void scanChanges();
     void rollbackToSnapshot();
     // P-312 read-only time-point directory browsing: pick a snapshot, see the
