@@ -104,13 +104,35 @@ Library::Library(const QString &root)
     for (const QString &sql : {
              QStringLiteral("PRAGMA foreign_keys=ON"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS assets(id TEXT PRIMARY KEY,name TEXT NOT NULL,path TEXT NOT NULL)"),
-             QStringLiteral("CREATE TABLE IF NOT EXISTS revisions(id INTEGER PRIMARY KEY AUTOINCREMENT,asset_id TEXT NOT NULL REFERENCES assets(id),hash TEXT NOT NULL,created TEXT NOT NULL,note TEXT NOT NULL,size INTEGER NOT NULL)"),
+             QStringLiteral("CREATE TABLE IF NOT EXISTS revisions(id INTEGER PRIMARY KEY AUTOINCREMENT,asset_id TEXT NOT NULL REFERENCES assets(id),hash TEXT NOT NULL,created TEXT NOT NULL,note TEXT NOT NULL,size INTEGER NOT NULL,pinned INTEGER NOT NULL DEFAULT 0,pin_reason TEXT NOT NULL DEFAULT '')"),
              QStringLiteral("CREATE INDEX IF NOT EXISTS revisions_asset ON revisions(asset_id,id)"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS snapshots(id INTEGER PRIMARY KEY AUTOINCREMENT,created TEXT NOT NULL,note TEXT NOT NULL)"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS snapshot_assets(snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),asset_id TEXT NOT NULL REFERENCES assets(id),revision_id INTEGER NOT NULL,PRIMARY KEY(snapshot_id,asset_id))"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS exclusion_rules(id INTEGER PRIMARY KEY AUTOINCREMENT,kind TEXT NOT NULL,pattern TEXT NOT NULL,reason TEXT NOT NULL,created TEXT NOT NULL)"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS snapshot_exclusions(snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),asset_id TEXT NOT NULL REFERENCES assets(id),reason TEXT NOT NULL,PRIMARY KEY(snapshot_id,asset_id))")}) {
         if (!q.exec(sql)) fail(q.lastError().text());
+    }
+    // Schema evolution: libraries created before P-307 lack the pin columns.
+    // CREATE TABLE IF NOT EXISTS does not alter an existing table, so add the
+    // columns idempotently (PRAGMA table_info lists existing columns only).
+    {
+        QSqlQuery columns(db_);
+        columns.prepare("PRAGMA table_info(revisions)");
+        execute(columns);
+        QStringList names;
+        while (columns.next()) names << columns.value(1).toString();
+        if (!names.contains(QStringLiteral("pinned"))) {
+            QSqlQuery alter(db_);
+            if (!alter.exec(QStringLiteral(
+                    "ALTER TABLE revisions ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0")))
+                fail(alter.lastError().text());
+        }
+        if (!names.contains(QStringLiteral("pin_reason"))) {
+            QSqlQuery alter(db_);
+            if (!alter.exec(QStringLiteral(
+                    "ALTER TABLE revisions ADD COLUMN pin_reason TEXT NOT NULL DEFAULT ''")))
+                fail(alter.lastError().text());
+        }
     }
     // Opening an existing library must re-apply immutability to any object that
     // a tamperer left writable (idempotent, best-effort). Documented promise in
@@ -135,12 +157,13 @@ QVector<Asset> Library::assets() const {
 
 QVector<Revision> Library::revisions(const QString &assetId) const {
     QSqlQuery q(db_);
-    q.prepare("SELECT id,hash,created,note,size FROM revisions WHERE asset_id=? ORDER BY id DESC");
+    q.prepare("SELECT id,hash,created,note,size,pinned,pin_reason FROM revisions WHERE asset_id=? ORDER BY id DESC");
     q.addBindValue(assetId);
     execute(q);
     QVector<Revision> result;
     while (q.next()) result.push_back({q.value(0).toLongLong(), q.value(1).toString(),
-        q.value(2).toString(), q.value(3).toString(), q.value(4).toLongLong()});
+        q.value(2).toString(), q.value(3).toString(), q.value(4).toLongLong(),
+        q.value(5).toBool(), q.value(6).toString()});
     return result;
 }
 
@@ -414,6 +437,48 @@ QString Library::snapshotExclusionReason(qint64 snapshotId, const QString &asset
     q.addBindValue(assetId);
     execute(q);
     return q.next() ? q.value(0).toString() : QString();
+}
+
+void Library::pinRevision(const QString &assetId, qint64 revisionId, const QString &reason) {
+    QSqlQuery owns(db_);
+    owns.prepare("SELECT 1 FROM revisions WHERE id=? AND asset_id=?");
+    owns.addBindValue(revisionId);
+    owns.addBindValue(assetId);
+    execute(owns);
+    if (!owns.next()) fail(QStringLiteral("找不到属于当前素材的历史版本"));
+    QSqlQuery q(db_);
+    q.prepare("UPDATE revisions SET pinned=1,pin_reason=? WHERE id=?");
+    q.addBindValue(reason);
+    q.addBindValue(revisionId);
+    execute(q);
+}
+
+void Library::unpinRevision(const QString &assetId, qint64 revisionId) {
+    QSqlQuery owns(db_);
+    owns.prepare("SELECT 1 FROM revisions WHERE id=? AND asset_id=?");
+    owns.addBindValue(revisionId);
+    owns.addBindValue(assetId);
+    execute(owns);
+    if (!owns.next()) fail(QStringLiteral("找不到属于当前素材的历史版本"));
+    QSqlQuery q(db_);
+    q.prepare("UPDATE revisions SET pinned=0,pin_reason='' WHERE id=?");
+    q.addBindValue(revisionId);
+    execute(q);
+}
+
+QVector<qint64> Library::retentionCandidates(const QString &assetId) const {
+    // The seam for the future V1 retention policy: everything a cleanup may
+    // remove. The newest (current) revision is never a candidate, and a pinned
+    // revision is always excluded (P-307) — so pinning is what keeps a version.
+    QSqlQuery q(db_);
+    q.prepare("SELECT id FROM revisions WHERE asset_id=? AND pinned=0 "
+              "AND id<>(SELECT MAX(id) FROM revisions WHERE asset_id=?) ORDER BY id DESC");
+    q.addBindValue(assetId);
+    q.addBindValue(assetId);
+    execute(q);
+    QVector<qint64> result;
+    while (q.next()) result.push_back(q.value(0).toLongLong());
+    return result;
 }
 
 Asset Library::importFile(const QString &source) {

@@ -533,6 +533,53 @@ private slots:
         QVERIFY_EXCEPTION_THROWN(library.addExclusionRule(QStringLiteral("bogus"), QStringLiteral("x"), QString()), std::runtime_error);
         QVERIFY_EXCEPTION_THROWN(library.addExclusionRule(QStringLiteral("extension"), QString(), QString()), std::runtime_error);
     }
+    void pinnedVersionSurvivesRetentionCleanup() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("a.png");
+        put(source, "v1");
+        const QString libraryRoot = dir.filePath("library");
+        qint64 rev1 = 0, rev2 = 0, rev3 = 0;
+        {
+            Library library(libraryRoot);
+            const auto asset = library.importFile(source);
+            put(asset.path, "v2");
+            QVERIFY(library.recordVersion(asset, QStringLiteral("第二版")).revisionId > 0);
+            put(asset.path, "v3");
+            QVERIFY(library.recordVersion(asset, QStringLiteral("第三版")).revisionId > 0);
+            const auto history = library.revisions(asset.id);
+            QCOMPARE(history.size(), 3);
+            rev3 = history.at(0).id; rev2 = history.at(1).id; rev1 = history.at(2).id;
+            // By default the newest revision is not a candidate; the rest are.
+            QCOMPARE(library.retentionCandidates(asset.id), (QVector<qint64>{rev2, rev1}));
+            // Pin the oldest: it disappears from the candidates and carries its reason.
+            library.pinRevision(asset.id, rev1, QStringLiteral("客户定稿"));
+            auto after = library.revisions(asset.id);
+            QCOMPARE(after.at(2).pinned, true);
+            QCOMPARE(after.at(2).pinReason, QStringLiteral("客户定稿"));
+            QCOMPARE(library.retentionCandidates(asset.id), (QVector<qint64>{rev2}));
+            // Pin everything cleanable: nothing may be removed.
+            library.pinRevision(asset.id, rev2, QStringLiteral("过审素材"));
+            QVERIFY(library.retentionCandidates(asset.id).isEmpty());
+            // Unpinning restores candidacy and does NOT delete history.
+            library.unpinRevision(asset.id, rev2);
+            after = library.revisions(asset.id);
+            QCOMPARE(after.size(), 3); // history kept
+            QCOMPARE(after.at(1).pinned, false);
+            QVERIFY(after.at(1).pinReason.isEmpty());
+            QCOMPARE(library.retentionCandidates(asset.id), (QVector<qint64>{rev2}));
+            // A revision of another asset (or an unknown id) cannot be pinned.
+            QVERIFY_EXCEPTION_THROWN(library.pinRevision(QStringLiteral("no-such-asset"), rev1, QString()), std::runtime_error);
+            QVERIFY_EXCEPTION_THROWN(library.pinRevision(asset.id, rev1 + 999, QString()), std::runtime_error);
+        }
+        // Pinning survives reopen.
+        Library reopened(libraryRoot);
+        const auto asset = reopened.assets().first();
+        const auto history = reopened.revisions(asset.id);
+        QCOMPARE(history.at(2).pinned, true);
+        QCOMPARE(history.at(2).pinReason, QStringLiteral("客户定稿"));
+        QCOMPARE(history.at(1).pinned, false);
+        QCOMPARE(reopened.retentionCandidates(asset.id), (QVector<qint64>{rev2}));
+    }
 };
 QTEST_GUILESS_MAIN(HistoryTest)
 #include "library_test.moc"

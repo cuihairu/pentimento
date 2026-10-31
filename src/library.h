@@ -21,6 +21,10 @@ struct Revision {
     QString created;
     QString note;
     qint64 size = 0;
+    // P-307 critical-version pin. A pinned revision is never a retention-cleanup
+    // candidate (see retentionCandidates); `pinReason` records why it was pinned.
+    bool pinned = false;
+    QString pinReason;
 };
 
 // One whole-tree emergency anchor: each asset pinned to the revision that
@@ -136,6 +140,15 @@ public:
     bool isExcluded(const Asset &asset, QString *reason = nullptr) const;
     // The recorded reason an asset was excluded from a snapshot (empty if not).
     QString snapshotExclusionReason(qint64 snapshotId, const QString &assetId) const;
+    // P-307 critical-version pinning. A pinned revision is kept out of retention
+    // cleanup and its object is never treated as replaceable. Pinning/unpinning
+    // is persistent and survives reopen; unpinning does NOT delete history.
+    void pinRevision(const QString &assetId, qint64 revisionId, const QString &reason);
+    void unpinRevision(const QString &assetId, qint64 revisionId);
+    // The set of revision ids a retention policy may remove: non-pinned, and not
+    // the newest (current) revision. This is the seam the future V1 retention
+    // policy (P-602) consumes; pinned versions are always excluded (P-307).
+    QVector<qint64> retentionCandidates(const QString &assetId) const;
     void restore(const Asset &asset, qint64 revisionId);
     void exportRevision(const QString &assetId, qint64 revisionId, const QString &destination) const;
     QString objectPath(const QString &hash) const;
