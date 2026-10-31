@@ -97,8 +97,8 @@ MainWindow::MainWindow(Library &library) : library_(library) {
     auto *rightLayout = new QVBoxLayout(right);
     auto *historyTitle = new QLabel(QStringLiteral("版本时间轴"));
     historyTitle->setStyleSheet("font-size:16px;font-weight:600;");
-    auto *hint = new QLabel(QStringLiteral("选择历史版本预览\n恢复会新增版本，原有历史始终保留。"));
-    hint->setWordWrap(true);
+    hint_ = new QLabel(QStringLiteral("选择历史版本预览\n恢复会新增版本，原有历史始终保留。"));
+    hint_->setWordWrap(true);
     historyList_ = new QListWidget;
     historyList_->setAccessibleName(QStringLiteral("历史版本"));
     historyList_->setIconSize(QSize(48, 48));
@@ -106,7 +106,7 @@ MainWindow::MainWindow(Library &library) : library_(library) {
     restore_ = new QPushButton(QStringLiteral("恢复此版本"));
     export_ = new QPushButton(QStringLiteral("导出此版本…"));
     rightLayout->addWidget(historyTitle);
-    rightLayout->addWidget(hint);
+    rightLayout->addWidget(hint_);
     rightLayout->addWidget(historyList_, 1);
     rightLayout->addWidget(restore_);
     rightLayout->addWidget(export_);
@@ -188,24 +188,43 @@ void MainWindow::reloadAssets(const QString &selectId) {
 
 void MainWindow::reloadHistory() {
     const auto asset = selected();
-    revisions_ = asset.id.isEmpty() ? QVector<Revision>{} : library_.revisions(asset.id);
+    // P-308: the timeline comes from the library's content-derived marks, so
+    // ordering is the deterministic id, and current/restore/corrupt/unrecorded
+    // are accurate regardless of clock or selection.
+    if (asset.id.isEmpty()) {
+        revisions_.clear();
+        unrecorded_ = false;
+    } else {
+        const auto timeline = library_.assetTimeline(asset.id);
+        revisions_ = timeline.entries;
+        unrecorded_ = timeline.unrecorded;
+    }
+    hint_->setText(unrecorded_
+        ? QStringLiteral("工作副本有未记录修改，尚未进入时间轴。\n恢复会新增版本，原有历史始终保留。")
+        : QStringLiteral("选择历史版本预览\n恢复会新增版本，原有历史始终保留。"));
     historyList_->blockSignals(true);
     historyList_->clear();
     for (int i = 0; i < revisions_.size(); ++i) {
-        const auto &revision = revisions_.at(i);
-        const auto date = QDateTime::fromString(revision.created, Qt::ISODateWithMs).toLocalTime();
+        const auto &entry = revisions_.at(i);
+        const auto date = QDateTime::fromString(entry.created, Qt::ISODateWithMs).toLocalTime();
+        QString state;
+        if (entry.current) state = QStringLiteral("当前 · ");
+        else if (entry.restore) state = QStringLiteral("恢复 · ");
+        else if (entry.pinned) state = QStringLiteral("固定 · ");
         auto *item = new QListWidgetItem(QStringLiteral("%1%2\n%3\n%4")
-            .arg(i == 0 ? QStringLiteral("当前 · ") : QString(), date.toString("MM-dd HH:mm:ss"), revision.note,
-                 QStringLiteral("%1 KiB").arg(revision.size / 1024.0, 0, 'f', 1)), historyList_);
+            .arg(state, date.toString("MM-dd HH:mm:ss"), entry.note,
+                 QStringLiteral("%1 KiB").arg(entry.size / 1024.0, 0, 'f', 1)), historyList_);
+        if (entry.pinned)
+            item->setToolTip(entry.pinReason.isEmpty() ? QStringLiteral("固定版本")
+                                                       : QStringLiteral("固定：%1").arg(entry.pinReason));
         QIcon icon;
-        try {
-            library_.readObject(revision.hash);
-            QImageReader reader(library_.objectPath(revision.hash));
+        if (entry.corrupt) {
+            icon = style()->standardIcon(QStyle::SP_MessageBoxWarning);
+        } else {
+            QImageReader reader(library_.objectPath(entry.hash));
             reader.setDecideFormatFromContent(true);
             reader.setScaledSize(QSize(80, 80));
             icon = QPixmap::fromImage(reader.read());
-        } catch (const std::exception &) {
-            icon = style()->standardIcon(QStyle::SP_MessageBoxWarning);
         }
         if (!icon.isNull()) item->setIcon(icon);
     }
@@ -221,15 +240,12 @@ void MainWindow::showRevision() {
     if (!valid) return;
     const auto &revision = revisions_.at(row);
     details_->setText(QStringLiteral("%1\n%2 · %3 · #%4")
-        .arg(selected().name, row == 0 ? QStringLiteral("当前版本") : QStringLiteral("历史版本"),
+        .arg(selected().name, revision.current ? QStringLiteral("当前版本") : QStringLiteral("历史版本"),
              QDateTime::fromString(revision.created, Qt::ISODateWithMs).toLocalTime().toString("yyyy-MM-dd HH:mm:ss"))
-        .arg(revision.id));
-    try {
-        library_.readObject(revision.hash);
-    } catch (const std::exception &error) {
+        .arg(revision.revisionId));
+    if (revision.corrupt) {
         preview_->setPixmap(QPixmap());
-        preview_->setText(QStringLiteral("内容损坏或校验失败\n\n%1\n\n原始对象已保留，可导出排查。")
-            .arg(QString::fromUtf8(error.what())));
+        preview_->setText(QStringLiteral("此版本对象已损坏或校验失败\n历史记录保留，可导出对象文件排查。"));
         return;
     }
     QImageReader reader(library_.objectPath(revision.hash));
@@ -277,7 +293,7 @@ void MainWindow::restore() {
     const int row = historyList_->currentRow();
     if (row < 0) return;
     if (QMessageBox::question(this, QStringLiteral("恢复历史版本"), QStringLiteral("将历史内容恢复为当前工作副本，并新增一个版本。\n未记录的当前内容会先保存。请先在外部编辑器中关闭此文件。")) != QMessageBox::Yes) return;
-    try { library_.restore(selected(), revisions_.at(row).id); reloadAssets(selected().id); }
+    try { library_.restore(selected(), revisions_.at(row).revisionId); reloadAssets(selected().id); }
     catch (const std::exception &error) { report(error); }
     // Re-arm the sentinel: restore is an app-initiated write, not ransomware.
     if (sentinel_) sentinel_->resetBaseline();
@@ -288,7 +304,7 @@ void MainWindow::exportFile() {
     if (row < 0) return;
     const auto path = QFileDialog::getSaveFileName(this, QStringLiteral("导出历史版本"), selected().name);
     if (path.isEmpty()) return;
-    try { library_.exportRevision(selected().id, revisions_.at(row).id, path); }
+    try { library_.exportRevision(selected().id, revisions_.at(row).revisionId, path); }
     catch (const std::exception &error) { report(error); }
 }
 

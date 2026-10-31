@@ -88,6 +88,33 @@ struct ExclusionRule {
     QString reason;
 };
 
+// P-308 one entry on a single asset's timeline. Ordering is by the deterministic
+// revision id (never by the display timestamp), so a clock rollback or timezone
+// change cannot reorder history. `current` marks the revision whose content IS
+// the current working copy (derived from content, not from UI selection);
+// `restore` marks a revision produced by a restore ("恢复历史版本 #N");
+// `corrupt` marks a revision whose object failed verification.
+struct TimelineEntry {
+    qint64 revisionId = 0;
+    QString hash;
+    QString created;
+    QString note;
+    qint64 size = 0;
+    bool pinned = false;
+    QString pinReason;
+    bool current = false;
+    bool restore = false;
+    bool corrupt = false;
+};
+
+// The whole timeline for one asset, newest first. `unrecorded` is true when the
+// working copy exists but its content matches no recorded revision (an unsaved
+// modification) — no entry is then marked current.
+struct AssetTimeline {
+    QVector<TimelineEntry> entries;
+    bool unrecorded = false;
+};
+
 // One library, one writer. Original imports are never modified.
 class Library {
 public:
@@ -97,6 +124,10 @@ public:
     Library &operator=(const Library &) = delete;
     QVector<Asset> assets() const;
     QVector<Revision> revisions(const QString &assetId) const;
+    // P-308 single-asset timeline: deterministic order (revision id), display
+    // timestamps, notes, and accurate current/history/restore/corrupt marks
+    // plus the unrecorded-modification flag. See AssetTimeline.
+    AssetTimeline assetTimeline(const QString &assetId) const;
     Asset importFile(const QString &source);
     bool capture(const Asset &asset, const QString &note = QString());
     // P-303 manual version record. Always available: records the asset's current

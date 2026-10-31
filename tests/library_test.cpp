@@ -5,6 +5,8 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QSqlDatabase>
+#include <QSqlQuery>
 #include <QTemporaryDir>
 #include <QtTest>
 #include <cstdio>
@@ -579,6 +581,89 @@ private slots:
         QCOMPARE(history.at(2).pinReason, QStringLiteral("客户定稿"));
         QCOMPARE(history.at(1).pinned, false);
         QCOMPARE(reopened.retentionCandidates(asset.id), (QVector<qint64>{rev2}));
+    }
+    void timelineOrderAndMarksAreAccurate() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("a.png");
+        put(source, "v1");
+        const QString libraryRoot = dir.filePath("library");
+        Library library(libraryRoot);
+        const auto asset = library.importFile(source);
+        put(asset.path, "v2");
+        const auto rev2 = library.recordVersion(asset, QStringLiteral("第二版")).revisionId;
+        put(asset.path, "v3");
+        const auto rev3 = library.recordVersion(asset, QStringLiteral("第三版")).revisionId;
+        // Timeline: newest first by deterministic id, exactly one current mark.
+        auto tl = library.assetTimeline(asset.id);
+        QCOMPARE(tl.entries.size(), 3);
+        QVERIFY(tl.entries.at(0).revisionId > tl.entries.at(1).revisionId);
+        QVERIFY(tl.entries.at(1).revisionId > tl.entries.at(2).revisionId);
+        QCOMPARE(tl.entries.at(0).revisionId, rev3);
+        QCOMPARE(tl.entries.at(0).current, true);
+        QCOMPARE(tl.entries.at(1).current, false);
+        QCOMPARE(tl.entries.at(2).current, false);
+        QCOMPARE(tl.unrecorded, false);
+        QVERIFY(!tl.entries.at(0).restore);
+        QVERIFY(!tl.entries.at(0).corrupt);
+        // An unsaved working-copy edit: nothing is current, unrecorded is true.
+        put(asset.path, "unrecorded-edit");
+        tl = library.assetTimeline(asset.id);
+        QCOMPARE(tl.unrecorded, true);
+        for (const auto &entry : tl.entries) QCOMPARE(entry.current, false);
+        // Restoring the older revision: pre-save + restored append; the new
+        // record is marked restore AND is current (its content IS the working
+        // copy). The duplicated older content is NOT marked current.
+        library.restore(asset, rev2);
+        tl = library.assetTimeline(asset.id);
+        QCOMPARE(tl.entries.size(), 5);
+        QCOMPARE(tl.unrecorded, false);
+        QCOMPARE(tl.entries.at(0).restore, true);
+        QCOMPARE(tl.entries.at(0).current, true);
+        QCOMPARE(tl.entries.at(0).note, QStringLiteral("恢复历史版本 #%1").arg(rev2));
+        QCOMPARE(tl.entries.at(1).note, QStringLiteral("恢复前自动保存"));
+        QCOMPARE(tl.entries.at(1).restore, false);
+        int currentCount = 0;
+        for (const auto &entry : tl.entries) if (entry.current) ++currentCount;
+        QCOMPARE(currentCount, 1);
+        // Pin shows on the timeline.
+        const qint64 rev1 = tl.entries.at(4).revisionId;
+        library.pinRevision(asset.id, rev1, QStringLiteral("客户定稿"));
+        tl = library.assetTimeline(asset.id);
+        QCOMPARE(tl.entries.at(4).pinned, true);
+        QCOMPARE(tl.entries.at(4).pinReason, QStringLiteral("客户定稿"));
+        // A corrupted object is marked corrupt, not hidden (others stay fine).
+        QVERIFY(platform::makeMutable(library.objectPath(
+            library.revisions(asset.id).at(4).hash)));
+        put(library.objectPath(library.revisions(asset.id).at(4).hash), "corrupt");
+        tl = library.assetTimeline(asset.id);
+        QCOMPARE(tl.entries.at(4).corrupt, true);
+        QCOMPARE(tl.entries.at(3).corrupt, false);
+        QCOMPARE(tl.entries.at(0).corrupt, false);
+        // Clock rollback / same-second versions: timestamps are display-only;
+        // order still follows the deterministic revision id.
+        {
+            QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"),
+                                                        QStringLiteral("timeline-test"));
+            db.setDatabaseName(libraryRoot + QStringLiteral("/catalog.sqlite"));
+            QVERIFY(db.open());
+            {
+                QSqlQuery q(db);
+                QVERIFY(q.exec("UPDATE revisions SET created='2020-01-01T00:00:00.000'"));
+            }
+            db.close();
+            db = QSqlDatabase();
+            QSqlDatabase::removeDatabase(QStringLiteral("timeline-test"));
+        }
+        tl = library.assetTimeline(asset.id);
+        QCOMPARE(tl.entries.size(), 5);
+        for (int i = 1; i < tl.entries.size(); ++i)
+            QVERIFY(tl.entries.at(i - 1).revisionId > tl.entries.at(i).revisionId);
+        QCOMPARE(tl.entries.at(0).current, true);
+        // Missing working copy: no unrecorded flag, no current mark.
+        QFile::remove(asset.path);
+        tl = library.assetTimeline(asset.id);
+        QCOMPARE(tl.unrecorded, false);
+        for (const auto &entry : tl.entries) QCOMPARE(entry.current, false);
     }
 };
 QTEST_GUILESS_MAIN(HistoryTest)

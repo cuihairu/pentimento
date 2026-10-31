@@ -167,6 +167,49 @@ QVector<Revision> Library::revisions(const QString &assetId) const {
     return result;
 }
 
+AssetTimeline Library::assetTimeline(const QString &assetId) const {
+    AssetTimeline timeline;
+    // Current working content, if present and readable. "Current" is derived
+    // from content (not from the last selected history item): the newest
+    // revision whose hash matches the working copy is marked current.
+    QString currentHash;
+    {
+        QSqlQuery asset(db_);
+        asset.prepare("SELECT path FROM assets WHERE id=?");
+        asset.addBindValue(assetId);
+        execute(asset);
+        if (asset.next()) {
+            const QString path = asset.value(0).toString();
+            if (QFileInfo(path).exists()) {
+                try { currentHash = streamDigest(path); }
+                catch (...) { currentHash.clear(); }
+            }
+        }
+    }
+    const QRegularExpression restoreNote(QStringLiteral("^恢复历史版本 #\\d+$"));
+    bool currentMarked = false;
+    for (const auto &rev : revisions(assetId)) {
+        TimelineEntry entry;
+        entry.revisionId = rev.id;
+        entry.hash = rev.hash;
+        entry.created = rev.created;
+        entry.note = rev.note;
+        entry.size = rev.size;
+        entry.pinned = rev.pinned;
+        entry.pinReason = rev.pinReason;
+        if (!currentMarked && !currentHash.isEmpty() && rev.hash == currentHash) {
+            entry.current = true;
+            currentMarked = true;
+        }
+        entry.restore = restoreNote.match(rev.note).hasMatch();
+        try { if (streamDigest(objectPath(rev.hash)) != rev.hash) entry.corrupt = true; }
+        catch (...) { entry.corrupt = true; }
+        timeline.entries.push_back(entry);
+    }
+    timeline.unrecorded = !currentHash.isEmpty() && !currentMarked;
+    return timeline;
+}
+
 QString Library::objectPath(const QString &hash) const {
     if (hash.size() != 64) fail(QStringLiteral("无效的对象哈希"));
     for (const auto c : hash)

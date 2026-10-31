@@ -18,11 +18,15 @@ public:
 private:
     Library &library_;
     QVector<Asset> assets_;
-    QVector<Revision> revisions_;
+    // P-308: the timeline is the library's AssetTimeline (deterministic id
+    // order, content-derived current mark, restore/corrupt marks).
+    QVector<TimelineEntry> revisions_;
+    bool unrecorded_ = false;
     QListWidget *assetsList_;
     QListWidget *historyList_;
     QLabel *preview_;
     QLabel *details_;
+    QLabel *hint_;
     QLineEdit *search_;
     QPushButton *restore_;
     QPushButton *export_;
