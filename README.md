@@ -1,5 +1,12 @@
 # pentimento · 画迹
 
+![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)
+![Qt 6](https://img.shields.io/badge/Qt-6-41CD52?logo=qt&logoColor=white)
+![CMake](https://img.shields.io/badge/CMake-3.24+-064F8C?logo=cmake&logoColor=white)
+![License](https://img.shields.io/badge/License-Apache--2.0-blue)
+![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)
+![Status](https://img.shields.io/badge/Status-%E5%8E%9F%E5%9E%8B%E9%98%B6%E6%AE%B5-orange)
+
 面向游戏美术素材的本地桌面资源管理器，以历史版本浏览与恢复为核心。参考 Eagle 的素材整理习惯和 macOS 时光机的版本回溯体验，自行实现代码与界面。
 
 **技术栈：C++17、Qt 6 Widgets、Qt SQL/SQLite，CMake 管理。** 不使用 WebView。
