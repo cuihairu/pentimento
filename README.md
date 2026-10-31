@@ -22,7 +22,7 @@
 
 ## 构建与运行
 
-需要 CMake 3.21+、Ninja、支持 C++17 的编译器及 Qt 6.4+（Core、Gui、Widgets、Sql、Test），运行时需要 Qt SQLite 驱动。已在本地 Qt 6.10.2/Linux 构建验证；macOS/Windows 尚待实际构建验证。
+需要 CMake 3.24+、Ninja、支持 C++17 的编译器及 Qt 6.4+（Core、Gui、Widgets、Sql、Test），运行时需要 Qt SQLite 驱动。已在本地 Qt 6.10.2/Linux 构建验证；macOS/Windows 尚待实际构建验证。
 
 ```sh
 cmake --preset dev
