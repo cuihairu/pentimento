@@ -270,7 +270,7 @@
 6. ★ **库内文件夹组织与改名/移动后历史归属保持**（Eagle/Billfish 天然支持；pentimento P-216/D-05 明确未决，属已知缺口而非遗漏）。
 7. **格式广度**：Eagle 100+/109 格式、字体免安装预览、音频悬停播放、视频逐帧；pentimento V1 仅 PNG/JPEG/WebP/TGA/BMP（R04），游戏美术贴图源文件（PSD/SAI/Procreate 等）预览差距大。
 8. ★ **Windows 上基于 USN change journal 的变更监听**（Windows 文件历史、Anchorpoint Auto Fetch 有事件驱动先例；pentimento D-06 决策点）。
-9. **版本历史的缩略图条**（Alienbrain；pentimento 时间轴 R07 目前未提缩略图维度）。
+9. **版本历史的缩略图条**（Alienbrain；pentimento 时间轴 R07 已实现缩略图维度，见 README「当前可用」与 src/mainwindow.cpp 的 reloadHistory()）。
 10. **编辑器/DCC 集成**（Alienbrain PS/Max/Maya/UE、Anchorpoint UE/Unity、Perforce 全家桶；pentimento 无此定位——单机素材库，标注为**定位外缺口**，不建议 V1 做）。
 11. **协作锁**（Alienbrain/Anchorpoint/Perforce 有；pentimento 单机定位外，同上标注）。
 12. ★ **NAS/外部目标的自动化定期备份**（Time Machine 每小时、文件历史默认每小时自动到 NAS/外置盘；pentimento R19 备份包导出尚无「调度」语义）。
