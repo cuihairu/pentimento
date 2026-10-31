@@ -21,7 +21,7 @@ brew install qt
 # Windows: Qt 官方在线安装器（选 MSVC 2022 组件）或 vcpkg install qtbase:x64-windows
 ```
 
-CI（.github/workflows/nightly.yml）只允许出现 Qt 相关的包安装；缺驱动类问题（如 QSQLITE not loaded）优先怀疑发行版把组件拆成了独立包。
+CI（.github/workflows/nightly.yml）只允许出现 Qt 相关的包安装，外加构建工具 `ninja-build`（Ninja 生成器所需）；缺驱动类问题（如 QSQLITE not loaded）优先怀疑发行版把组件拆成了独立包。
 
 ## 3. 新增三方 C++ 库的规则
 
