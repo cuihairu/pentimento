@@ -266,7 +266,115 @@ struct RestoreJournal {
     QString finished;
     QVector<RestoreJournalItem> items;
 };
-
+class Library {
+public:
+    explicit Library(const QString &root);
+    ~Library();
+    Library(const Library &) = delete;
+    Library &operator=(const Library &) = delete;
+    QVector<Asset> assets() const;
+    QVector<Revision> revisions(const QString &assetId) const;
+    // P-308 single-asset timeline: deterministic order (revision id), display
+    // timestamps, notes, and accurate current/history/restore/corrupt marks
+    // plus the unrecorded-modification flag. See AssetTimeline.
+    AssetTimeline assetTimeline(const QString &assetId) const;
+    Asset importFile(const QString &source);
+    bool capture(const Asset &asset, const QString &note = QString());
+    // P-303 manual version record. Always available: records the asset's current
+    // working content as a new version and returns its queryable id and note.
+    // When the content is already the newest recorded version, no duplicate is
+    // created and the existing version id is returned with unchanged=true, so the
+    // caller can tell the user what is already protected. Throws a loud error on
+    // a failed read/write/index registration instead of silently doing nothing.
+    RecordResult recordVersion(const Asset &asset, const QString &note = QString());
+    // P-304 stable-change auto-record policy. Call once per timer tick per
+    // asset: records the working copy only after TWO consecutive ticks observe
+    // the same size+mtime signature (half-written and continuously-written
+    // files stay unstable and are not recorded). See recordStableVersion for
+    // the read-before/after recheck.
+    StableTick autoRecordTick(const Asset &asset, const QString &note = QString());
+    // Records the asset's current content, but only if it still matches the
+    // observed size+mtime signature BOTH before and after streaming the file.
+    // A file that moved during the read (a torn mid-write snapshot) is never
+    // recorded: any fresh object it created is discarded and retry=true is
+    // returned so the caller observes again.
+    StableTick recordStableVersion(const Asset &asset, qint64 size, qint64 mtimeMs,
+                                   const QString &note = QString());
+    // P-305 scheduled snapshots. The schedule runs only while the app runs (not
+    // a resident system service); exit time is not counted as continuous backup.
+    ScheduleState scheduleState() const;
+    void enableSchedule(int periodMinutes); // 15/30/60, throws on anything else
+    void disableSchedule();
+    void pauseSchedule(const QString &reason); // "user"/"system"
+    void resumeSchedule();
+    // Called periodically (e.g. once a minute). Fires at most ONE snapshot when
+    // the due time is reached; several missed periods collapse to one. Returns
+    // the snapshot id, or 0 when none was taken (not due / disabled / paused).
+    qint64 pumpSchedule(qint64 nowUtcMs);
+    // P-306 exclusion rules. A matched asset is left out of subsequent snapshots
+    // (never a rollback anchor) but stays in the library and keeps its history:
+    // being excluded is NOT being deleted. The matching rule's reason is recorded
+    // per snapshot.
+    QVector<ExclusionRule> exclusionRules() const;
+    qint64 addExclusionRule(const QString &kind, const QString &pattern, const QString &reason);
+    void removeExclusionRule(qint64 id);
+    bool isExcluded(const Asset &asset, QString *reason = nullptr) const;
+    // The recorded reason an asset was excluded from a snapshot (empty if not).
+    QString snapshotExclusionReason(qint64 snapshotId, const QString &assetId) const;
+    // P-307 critical-version pinning. A pinned revision is kept out of retention
+    // cleanup and its object is never treated as replaceable. Pinning/unpinning
+    // is persistent and survives reopen; unpinning does NOT delete history.
+    void pinRevision(const QString &assetId, qint64 revisionId, const QString &reason);
+    void unpinRevision(const QString &assetId, qint64 revisionId);
+    // The set of revision ids a retention policy may remove: non-pinned, and not
+    // the newest (current) revision. This is the seam the future V1 retention
+    // policy (P-602) consumes; pinned versions are always excluded (P-307).
+    QVector<qint64> retentionCandidates(const QString &assetId) const;
+    // P-309 metadata history. Current metadata is readable; updates record
+    // per-field old/new values with a change timestamp and append a revision
+    // that reuses the newest content hash (no new content object). History is
+    // read-only; no fabrication of values, no auto-merge, no auto-revert.
+    Metadata metadata(const QString &assetId) const;
+    QVector<MetadataChange> metadataHistory(const QString &assetId) const;
+    // Records a metadata change and returns the revision that carries it
+    // (unchanged=true when no field actually changed — the current revision id
+    // is returned so the caller can report "already up to date").
+    RecordResult updateMetadata(const QString &assetId, const Metadata &newMeta,
+                                const QString &note = QString());
+    // P-310 deletion tombstone. In-app confirmed delete writes a tombstone
+    // revision (history and objects retained — the asset stays findable and
+    // recoverable via restore) and marks the asset deleted. Missing working
+    // copies are never tombstoned (that is NOT a user deletion).
+    void deleteAsset(const Asset &asset, const QString &note = QString());
+    // The asset's availability state (Present / Missing / Tombstone).
+    AssetState assetState(const QString &assetId) const;
+    void restore(const Asset &asset, qint64 revisionId);
+    void exportRevision(const QString &assetId, qint64 revisionId, const QString &destination,
+                        bool overwrite = false) const;
+    QString objectPath(const QString &hash) const;
+    QByteArray readObject(const QString &hash) const;
+    // P-302 content object store. Streams the file at `source` through a
+    // temporary object (objects/.tmp/), hashes the finished temp, then publishes
+    // it under its content address. Identical content reuses the existing object
+    // (dedup: the existing object is verified before it is trusted). A failed
+    // temp write removes the temp and publishes nothing. Never loads the whole
+    // file into memory.
+    StoredObject storeObject(const QString &source);
+    // Anti-ransomware: re-apply immutability to any object left writable (idempotent).
+    int hardenObjects();
+    // Anti-ransomware: freeze current working state of every asset as one anchor.
+    qint64 snapshotAll(const QString &note);
+    QVector<Snapshot> snapshots() const;
+    // P-311 the snapshot's manifest: every accounted asset (present/tombstone/
+    // missing; excluded assets are recorded separately via snapshotExclusionReason)
+    // with its root-relative path and anchored content hash, all from one
+    // sequence point. Read-only; drives time-point browsing (P-312).
+    QVector<SnapshotEntry> snapshotManifest(qint64 snapshotId) const;
+    // P-312 the assets a snapshot excluded (rule-matched, never a rollback
+    // anchor), with the recorded reason each. Read-only, never mixed with the
+    // current index; the browsing surface shows these so the directory tree of
+    // that time point is complete and honest.
+    QVector<SnapshotExclusion> snapshotExclusions(qint64 snapshotId) const;
     // Anti-ransomware: one-click whole-tree rollback to a snapshot anchor. Each
     // asset is restored via the normal "restore forms a new version" path, so
     // later history is preserved rather than destroyed. Returns how many assets
