@@ -15,6 +15,8 @@
 #include <QSaveFile>
 #include <QSqlError>
 #include <QSqlQuery>
+#include <QStorageInfo>
+#include <QThread>
 #include <QUuid>
 #include <stdexcept>
 
@@ -1100,4 +1102,64 @@ RestorePlan Library::planRestore(qint64 snapshotId) const {
         plan.ops.push_back(op);
     }
     return plan;
+}
+
+RestoreGuard Library::checkRestore(const Asset &asset, qint64 revisionId) const {
+    // P-316: read-only pre-flight. It classifies the current working-copy state
+    // relative to a restore of `revisionId` so the caller can decide whether a
+    // restore may proceed, and reports the space the protection would need. It
+    // never writes and never claims editor-unsaved content is saved.
+    RestoreGuard guard;
+    guard.state = QStringLiteral("ready");
+    bool targetFound = false;
+    for (const auto &rev : revisions(asset.id)) {
+        if (rev.id != revisionId) continue;
+        guard.restoreBytes = rev.size;
+        try {
+            if (streamDigest(objectPath(rev.hash)) != rev.hash) {
+                guard.state = QStringLiteral("corrupt");
+                return guard;
+            }
+        } catch (...) {
+            guard.state = QStringLiteral("corrupt");
+            return guard;
+        }
+        targetFound = true;
+        break;
+    }
+    if (!targetFound) {
+        guard.state = QStringLiteral("notarget");
+        return guard;
+    }
+    if (!QFileInfo::exists(asset.path)) {
+        guard.state = QStringLiteral("missing");
+        return guard;
+    }
+    // Concurrent external write: the size+mtime signature is unstable across a
+    // short double sample, so the file is being written right now — block.
+    const auto signature = [&] {
+        const QFileInfo info(asset.path);
+        return QPair<qint64, qint64>(info.size(), info.lastModified().toMSecsSinceEpoch());
+    };
+    const auto first = signature();
+    QThread::msleep(50);
+    if (signature() != first) {
+        guard.state = QStringLiteral("externalwrite");
+        return guard;
+    }
+    // Unrecorded current content: the newest recorded revision differs from the
+    // working bytes, so the restore will first protect them as a new revision.
+    const auto current = revisions(asset.id);
+    QString workingHash;
+    try { workingHash = streamDigest(asset.path); } catch (...) { workingHash.clear(); }
+    if (current.isEmpty() || current.first().hash != workingHash) {
+        guard.state = QStringLiteral("unrecorded");
+        guard.protectBytes = QFileInfo(asset.path).size();
+    }
+    // Space estimate: the protection (a new object of the unrecorded content)
+    // plus the restored working-copy write must fit the free space.
+    guard.freeBytes = QStorageInfo(root_).bytesAvailable();
+    if (guard.freeBytes < guard.protectBytes + guard.restoreBytes)
+        guard.state = QStringLiteral("nospace");
+    return guard;
 }

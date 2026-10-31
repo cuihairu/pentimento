@@ -304,8 +304,33 @@ void MainWindow::capture() {
 void MainWindow::restore() {
     const int row = historyList_->currentRow();
     if (row < 0) return;
-    if (QMessageBox::question(this, QStringLiteral("恢复历史版本"), QStringLiteral("将历史内容恢复为当前工作副本，并新增一个版本。\n未记录的当前内容会先保存。请先在外部编辑器中关闭此文件。")) != QMessageBox::Yes) return;
-    try { library_.restore(selected(), revisions_.at(row).revisionId); reloadAssets(selected().id); }
+    const auto asset = selected();
+    const qint64 revisionId = revisions_.at(row).revisionId;
+    // P-316 pre-flight guard: block on a concurrent external write, an
+    // unavailable target, or insufficient space; confirm a missing working copy.
+    const auto guard = library_.checkRestore(asset, revisionId);
+    if (guard.state == QStringLiteral("externalwrite")) {
+        QMessageBox::warning(this, QStringLiteral("检测到外部写入"),
+                             QStringLiteral("工作副本正在被外部程序写入。\n请先在外部编辑器中关闭此文件，再重试恢复。"));
+        return;
+    }
+    if (guard.state == QStringLiteral("corrupt") || guard.state == QStringLiteral("notarget")) {
+        QMessageBox::warning(this, QStringLiteral("无法恢复"),
+                             QStringLiteral("目标版本对象损坏或不存在，已停止。\n历史记录保留，可导出对象文件排查。"));
+        return;
+    }
+    if (guard.state == QStringLiteral("nospace")) {
+        QMessageBox::warning(this, QStringLiteral("空间不足"),
+                             QStringLiteral("可用空间不足，已停止恢复（需要约 %1 字节）。").arg(guard.protectBytes + guard.restoreBytes));
+        return;
+    }
+    QString prompt = QStringLiteral("将历史内容恢复为当前工作副本，并新增一个版本。\n请先在外部编辑器中关闭此文件。");
+    if (guard.state == QStringLiteral("missing"))
+        prompt += QStringLiteral("\n当前工作副本缺失，恢复将重新创建它。");
+    else if (guard.state == QStringLiteral("unrecorded"))
+        prompt += QStringLiteral("\n未记录的当前内容会先保存为新版本。");
+    if (QMessageBox::question(this, QStringLiteral("恢复历史版本"), prompt) != QMessageBox::Yes) return;
+    try { library_.restore(asset, revisionId); reloadAssets(asset.id); }
     catch (const std::exception &error) { report(error); }
     // Re-arm the sentinel: restore is an app-initiated write, not ransomware.
     if (sentinel_) sentinel_->resetBaseline();

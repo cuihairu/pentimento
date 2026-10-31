@@ -1004,6 +1004,47 @@ private slots:
         const auto writablePlan = library.planRestore(snap);
         QCOMPARE(byId(writablePlan, b.id)->kind, QStringLiteral("replace"));
     }
+    void restoreGuardReportsStateBeforeOverwrite() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("a.png");
+        put(source, "v1");
+        Library library(dir.filePath("library"));
+        const auto a = library.importFile(source);
+        const qint64 v1 = library.revisions(a.id).first().id;
+        // Recorded current content: safe to restore.
+        auto guard = library.checkRestore(a, v1);
+        QCOMPARE(guard.state, QStringLiteral("ready"));
+        QCOMPARE(guard.protectBytes, qint64(0));
+        QVERIFY(guard.restoreBytes > 0);
+        // Unrecorded current content: it WILL be protected first (new revision),
+        // and the guard reports the space that protection needs, without writing.
+        put(a.path, "a-unsaved");
+        guard = library.checkRestore(a, v1);
+        QCOMPARE(guard.state, QStringLiteral("unrecorded"));
+        QCOMPARE(guard.protectBytes, qint64(9)); // "a-unsaved"
+        QCOMPARE(get(a.path), QByteArray("a-unsaved")); // the check wrote nothing
+        // The restore itself protects the unrecorded content BEFORE overwriting:
+        // the auto-save revision is recorded and the working copy lands on v1.
+        library.restore(a, v1);
+        QCOMPARE(get(a.path), QByteArray("v1"));
+        const auto after = library.revisions(a.id);
+        QCOMPARE(after.size(), 3); // v1, auto-save(a-unsaved), restore(v1)
+        QCOMPARE(library.readObject(after.at(1).hash), QByteArray("a-unsaved"));
+        QVERIFY(after.first().id > after.at(1).id);
+        // After the restore the newest revision matches the working content again.
+        QCOMPARE(library.checkRestore(a, v1).state, QStringLiteral("ready"));
+        // A target revision that does not exist blocks the restore.
+        QCOMPARE(library.checkRestore(a, 999999).state, QStringLiteral("notarget"));
+        // A missing working copy has nothing to protect; the caller confirms.
+        QVERIFY(QFile::remove(a.path));
+        QCOMPARE(library.checkRestore(a, v1).state, QStringLiteral("missing"));
+        // A corrupt target object blocks (never restores unverified bytes).
+        const auto b = library.importFile(source);
+        const qint64 bV1 = library.revisions(b.id).first().id;
+        QVERIFY(platform::makeMutable(library.objectPath(library.revisions(b.id).first().hash)));
+        put(library.objectPath(library.revisions(b.id).first().hash), "corrupt");
+        QCOMPARE(library.checkRestore(b, bV1).state, QStringLiteral("corrupt"));
+    }
 };
 QTEST_GUILESS_MAIN(HistoryTest)
 #include "library_test.moc"

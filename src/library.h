@@ -206,6 +206,25 @@ struct RestorePlan {
     qint64 bytesToWrite = 0;
 };
 
+// P-316 pre-flight result before a restore overwrites the working copy. Read-only
+// (no write); the caller must consult it and only then restore. `state` is:
+//   "ready"        — current content is already recorded (or absent); safe to restore;
+//   "unrecorded"   — current content is not recorded; it WILL be protected first
+//                    (a new revision), `protectBytes` is the space that needs;
+//   "missing"      — the working copy is absent; nothing to protect, caller confirms;
+//   "externalwrite" — the working copy is being written concurrently (size+mtime
+//                    unstable); restore is blocked, caller asks to close the editor;
+//   "nospace"      — free space is below protectBytes + restoreBytes; blocked;
+//   "notarget"     — the target revision does not exist; blocked;
+//   "corrupt"      — the target revision's object failed verification; blocked.
+// It never claims to have saved content the editor has not written to disk.
+struct RestoreGuard {
+    QString state;
+    qint64 protectBytes = 0; // space the protection of unrecorded content needs
+    qint64 restoreBytes = 0; // bytes the restored working-copy write needs
+    qint64 freeBytes = 0;    // free space on the target volume at check time
+};
+
 // One library, one writer. Original imports are never modified.
 class Library {
 public:
@@ -326,6 +345,13 @@ public:
     // caller presents the plan and only then executes (after an exec-time
     // recheck, since the plan binds the target version and the file state).
     RestorePlan planRestore(qint64 snapshotId) const;
+    // P-316 pre-flight guard for one restore: reports whether the current
+    // working content is unrecorded (and would be protected first), whether the
+    // working copy is missing, whether a concurrent external write is detected,
+    // and whether there is space — all WITHOUT writing. A restore must not
+    // proceed on anything but ready/unrecorded/missing; on protection failure it
+    // stops (no unprotected overwrite). Never claims editor-unsaved content.
+    RestoreGuard checkRestore(const Asset &asset, qint64 revisionId) const;
     QString root() const { return root_; }
 private:
     QString root_;
