@@ -1,6 +1,7 @@
 #include "library.h"
 #include "backend.h"
 #include "platform_immutable.h"
+#include "storage.h"
 #include <QFile>
 #include <QFileInfo>
 #include <QTemporaryDir>
@@ -193,6 +194,40 @@ private slots:
         // Supported capabilities must not report an "unsupported" reason for the
         // self backend; the UI hides an action only when the capability is absent.
         QVERIFY(info.unsupportedReason(Capability::History).contains(QStringLiteral("此后端")));
+    }
+    void storageInterfaceReportsConsistentLocalInfo() {
+        QTemporaryDir dir;
+        put(dir.filePath("a.png"), "image-bytes");
+        QVERIFY(QDir().mkpath(dir.filePath("sub")));
+        // A file: size, mtime, SHA-256 identity, reachable.
+        const SourceInfo file = statSource(dir.filePath("a.png"));
+        QCOMPARE(file.path, QFileInfo(dir.filePath("a.png")).absoluteFilePath());
+        QVERIFY(!file.isDir);
+        QCOMPARE(file.size, qint64(11));
+        QVERIFY(file.mtimeMs > 0);
+        QCOMPARE(file.contentHash.toHex(), QString(QCryptographicHash::hash(
+            QByteArray("image-bytes"), QCryptographicHash::Sha256).toHex()));
+        QCOMPARE(file.state, SourceState::Reachable);
+        // A directory listing returns children with consistent size/mtime.
+        SourceInfo dirState;
+        const auto entries = listDirectory(dir.path(), &dirState);
+        QCOMPARE(dirState.state, SourceState::Reachable);
+        QVERIFY(dirState.isDir);
+        QCOMPARE(entries.size(), 2);
+        bool sawFile = false, sawSub = false;
+        for (const auto &e : entries) {
+            if (e.isDir) { sawSub = e.path.endsWith("/sub") || e.path.endsWith("sub"); }
+            else { sawFile = e.path.endsWith("a.png"); QCOMPARE(e.size, qint64(11)); }
+        }
+        QVERIFY(sawFile && sawSub);
+        // Missing path is unreachable, not a healthy disk.
+        QCOMPARE(statSource(dir.filePath("missing")).state, SourceState::Unreachable);
+        // A read-only file reports ReadOnly (not silently healthy).
+        if (::geteuid() != 0) {
+            put(dir.filePath("ro.png"), "x");
+            QVERIFY(::chmod(dir.filePath("ro.png").toLocal8Bit().constData(), 0444) == 0);
+            QCOMPARE(statSource(dir.filePath("ro.png")).state, SourceState::ReadOnly);
+        }
     }
     void historyObjectsSurviveWorkspaceEncryption() {
         QTemporaryDir dir;
