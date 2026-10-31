@@ -121,8 +121,8 @@ Library::Library(const QString &root)
              QStringLiteral("CREATE TABLE IF NOT EXISTS assets(id TEXT PRIMARY KEY,name TEXT NOT NULL,path TEXT NOT NULL,tags TEXT NOT NULL DEFAULT '',rating INTEGER,note TEXT NOT NULL DEFAULT '',source TEXT NOT NULL DEFAULT '',deleted INTEGER NOT NULL DEFAULT 0)"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS revisions(id INTEGER PRIMARY KEY AUTOINCREMENT,asset_id TEXT NOT NULL REFERENCES assets(id),hash TEXT NOT NULL,created TEXT NOT NULL,note TEXT NOT NULL,size INTEGER NOT NULL,pinned INTEGER NOT NULL DEFAULT 0,pin_reason TEXT NOT NULL DEFAULT '',tombstone INTEGER NOT NULL DEFAULT 0)"),
              QStringLiteral("CREATE INDEX IF NOT EXISTS revisions_asset ON revisions(asset_id,id)"),
-             QStringLiteral("CREATE TABLE IF NOT EXISTS snapshots(id INTEGER PRIMARY KEY AUTOINCREMENT,created TEXT NOT NULL,note TEXT NOT NULL)"),
-             QStringLiteral("CREATE TABLE IF NOT EXISTS snapshot_assets(snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),asset_id TEXT NOT NULL REFERENCES assets(id),revision_id INTEGER NOT NULL,PRIMARY KEY(snapshot_id,asset_id))"),
+             QStringLiteral("CREATE TABLE IF NOT EXISTS snapshots(id INTEGER PRIMARY KEY AUTOINCREMENT,created TEXT NOT NULL,note TEXT NOT NULL,boundary INTEGER NOT NULL DEFAULT 0)"),
+             QStringLiteral("CREATE TABLE IF NOT EXISTS snapshot_assets(snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),asset_id TEXT NOT NULL REFERENCES assets(id),revision_id INTEGER NOT NULL,hash TEXT NOT NULL DEFAULT '',path TEXT NOT NULL DEFAULT '',state TEXT NOT NULL DEFAULT 'present',PRIMARY KEY(snapshot_id,asset_id))"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS exclusion_rules(id INTEGER PRIMARY KEY AUTOINCREMENT,kind TEXT NOT NULL,pattern TEXT NOT NULL,reason TEXT NOT NULL,created TEXT NOT NULL)"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS snapshot_exclusions(snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),asset_id TEXT NOT NULL REFERENCES assets(id),reason TEXT NOT NULL,PRIMARY KEY(snapshot_id,asset_id))"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS metadata_changes(id INTEGER PRIMARY KEY AUTOINCREMENT,asset_id TEXT NOT NULL REFERENCES assets(id),revision_id INTEGER NOT NULL,field TEXT NOT NULL,old_value TEXT NOT NULL,new_value TEXT NOT NULL,changed TEXT NOT NULL)")}) {
@@ -180,6 +180,36 @@ Library::Library(const QString &root)
             QSqlQuery alter(db_);
             if (!alter.exec(QStringLiteral(
                     "ALTER TABLE assets ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0")))
+                fail(alter.lastError().text());
+        }
+    }
+    // P-311: snapshot manifest columns (sequence point + per-entry path/state).
+    {
+        QSqlQuery snapColumns(db_);
+        snapColumns.prepare("PRAGMA table_info(snapshots)");
+        execute(snapColumns);
+        QStringList snapNames;
+        while (snapColumns.next()) snapNames << snapColumns.value(1).toString();
+        if (!snapNames.contains(QStringLiteral("boundary"))) {
+            QSqlQuery alter(db_);
+            if (!alter.exec(QStringLiteral(
+                    "ALTER TABLE snapshots ADD COLUMN boundary INTEGER NOT NULL DEFAULT 0")))
+                fail(alter.lastError().text());
+        }
+        QSqlQuery entryColumns(db_);
+        entryColumns.prepare("PRAGMA table_info(snapshot_assets)");
+        execute(entryColumns);
+        QStringList entryNames;
+        while (entryColumns.next()) entryNames << entryColumns.value(1).toString();
+        const QList<QPair<QString, QString>> entryAdditions = {
+            {QStringLiteral("hash"), QStringLiteral("TEXT NOT NULL DEFAULT ''")},
+            {QStringLiteral("path"), QStringLiteral("TEXT NOT NULL DEFAULT ''")},
+            {QStringLiteral("state"), QStringLiteral("TEXT NOT NULL DEFAULT 'present'")}};
+        for (const auto &column : entryAdditions) {
+            if (entryNames.contains(column.first)) continue;
+            QSqlQuery alter(db_);
+            if (!alter.exec(QStringLiteral("ALTER TABLE snapshot_assets ADD COLUMN %1 %2")
+                                .arg(column.first, column.second)))
                 fail(alter.lastError().text());
         }
     }
@@ -824,35 +854,17 @@ qint64 Library::snapshotAll(const QString &note) {
         q.addBindValue(note.isEmpty() ? QStringLiteral("紧急快照") : note);
         execute(q);
         snapshotId = q.lastInsertId().toLongLong();
+        // P-311: one consistent manifest. Current working content is first
+        // recorded as a completed revision (anti-ransom preservation), then a
+        // sequence point (boundary = max revision id) is fixed; every anchor is
+        // a completed revision at or before it, so the listing is a single
+        // consistent whole-library set — never a per-file scan.
+        struct Entry { QString assetId; QString path; QString hash; QString state; qint64 revisionId; };
+        QVector<Entry> entries;
         const auto all = assets();
         for (const auto &asset : all) {
-            const auto history = revisions(asset.id);
-            QFile file(asset.path);
-            QByteArray current;
-            if (file.exists() && file.open(QIODevice::ReadOnly)) {
-                current = file.readAll();
-            }
-            // The recovery anchor must be the last CLEAN revision (pre-infection).
-            // Race: scanChanges (2s) can auto-record infected bytes just before
-            // pollSentinel (5s) fires, so history.first() may simply mirror the
-            // current (suspected-infected) working content. Skip any newest
-            // revision whose content equals the current working bytes, so the
-            // anchor stays on the newest clean (pre-infection) revision. In a
-            // false-positive alert where the current content is genuinely clean
-            // and already recorded, this conservatively anchors to the prior
-            // revision (consistent with "宁可误报、不可漏报" and the user's
-            // explicit confirm before rollback).
-            const QString currentHash = current.isEmpty() ? QString() : digest(current);
-            qint64 anchor = 0;
-            for (const auto &rev : history) { // newest first
-                if (current.isEmpty() || rev.hash != currentHash) { anchor = rev.id; break; }
-            }
-            if (!anchor && !history.isEmpty()) anchor = history.first().id;
-            if (!current.isEmpty() && (history.isEmpty() || history.first().hash != currentHash))
-                append(asset, current, QStringLiteral("紧急快照锚点"));
-            // P-306: an excluded asset is NOT deleted and keeps the emergency
-            // append above (history preserved), but it is never a rollback anchor:
-            // the exclusion reason is recorded and the snapshot_assets row skipped.
+            // P-306: excluded assets keep the emergency append (history kept)
+            // but are never a rollback anchor; the reason is recorded instead.
             QString excludeReason;
             if (isExcluded(asset, &excludeReason)) {
                 QSqlQuery ex(db_);
@@ -863,12 +875,70 @@ qint64 Library::snapshotAll(const QString &note) {
                 execute(ex);
                 continue;
             }
-            if (!anchor) continue; // no clean history to recover to
+            const bool hasWorking = QFileInfo::exists(asset.path);
+            const auto history = revisions(asset.id);
+            QString currentHash;
+            if (hasWorking) {
+                try { currentHash = streamDigest(asset.path); }
+                catch (...) { currentHash.clear(); } // unreadable ≈ not present
+            }
+            // The recovery anchor must be the last CLEAN revision (pre-infection).
+            // Race: scanChanges (2s) can auto-record infected bytes just before
+            // pollSentinel (5s) fires, so history.first() may simply mirror the
+            // current (suspected-infected) working content. Skip any newest
+            // revision whose content equals the current working bytes, so the
+            // anchor stays on the newest clean (pre-infection) revision. In a
+            // false-positive alert where the current content is genuinely clean
+            // and already recorded, this conservatively anchors to the prior
+            // revision (consistent with "宁可误报、不可漏报").
+            qint64 anchor = 0;
+            QString anchorHash;
+            for (const auto &rev : history) { // newest first
+                if (currentHash.isEmpty() || rev.hash != currentHash) { anchor = rev.id; anchorHash = rev.hash; break; }
+            }
+            if (!anchor && !history.isEmpty()) { anchor = history.first().id; anchorHash = history.first().hash; }
+            if (!currentHash.isEmpty() && (history.isEmpty() || history.first().hash != currentHash))
+                appendFromFile(asset, asset.path, QStringLiteral("紧急快照锚点"));
+            if (!anchor) {
+                // A present asset with no completed revision cannot be anchored:
+                // the candidate is incomplete, so it is NOT published as a
+                // successful snapshot.
+                fail(QStringLiteral("快照不完整：素材「%1」没有可锚定版本，未发布").arg(asset.name));
+            }
+            // Objects referenced by the manifest are verified (content reference
+            // == manifest consistency); a bad object blocks the snapshot.
+            if (streamDigest(objectPath(anchorHash)) != anchorHash)
+                fail(QStringLiteral("快照不完整：素材「%1」对象校验失败，未发布").arg(asset.name));
+            QString state = QStringLiteral("present");
+            if (asset.deleted) state = QStringLiteral("tombstone");
+            else if (currentHash.isEmpty()) state = QStringLiteral("missing");
+            entries.push_back({asset.id, QDir(root_).relativeFilePath(asset.path),
+                               anchorHash, state, anchor});
+        }
+        // The sequence point: everything above is a completed revision <= this.
+        qint64 boundary = 0;
+        {
+            QSqlQuery b(db_);
+            b.prepare("SELECT COALESCE(MAX(id),0) FROM revisions");
+            execute(b);
+            if (b.next()) boundary = b.value(0).toLongLong();
+        }
+        QSqlQuery ub(db_);
+        ub.prepare("UPDATE snapshots SET boundary=? WHERE id=?");
+        ub.addBindValue(boundary);
+        ub.addBindValue(snapshotId);
+        execute(ub);
+        for (const auto &entry : entries) {
+            if (entry.revisionId > boundary)
+                fail(QStringLiteral("快照不完整：锚点超出序列点，未发布"));
             QSqlQuery ins(db_);
-            ins.prepare("INSERT OR REPLACE INTO snapshot_assets(snapshot_id,asset_id,revision_id) VALUES(?,?,?)");
+            ins.prepare("INSERT OR REPLACE INTO snapshot_assets(snapshot_id,asset_id,revision_id,hash,path,state) VALUES(?,?,?,?,?,?)");
             ins.addBindValue(snapshotId);
-            ins.addBindValue(asset.id);
-            ins.addBindValue(anchor);
+            ins.addBindValue(entry.assetId);
+            ins.addBindValue(entry.revisionId);
+            ins.addBindValue(entry.hash);
+            ins.addBindValue(entry.path);
+            ins.addBindValue(entry.state);
             execute(ins);
         }
         if (!db_.commit()) fail(db_.lastError().text());
@@ -879,15 +949,31 @@ qint64 Library::snapshotAll(const QString &note) {
     return snapshotId;
 }
 
+QVector<SnapshotEntry> Library::snapshotManifest(qint64 snapshotId) const {
+    QSqlQuery q(db_);
+    q.prepare("SELECT asset_id,path,hash,state,revision_id FROM snapshot_assets "
+              "WHERE snapshot_id=? ORDER BY path,asset_id");
+    q.addBindValue(snapshotId);
+    execute(q);
+    QVector<SnapshotEntry> result;
+    while (q.next()) {
+        result.push_back({q.value(0).toString(), q.value(1).toString(),
+                          q.value(2).toString(), q.value(3).toString(),
+                          q.value(4).toLongLong()});
+    }
+    return result;
+}
+
 QVector<Snapshot> Library::snapshots() const {
     QSqlQuery q(db_);
-    q.prepare("SELECT s.id,s.created,s.note,COUNT(sa.asset_id) FROM snapshots s "
+    q.prepare("SELECT s.id,s.created,s.note,COUNT(sa.asset_id),s.boundary FROM snapshots s "
               "LEFT JOIN snapshot_assets sa ON sa.snapshot_id=s.id GROUP BY s.id ORDER BY s.id DESC");
     execute(q);
     QVector<Snapshot> result;
     while (q.next()) {
         result.push_back({q.value(0).toLongLong(), q.value(1).toString(),
-                          q.value(2).toString(), q.value(3).toInt()});
+                          q.value(2).toString(), q.value(3).toInt(),
+                          q.value(4).toLongLong()});
     }
     return result;
 }

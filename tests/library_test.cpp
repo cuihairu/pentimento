@@ -807,6 +807,91 @@ private slots:
         QCOMPARE(library.revisions(asset.id).first().id, beforeMissing);
         QCOMPARE(library.revisions(asset.id).first().tombstone, false); // no new record
     }
+    void consistentSnapshotPublishesCompleteManifest() {
+        QTemporaryDir dir;
+        const auto png = dir.filePath("a.png");
+        const auto psd = dir.filePath("b.psd");
+        const auto txt = dir.filePath("readme.txt");
+        put(png, "png-v1"); put(psd, "psd-v1"); put(txt, "readme-v1");
+        Library library(dir.filePath("library"));
+        const auto a = library.importFile(png);
+        const auto b = library.importFile(psd);
+        const auto c = library.importFile(txt);
+        put(a.path, "png-v2");
+        QVERIFY(library.capture(a, QStringLiteral("第二版")));
+        put(a.path, "png-unrecorded"); // not recorded; snapshot preserves it in history
+        const auto byAsset = [&](const QVector<SnapshotEntry> &manifest, const QString &id) -> const SnapshotEntry * {
+            for (const auto &entry : manifest) if (entry.assetId == id) return &entry;
+            return nullptr;
+        };
+        // Snapshot 1: three present assets, each anchored to a completed
+        // revision at or before the sequence point (one consistent manifest).
+        const qint64 snap1 = library.snapshotAll(QStringLiteral("一致快照"));
+        QVERIFY(snap1 > 0);
+        const auto first = library.snapshots().first();
+        QCOMPARE(first.id, snap1);
+        QCOMPARE(first.assets, 3);
+        QVERIFY(first.boundary > 0);
+        auto manifest = library.snapshotManifest(snap1);
+        QCOMPARE(manifest.size(), 3);
+        for (const auto &entry : manifest) {
+            QCOMPARE(entry.state, QStringLiteral("present"));
+            QVERIFY(entry.revisionId <= first.boundary); // sequence-point consistency
+            QVERIFY(!entry.path.isEmpty());
+            // Content reference matches a real revision of the same asset, and
+            // the object verifies (manifest == object store).
+            bool found = false;
+            for (const auto &rev : library.revisions(entry.assetId))
+                if (rev.id == entry.revisionId) { QCOMPARE(rev.hash, entry.contentHash); found = true; }
+            QVERIFY(found);
+            QCOMPARE(library.readObject(entry.contentHash).size() > 0, true);
+        }
+        const auto *aEntry = byAsset(manifest, a.id);
+        QVERIFY(aEntry);
+        // The conservative anchor skips the newest revision that mirrors current
+        // content: a is anchored to its last CLEAN revision (png-v2), while the
+        // unrecorded png-unrecorded is preserved as a later history revision.
+        QString aAnchorHash;
+        for (const auto &rev : library.revisions(a.id))
+            if (rev.id == aEntry->revisionId) aAnchorHash = rev.hash;
+        QCOMPARE(library.readObject(aAnchorHash), QByteArray("png-v2"));
+        // The unrecorded png-unrecorded is preserved as a history revision (the
+        // emergency append), while the anchor stays on the clean png-v2.
+        QCOMPARE(library.readObject(library.revisions(a.id).first().hash), QByteArray("png-unrecorded"));
+        // The boundary is a fixed point: a revision recorded after the snapshot
+        // has a strictly greater id.
+        put(a.path, "png-v3");
+        QVERIFY(library.capture(a, QStringLiteral("第三版")));
+        QVERIFY(library.revisions(a.id).first().id > first.boundary);
+        // Snapshot 2: a missing working copy (no tombstone) is state=missing.
+        QVERIFY(QFile::remove(c.path));
+        const qint64 snap2 = library.snapshotAll(QStringLiteral("缺失快照"));
+        QVERIFY(snap2 > 0);
+        manifest = library.snapshotManifest(snap2);
+        QCOMPARE(manifest.size(), 3);
+        const auto *cEntry = byAsset(manifest, c.id);
+        QVERIFY(cEntry);
+        QCOMPARE(cEntry->state, QStringLiteral("missing"));
+        QVERIFY(cEntry->revisionId <= library.snapshots().first().boundary);
+        // Snapshot 3: an in-app deleted asset is state=tombstone.
+        library.deleteAsset(b);
+        const qint64 snap3 = library.snapshotAll(QStringLiteral("墓碑快照"));
+        QVERIFY(snap3 > 0);
+        manifest = library.snapshotManifest(snap3);
+        const auto *bEntry = byAsset(manifest, b.id);
+        QVERIFY(bEntry);
+        QCOMPARE(bEntry->state, QStringLiteral("tombstone"));
+        // Snapshot 4: an excluded asset leaves the manifest and is recorded
+        // separately (reason), while present/missing assets remain.
+        library.addExclusionRule(QStringLiteral("extension"), QStringLiteral(".psd"),
+                                 QStringLiteral("不追踪 PSD"));
+        const qint64 snap4 = library.snapshotAll(QStringLiteral("排除快照"));
+        QVERIFY(snap4 > 0);
+        manifest = library.snapshotManifest(snap4);
+        QCOMPARE(manifest.size(), 2);
+        QVERIFY(!byAsset(manifest, b.id));
+        QCOMPARE(library.snapshotExclusionReason(snap4, b.id), QStringLiteral("不追踪 PSD"));
+    }
 };
 QTEST_GUILESS_MAIN(HistoryTest)
 #include "library_test.moc"

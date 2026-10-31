@@ -68,12 +68,15 @@ struct Revision {
 };
 
 // One whole-tree emergency anchor: each asset pinned to the revision that
-// represented it when the snapshot was taken.
+// represented it when the snapshot was taken. `boundary` is the sequence point
+// (max revision id) the snapshot was fixed at; every manifest entry references
+// a revision at or before it.
 struct Snapshot {
     qint64 id = 0;
     QString created;
     QString note;
     int assets = 0;
+    qint64 boundary = 0;
 };
 
 // One object stored in the content-addressed store. `hash` is the SHA-256 of
@@ -153,6 +156,19 @@ struct TimelineEntry {
 struct AssetTimeline {
     QVector<TimelineEntry> entries;
     bool unrecorded = false;
+};
+
+// P-311 one entry of a consistent whole-library snapshot manifest. `path` is
+// root-relative as of the snapshot; `contentHash` is the anchored revision's
+// hash; `state` is "present" | "tombstone" | "missing" at the snapshot moment.
+// All entries reference revisions at or before the snapshot's sequence point,
+// so the listing is one complete, consistent set (never a per-file scan).
+struct SnapshotEntry {
+    QString assetId;
+    QString path;
+    QString contentHash;
+    QString state;
+    qint64 revisionId = 0;
 };
 
 // One library, one writer. Original imports are never modified.
@@ -254,6 +270,11 @@ public:
     // Anti-ransomware: freeze current working state of every asset as one anchor.
     qint64 snapshotAll(const QString &note);
     QVector<Snapshot> snapshots() const;
+    // P-311 the snapshot's manifest: every accounted asset (present/tombstone/
+    // missing; excluded assets are recorded separately via snapshotExclusionReason)
+    // with its root-relative path and anchored content hash, all from one
+    // sequence point. Read-only; drives time-point browsing (P-312).
+    QVector<SnapshotEntry> snapshotManifest(qint64 snapshotId) const;
     // Anti-ransomware: one-click whole-tree rollback to a snapshot anchor. Each
     // asset is restored via the normal "restore forms a new version" path, so
     // later history is preserved rather than destroyed. Returns how many assets
