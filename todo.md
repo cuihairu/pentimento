@@ -65,7 +65,7 @@
 - [x] P-307 实现关键版本固定。验收：固定版本不被保留策略清理。证据：tests/library_test.cpp pinnedVersionSurvivesRetentionCleanup（默认最新版非候选、其余为候选；固定后带原因且退出候选；全部固定则无可清理；取消固定恢复候选且历史不删；跨素材/未知版本固定拒绝；重开保持固定与原因；ctest library_history 绿 20/20；commit 807f735）。固定标记+原因持久化，取消固定不删历史；自动清理为 P-602 预演。
 - [x] P-308 实现单素材时间轴。验收：顺序、时间、说明与当前/历史标识准确。证据：tests/library_test.cpp timelineOrderAndMarksAreAccurate（按确定序列 id 排序、同秒/时钟回拨不改序、内容推导当前标识且唯一、恢复记录标 restore、未记录修改置 unrecorded、损坏对象标 corrupt 不隐藏、固定显示；ctest library_history 绿 21/21；commit adc623b）。时间仅作展示；UI 时间轴改用 AssetTimeline（当前/恢复/固定/损坏标识 + 未记录修改提示）。
 - [x] P-309 实现元数据历史。验收：可查看旧名称、标签、备注与来源记录。证据：tests/library_test.cpp metadataHistoryRecordsPerFieldChanges（导入记基线（旧值空）；五字段一次更新各记一条、修订内序不作约定；元数据修订复用最新内容哈希、不新建内容对象；当前元数据可读；重开保持元数据与历史；重复更新 unchanged 且不增修订；ctest library_history 绿 22/22；commit 8694c76）。逐字段旧/新值与变更时间持久化；无 UI 接入（P-213/214/215 编辑面未建），只读回看为库级接口，UI 延迟里程碑。
-- [ ] P-310 实现删除墓碑。验收：删除后历史查询仍可找到原素材。 （BLOCKED复核 2026-10-30：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
+- [x] P-310 实现删除墓碑。验收：删除后历史查询仍可找到原素材。证据：tests/library_test.cpp deleteKeepsHistoryFindableAndMissingIsDistinct（应用内删除写墓碑修订、复用末内容哈希不建内容对象、历史/对象全保留、素材仍可查、工作副本移除；恢复后回 Present 且清墓碑；重复删除拒绝；手动移除工作副本为 Missing 且不写墓碑；ctest library_history 绿 23/23；commit c88250f）。三状态 Present/Missing/Tombstone；存储不可达不写墓碑，由存储层后续上报。
 - [ ] P-311 实现整库一致快照。验收：快照目录树与内容引用属于同一完整清单。 （BLOCKED复核 2026-10-30：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
 - [ ] P-312 实现时间点目录浏览。验收：切换快照能看到当时路径和删除状态。 （BLOCKED复核 2026-10-30：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
 - [ ] P-313 实现双版并排与同步缩放。验收：同一位置和比例可重复比较。 （BLOCKED复核 2026-10-30：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
