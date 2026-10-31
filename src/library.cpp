@@ -63,6 +63,10 @@ Library::Library(const QString &root)
              QStringLiteral("CREATE TABLE IF NOT EXISTS snapshot_assets(snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),asset_id TEXT NOT NULL REFERENCES assets(id),revision_id INTEGER NOT NULL,PRIMARY KEY(snapshot_id,asset_id))")}) {
         if (!q.exec(sql)) fail(q.lastError().text());
     }
+    // Opening an existing library must re-apply immutability to any object that
+    // a tamperer left writable (idempotent, best-effort). Documented promise in
+    // 85-antiransom.md: hardenObjects() is for hardening existing objects on open.
+    hardenObjects();
 }
 
 Library::~Library() {
@@ -220,16 +224,29 @@ qint64 Library::snapshotAll(const QString &note) {
         const auto all = assets();
         for (const auto &asset : all) {
             const auto history = revisions(asset.id);
-            // The recovery anchor is the last CLEAN revision (pre-infection).
-            // Current working content that diverged from it is recorded as an
-            // emergency revision for forensics, but is never the anchor.
-            qint64 anchor = history.isEmpty() ? 0 : history.first().id;
             QFile file(asset.path);
+            QByteArray current;
             if (file.exists() && file.open(QIODevice::ReadOnly)) {
-                const auto bytes = file.readAll();
-                if (history.isEmpty() || history.first().hash != digest(bytes))
-                    append(asset, bytes, QStringLiteral("紧急快照锚点"));
+                current = file.readAll();
             }
+            // The recovery anchor must be the last CLEAN revision (pre-infection).
+            // Race: scanChanges (2s) can auto-record infected bytes just before
+            // pollSentinel (5s) fires, so history.first() may simply mirror the
+            // current (suspected-infected) working content. Skip any newest
+            // revision whose content equals the current working bytes, so the
+            // anchor stays on the newest clean (pre-infection) revision. In a
+            // false-positive alert where the current content is genuinely clean
+            // and already recorded, this conservatively anchors to the prior
+            // revision (consistent with "宁可误报、不可漏报" and the user's
+            // explicit confirm before rollback).
+            const QString currentHash = current.isEmpty() ? QString() : digest(current);
+            qint64 anchor = 0;
+            for (const auto &rev : history) { // newest first
+                if (current.isEmpty() || rev.hash != currentHash) { anchor = rev.id; break; }
+            }
+            if (!anchor && !history.isEmpty()) anchor = history.first().id;
+            if (!current.isEmpty() && (history.isEmpty() || history.first().hash != currentHash))
+                append(asset, current, QStringLiteral("紧急快照锚点"));
             if (!anchor) continue; // no clean history to recover to
             QSqlQuery ins(db_);
             ins.prepare("INSERT OR REPLACE INTO snapshot_assets(snapshot_id,asset_id,revision_id) VALUES(?,?,?)");
@@ -274,10 +291,14 @@ int Library::rollbackAll(qint64 snapshotId) {
         if (it == byId.constEnd()) continue;
         const Asset &asset = it.value();
         QByteArray anchorBytes;
+        bool anchorFound = false;
         for (const auto &rev : revisions(assetId)) {
-            if (rev.id == anchorId) { anchorBytes = readObject(rev.hash); break; }
+            if (rev.id == anchorId) { anchorBytes = readObject(rev.hash); anchorFound = true; break; }
         }
-        if (anchorBytes.isEmpty()) continue; // anchor revision vanished (defensive)
+        // Distinguish "anchor revision vanished" from a valid anchor whose
+        // content is itself empty (an empty object is legal). Presence of the
+        // revision id is the existence check; content emptiness is not.
+        if (!anchorFound) continue; // anchor revision vanished (defensive)
         // Already at the recovery target: skip (a no-op restore would only churn).
         if (QFileInfo::exists(asset.path) && readFile(asset.path) == anchorBytes) continue;
         // One-click rollback goes through the normal restore path: it appends the

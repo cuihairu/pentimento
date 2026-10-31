@@ -10,6 +10,7 @@ void put(const QString &path, const QByteArray &data) {
     QVERIFY(file.open(QIODevice::WriteOnly));
     QCOMPARE(file.write(data), data.size());
 }
+QByteArray get(const QString &path) { QFile file(path); return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray(); }
 // Deterministic pseudo-random bytes (xorshift), reproducible across runs.
 QByteArray randomBytes(int count) {
     QByteArray data(count, 0);
@@ -159,6 +160,40 @@ private slots:
         QVERIFY(QFile::exists(assets.at(1).path + ".enc"));
         QCOMPARE(library.revisions(assets.at(0).id).size(), 2);
         QCOMPARE(library.revisions(assets.at(1).id).size(), 2);
+    }
+    void snapshotAnchorSkipsInfectedAutoRecord() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("asset.dat");
+        put(source, "clean v1");
+        Library library(dir.filePath("library"));
+        const auto asset = library.importFile(source);
+        const qint64 cleanRev = library.revisions(asset.id).first().id;
+        // Ransomware overwrites the working file; before the sentinel fires the
+        // 2s auto-record captures the infected content as the newest revision.
+        put(asset.path, "infected content");
+        QVERIFY(library.capture(asset, QStringLiteral("自动记录")));
+        QCOMPARE(library.revisions(asset.id).first().id != cleanRev, true);
+        // Emergency snapshot must anchor to the pre-infection clean revision,
+        // not to the newest revision that merely mirrors the infected content.
+        const qint64 snap = library.snapshotAll(QStringLiteral("紧急快照：疑似勒索批量写入"));
+        QVERIFY(snap > 0);
+        // Roll back: the workspace returns to clean pre-infection content.
+        QCOMPARE(library.rollbackAll(snap), 1);
+        QCOMPARE(get(asset.path), QByteArray("clean v1"));
+    }
+    void rollbackHandlesEmptyAnchorObject() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("asset.dat");
+        put(source, ""); // legal empty object
+        Library library(dir.filePath("library"));
+        const auto asset = library.importFile(source);
+        const qint64 snap = library.snapshotAll(QStringLiteral("紧急快照"));
+        QVERIFY(snap > 0);
+        // Empty content is a valid anchor; content emptiness must not be read as
+        // "anchor revision vanished".
+        put(asset.path, "later content");
+        QCOMPARE(library.rollbackAll(snap), 1);
+        QCOMPARE(get(asset.path), QByteArray(""));
     }
 };
 QTEST_GUILESS_MAIN(SecurityTest)

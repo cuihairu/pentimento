@@ -153,6 +153,23 @@ private slots:
         QCOMPARE(library.hardenObjects(), 1);
         QVERIFY(platform::isImmutable(object));
     }
+    void openingExistingLibraryHardensObjects() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("asset.dat");
+        put(source, "v1");
+        {
+            Library library(dir.filePath("library"));
+            const auto asset = library.importFile(source);
+            const auto revision = library.revisions(asset.id).first();
+            // Simulate a tamperer that cleared the immutability guard.
+            QVERIFY(platform::makeMutable(library.objectPath(revision.hash)));
+            QVERIFY(!platform::isImmutable(library.objectPath(revision.hash)));
+        }
+        // Reopening an existing library must re-apply immutability (idempotent).
+        Library reopened(dir.filePath("library"));
+        const auto revision = reopened.revisions(reopened.assets().first().id).first();
+        QVERIFY(platform::isImmutable(reopened.objectPath(revision.hash)));
+    }
     void historyObjectsSurviveWorkspaceEncryption() {
         QTemporaryDir dir;
         const auto source = dir.filePath("character.png");

@@ -283,7 +283,10 @@ void MainWindow::rollbackToSnapshot() {
     }
     QStringList labels;
     for (const auto &snapshot : snapshots)
-        labels << QStringLiteral("#%1 %2 · %3 个素材").arg(snapshot.id).arg(snapshot.created, snapshot.assets);
+        labels << QStringLiteral("#%1 %2 · %3 个素材")
+                      .arg(snapshot.id)
+                      .arg(snapshot.created)
+                      .arg(snapshot.assets);
     bool ok = false;
     const auto choice = QInputDialog::getItem(this, QStringLiteral("恢复到锚点"),
                                               QStringLiteral("选择感染前锚点（回滚形成新版本，不销毁后续历史）"), labels, 0, false, &ok);
