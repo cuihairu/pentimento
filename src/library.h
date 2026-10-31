@@ -62,6 +62,18 @@ struct StableTick {
     qint64 revisionId = 0;
 };
 
+// P-305 scheduled-snapshot state, visible to the user. A schedule is OFF by
+// default; enabling it at a 15/30/60-minute period computes the next fire time
+// from the enable moment. `paused` stops automatic snapshots and keeps the
+// reason ("user"/"system") for display.
+struct ScheduleState {
+    bool enabled = false;
+    int periodMinutes = 0;
+    qint64 nextUtcMs = 0;
+    bool paused = false;
+    QString pauseReason;
+};
+
 // One library, one writer. Original imports are never modified.
 class Library {
 public:
@@ -93,6 +105,17 @@ public:
     // returned so the caller observes again.
     StableTick recordStableVersion(const Asset &asset, qint64 size, qint64 mtimeMs,
                                    const QString &note = QString());
+    // P-305 scheduled snapshots. The schedule runs only while the app runs (not
+    // a resident system service); exit time is not counted as continuous backup.
+    ScheduleState scheduleState() const;
+    void enableSchedule(int periodMinutes); // 15/30/60, throws on anything else
+    void disableSchedule();
+    void pauseSchedule(const QString &reason); // "user"/"system"
+    void resumeSchedule();
+    // Called periodically (e.g. once a minute). Fires at most ONE snapshot when
+    // the due time is reached; several missed periods collapse to one. Returns
+    // the snapshot id, or 0 when none was taken (not due / disabled / paused).
+    qint64 pumpSchedule(qint64 nowUtcMs);
     void restore(const Asset &asset, qint64 revisionId);
     void exportRevision(const QString &assetId, qint64 revisionId, const QString &destination) const;
     QString objectPath(const QString &hash) const;
@@ -124,6 +147,8 @@ private:
     // (waiting for a second consecutive match) and the signature already recorded.
     QHash<QString, QPair<qint64, qint64>> stablePending_;
     QHash<QString, QPair<qint64, qint64>> stableRecorded_;
+    // P-305 schedule state (runtime only; the schedule is not a resident service).
+    ScheduleState schedule_;
     void append(const Asset &asset, const QByteArray &bytes, const QString &note);
     qint64 appendFromFile(const Asset &asset, const QString &source, const QString &note);
     qint64 insertRevision(const Asset &asset, const QString &hash, qint64 size, const QString &note);

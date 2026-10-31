@@ -305,6 +305,45 @@ StableTick Library::autoRecordTick(const Asset &asset, const QString &note) {
     return result;
 }
 
+ScheduleState Library::scheduleState() const { return schedule_; }
+
+void Library::enableSchedule(int periodMinutes) {
+    if (periodMinutes != 15 && periodMinutes != 30 && periodMinutes != 60)
+        fail(QStringLiteral("定时快照周期须为 15/30/60 分钟"));
+    schedule_.enabled = true;
+    schedule_.periodMinutes = periodMinutes;
+    schedule_.paused = false;
+    schedule_.pauseReason.clear();
+    schedule_.nextUtcMs = QDateTime::currentMSecsSinceEpoch() + periodMinutes * 60000LL;
+}
+
+void Library::disableSchedule() { schedule_ = ScheduleState{}; }
+
+void Library::pauseSchedule(const QString &reason) {
+    if (!schedule_.enabled) return;
+    schedule_.paused = true;
+    schedule_.pauseReason = reason;
+}
+
+void Library::resumeSchedule() {
+    if (!schedule_.enabled) return;
+    schedule_.paused = false;
+    schedule_.pauseReason.clear();
+    // Resuming restarts the interval from now: no surprise snapshot right after
+    // a pause, consistent with "next time = enabling moment + period".
+    schedule_.nextUtcMs = QDateTime::currentMSecsSinceEpoch() + schedule_.periodMinutes * 60000LL;
+}
+
+qint64 Library::pumpSchedule(qint64 nowUtcMs) {
+    if (!schedule_.enabled || schedule_.paused || nowUtcMs < schedule_.nextUtcMs) return 0;
+    // Several missed periods collapse into this single catch-up snapshot; the
+    // next window starts from now (no stacking of overdue work). snapshotAll is
+    // synchronous, so a still-running previous snapshot cannot overlap by design.
+    const qint64 id = snapshotAll(QStringLiteral("定时快照"));
+    schedule_.nextUtcMs = nowUtcMs + schedule_.periodMinutes * 60000LL;
+    return id;
+}
+
 Asset Library::importFile(const QString &source) {
     const auto bytes = readFile(source);
     const QFileInfo info(source);

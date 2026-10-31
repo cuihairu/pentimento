@@ -416,6 +416,69 @@ private slots:
         QCOMPARE(library.revisions(asset.id).size(), 2);
         QCOMPARE(library.readObject(library.revisions(asset.id).first().hash), QByteArray("changed-mid-read"));
     }
+    void scheduleStateIsVisibleAndPauseStopsSnapshots() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("a.png");
+        put(source, "v1");
+        Library library(dir.filePath("library"));
+        library.importFile(source);
+        // Default schedule is OFF and visible.
+        QCOMPARE(library.scheduleState().enabled, false);
+        QCOMPARE(library.scheduleState().paused, false);
+        // Invalid periods are rejected loudly.
+        QVERIFY_EXCEPTION_THROWN(library.enableSchedule(7), std::runtime_error);
+        // Enable at 15 minutes; next time = enabling moment + 15 min.
+        library.enableSchedule(15);
+        auto state = library.scheduleState();
+        QVERIFY(state.enabled);
+        QCOMPARE(state.periodMinutes, 15);
+        QVERIFY(!state.paused);
+        const qint64 next = state.nextUtcMs;
+        QVERIFY(next > QDateTime::currentMSecsSinceEpoch());
+        // Not due yet: no snapshot.
+        QCOMPARE(library.pumpSchedule(next - 1), 0);
+        QCOMPARE(library.snapshots().size(), 0);
+        // Due: exactly one snapshot, next window advanced by one period.
+        const qint64 first = library.pumpSchedule(next);
+        QVERIFY(first > 0);
+        QCOMPARE(library.snapshots().size(), 1);
+        QCOMPARE(library.scheduleState().nextUtcMs, next + 15 * 60000LL);
+        // Several missed periods collapse to a single catch-up snapshot.
+        const qint64 late = next + 15 * 60000LL * 4;
+        const qint64 catchUp = library.pumpSchedule(late);
+        QVERIFY(catchUp > 0);
+        QVERIFY(catchUp != first);
+        QCOMPARE(library.snapshots().size(), 2);
+        QCOMPARE(library.scheduleState().nextUtcMs, late + 15 * 60000LL);
+        // Pause records the reason and stops automatic snapshots.
+        library.pauseSchedule(QStringLiteral("user"));
+        state = library.scheduleState();
+        QVERIFY(state.paused);
+        QCOMPARE(state.pauseReason, QStringLiteral("user"));
+        const qint64 pausedAt = library.scheduleState().nextUtcMs;
+        QCOMPARE(library.pumpSchedule(pausedAt + 15 * 60000LL), 0);
+        QCOMPARE(library.pumpSchedule(pausedAt + 30 * 60000LL), 0);
+        QCOMPARE(library.snapshots().size(), 2); // no snapshots while paused
+        // Resume restarts a fresh interval from the resume moment (no surprise
+        // snapshot right after a pause); the next fire is one period away.
+        library.resumeSchedule();
+        state = library.scheduleState();
+        QVERIFY(!state.paused);
+        QVERIFY(state.pauseReason.isEmpty());
+        const qint64 resumedNext = state.nextUtcMs;
+        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        QVERIFY(resumedNext > now);
+        QVERIFY(resumedNext <= now + 15 * 60000LL + 5000);
+        QCOMPARE(library.pumpSchedule(resumedNext - 1), 0);
+        QVERIFY(library.pumpSchedule(resumedNext) > 0);
+        QCOMPARE(library.snapshots().size(), 3);
+        // Disabling clears the state back to the default.
+        library.disableSchedule();
+        state = library.scheduleState();
+        QCOMPARE(state.enabled, false);
+        QCOMPARE(state.periodMinutes, 0);
+        QCOMPARE(library.pumpSchedule(library.scheduleState().nextUtcMs + 15 * 60000LL), 0);
+    }
 };
 QTEST_GUILESS_MAIN(HistoryTest)
 #include "library_test.moc"

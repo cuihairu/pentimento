@@ -10,6 +10,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMenu>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QScrollArea>
@@ -42,6 +43,29 @@ MainWindow::MainWindow(Library &library) : library_(library) {
     });
     // Anti-ransomware Layer 3: one-click rollback to a pre-infection anchor.
     toolbar->addAction(QStringLiteral("恢复到锚点"), this, &MainWindow::rollbackToSnapshot);
+    // P-305 scheduled snapshots: default OFF, 15/30/60-minute periods, pausable.
+    auto *scheduleMenu = new QMenu(this);
+    const QList<int> periods = {15, 30, 60};
+    for (const int minutes : periods) {
+        auto *action = scheduleMenu->addAction(QStringLiteral("每 %1 分钟").arg(minutes), this, [this, minutes] {
+            try { library_.enableSchedule(minutes); updateScheduleStatus(); }
+            catch (const std::exception &error) { report(error); }
+        });
+        action->setCheckable(true);
+    }
+    scheduleMenu->addSeparator();
+    pauseAction_ = scheduleMenu->addAction(QStringLiteral("暂停定时快照"), this, [this] {
+        if (library_.scheduleState().paused) library_.resumeSchedule();
+        else library_.pauseSchedule(QStringLiteral("user"));
+        updateScheduleStatus();
+    });
+    scheduleMenu->addAction(QStringLiteral("关闭定时快照"), this, [this] {
+        library_.disableSchedule(); updateScheduleStatus();
+    });
+    auto *scheduleAction = toolbar->addAction(QStringLiteral("定时快照"));
+    scheduleAction->setMenu(scheduleMenu);
+    scheduleLabel_ = new QLabel;
+    statusBar()->addPermanentWidget(scheduleLabel_);
     auto *splitter = new QSplitter;
     auto *left = new QWidget;
     auto *leftLayout = new QVBoxLayout(left);
@@ -106,8 +130,31 @@ MainWindow::MainWindow(Library &library) : library_(library) {
     auto *sentinelTimer = new QTimer(this);
     connect(sentinelTimer, &QTimer::timeout, this, &MainWindow::pollSentinel);
     sentinelTimer->start(5000);
+    // P-305: pump the schedule once a minute; missed periods collapse to one.
+    auto *scheduleTimer = new QTimer(this);
+    connect(scheduleTimer, &QTimer::timeout, this, [this] {
+        try {
+            const qint64 snapshotId = library_.pumpSchedule(QDateTime::currentMSecsSinceEpoch());
+            if (snapshotId > 0) statusBar()->showMessage(QStringLiteral("定时快照 #%1 已记录").arg(snapshotId), 10000);
+        } catch (const std::exception &error) { report(error); }
+        updateScheduleStatus();
+    });
+    scheduleTimer->start(60000);
     reloadAssets();
+    updateScheduleStatus();
     statusBar()->showMessage(QStringLiteral("本地素材库：%1 · 编辑工作副本后自动记录稳定变化").arg(library_.root()));
+}
+
+void MainWindow::updateScheduleStatus() {
+    // The schedule state stays visible: period + next fire time (or pause reason).
+    const auto state = library_.scheduleState();
+    QString text = QStringLiteral("定时快照：");
+    if (!state.enabled) text += QStringLiteral("关闭");
+    else if (state.paused) text += QStringLiteral("已暂停（%1）").arg(state.pauseReason);
+    else text += QStringLiteral("每 %1 分钟 · 下次 %2").arg(state.periodMinutes)
+                    .arg(QDateTime::fromMSecsSinceEpoch(state.nextUtcMs).toString(QStringLiteral("MM-dd HH:mm")));
+    scheduleLabel_->setText(QStringLiteral("  %1  ").arg(text));
+    if (pauseAction_) pauseAction_->setText(state.paused ? QStringLiteral("继续定时快照") : QStringLiteral("暂停定时快照"));
 }
 
 Asset MainWindow::selected() const {

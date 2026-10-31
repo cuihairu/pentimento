@@ -8,6 +8,7 @@ class QListWidget;
 class QLabel;
 class QLineEdit;
 class QPushButton;
+class QAction;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -25,6 +26,8 @@ private:
     QLineEdit *search_;
     QPushButton *restore_;
     QPushButton *export_;
+    QLabel *scheduleLabel_;
+    QAction *pauseAction_;
     std::unique_ptr<Sentinel> sentinel_;
     Asset selected() const;
     void pollSentinel();
@@ -37,6 +40,7 @@ private:
     void exportFile();
     void scanChanges();
     void rollbackToSnapshot();
+    void updateScheduleStatus();
     void report(const std::exception &error);
 protected:
     void resizeEvent(QResizeEvent *event) override;
