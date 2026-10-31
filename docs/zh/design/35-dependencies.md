@@ -27,7 +27,7 @@ CI（.github/workflows/nightly.yml）只允许出现 Qt 相关的包安装，外
 
 - 一律走 `CMakeLists.txt` 的 `fetch_dep(<名字> GIT_REPOSITORY ... GIT_TAG <锁定的 tag>)`（FetchContent），**禁止**手工 vendor 源码进仓、禁止在 CI 或文档里要求用户散装 `apt install <三方库>`。
 - 锁定具体 tag（不用分支名），升级依赖=改 tag + 全测试绿，单独一个 commit。
-- 同名依赖只取第一次声明（`fetch_dep` 已内置，按 `fetch_dep(<名字>)` 的调用名去重：首次声明后即设置 `FETCH_DEP_<名字>_DONE`，不依赖依赖自身是否提供同名 CMake target，纯头文件/别名/不同名 target 依赖同样按 `<名字>` 去重），防止传递依赖重复拉取。
+- 同名依赖只取第一次声明（`fetch_dep` 已内置，按 `fetch_dep(<名字>)` 的调用名去重：首次声明后即设置 GLOBAL 属性 `FETCH_DEP_<名字>_DONE`，该属性跨函数/子目录作用域可见，不依赖依赖自身是否提供同名 CMake target，纯头文件/别名/不同名 target 依赖同样按 `<名字>` 去重），防止传递依赖重复拉取。
 - 新增时在本文件第 1 节表格登记一行，并在该 commit 的说明里写选型理由（为什么不用 std/Qt 自带能力）。
 
 ## 4. 明确不做

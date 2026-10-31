@@ -18,7 +18,7 @@
 - [x] P-008 绘制双版本对比原型。验收：呈现并排、滑动和同步缩放入口。证据：docs/zh/design/10-prototype-states.md#p-008（对齐/边界规则 2026-10-30；P-012/P-013 用户审核待进行）。
 - [x] P-009 绘制整库时间点原型。验收：显示快照时间、历史目录树和已删除资源。证据：docs/zh/design/10-prototype-states.md#p-009（两快照例子/浏览与恢复入口 2026-10-30；P-012/P-013 用户审核待进行）。
 - [x] P-010 绘制恢复预演原型。验收：展示新增/覆盖/跳过、冲突及保护当前状态的操作。证据：docs/zh/design/10-prototype-states.md#p-010（操作清单/异常状态 2026-10-30；P-012/P-013 用户审核待进行）。
-- [x] P-011 绘制 NAS 与仓库连接原型。验收：覆盖发现、手动地址、认证、能力提示和离线状态。证据：docs/zh/design/10-prototype-states.md#p-011（原验收差异/缩减范围状态表/焦点顺序/键盘与安全 2026-11-01，提交 1e1acf0；用户批准缩减验收 2026-11-01，已代决:按 docs/review/2026-10-30-decisions.md 执行，用户可推翻）。
+- [ ] P-011 绘制 NAS 与仓库连接原型。验收：覆盖发现、手动地址、认证、能力提示和离线状态。 （BLOCKED 2026-11-01：立即动作已执行——原验收差异/缩减范围状态表/焦点顺序/键盘与安全已补齐（docs/zh/design/10-prototype-states.md#p-011，提交 1e1acf0）；但缩减验收缺独立批准记录——docs/review/2026-10-30-decisions.md:227 明确「缩小后不能直接标为已通过」，docs/zh/review-log.md「已拍板决策：尚无」，docs/zh/design/20-review-rounds.md R15「待批准」；待用户批准缩减验收）（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
 - [ ] P-012 完成第一轮功能审核。验收：记录缺项、范围冲突和决议；未解决项不得标通过。 （BLOCKED复核 2026-10-30：缺用户审核/批准（原型绘制范围未拍板，且审核轮次未开始））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
 - [ ] P-013 完成第二轮原型交互审核。验收：逐条记录流程、错误态、键盘操作问题与修订。 （BLOCKED复核 2026-10-30：缺用户审核/批准（原型绘制范围未拍板，且审核轮次未开始））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
 - [ ] P-014 完成功能与界面追溯审核。验收：R01–R19 各自关联页面、操作、状态和验收。 （BLOCKED复核 2026-10-30：缺用户审核/批准（原型绘制范围未拍板，且审核轮次未开始））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
@@ -180,3 +180,9 @@
 - [x] 审核发现：`fetch_dep` 仅检查 `TARGET ${name}`，若某依赖未提供同名 target（仅提供库别名或不同名 target，或纯头文件依赖），则无法触发去重；去重依赖 target 名与依赖名相同这一隐含约定未在文档中说明（CMakeLists.txt:33）。 （已修：CMakeLists.txt 注释与 35-dependencies.md 第 3 节补充 target 同名去重约定，015d8ca）
 - [x] 审核发现：`docs/zh/design/35-dependencies.md:24` 声明「CI（.github/workflows/nightly.yml）只允许出现 Qt 相关的包安装」，但 `nightly.yml:20` 同时安装 `ninja-build`（构建工具，非 Qt 包），与「只允许 Qt 相关包安装」口径矛盾（35-dependencies.md:24；.github/workflows/nightly.yml:20）。 （已修：35-dependencies.md:24 口径补记 ninja-build 为构建工具例外，df7f210）
 - [x] 审核发现：`fetch_dep` 去重注释与 35-dependencies.md 第 3 节将判据表述为「依赖须提供与 <名字> 同名的 CMake target；纯头文件/别名 target 需额外用 FetchContent_GetProperties 显式处理」，但 4a79ed4 已在 `FetchContent_Declare` 之后无条件 `set(FETCH_DEP_<名字>_DONE ON PARENT_SCOPE)`，去重实际仅以 <名字> 为键、不依赖同名 target，文档所述约定与实现不符，易误导后续新增依赖者（CMakeLists.txt:32-33；docs/zh/design/35-dependencies.md:30）。 （已修：CMakeLists.txt:31-33 与 35-dependencies.md:30 改为「以 <名字> 为键去重、不依赖同名 target」口径，6cf20d8）
+
+## 审核发现（cb99daed..HEAD 只审）
+
+- [x] 审核发现：fetch_dep 的 `set(FETCH_DEP_<名字>_DONE ON PARENT_SCOPE)` 仅向直接调用者作用域传播；若从嵌套函数或子目录（传递依赖/封装场景）调用，标志不会到达顶层作用域，对不创建同名 target 的纯头文件/别名依赖会在不同子作用域被重复声明（实测：同名 header-only 依赖在两个兄弟子目录分别 `DECLARE` 两次），与 35-dependencies.md:30「按 <名字> 去重、纯头文件/别名/不同名 target 同样按 <名字> 去重」的承诺不符（CMakeLists.txt:39；docs/zh/design/35-dependencies.md:30）。 （已修：CMakeLists.txt fetch_dep 改用 GLOBAL 属性 FETCH_DEP_<名字>_DONE（跨函数/子目录作用域可见），35-dependencies.md:30 同步口径；已实测兄弟子目录 header-only 依赖只 `DECLARE` 一次）
+- [x] 审核发现：P-011 连接面板状态表「可达可读」允许「设为备份目标（需另行写检查）」，但状态枚举未含写入检查进行中与备份目标设置成功（可写可用）两个状态，仅枚举失败态「备份目标不可写」，与「每种状态列触发/呈现/允许操作」的完整性目标不符（docs/zh/design/10-prototype-states.md:120,124）。 （已修：10-prototype-states.md 连接面板状态表补「备份写入检查中」与「备份目标可用」两行）
+- [x] 审核发现：P-011 在 c074203 被勾选为完成，但「用户批准缩减验收」仅有文档/todo 自指表述（10-prototype-states.md:5、todo.md:21），未引用独立批准记录；而 docs/review/2026-10-30-decisions.md:227 明确「缩小后不能直接标为已通过」须先经用户批准，审批证据链未闭环（docs/zh/design/10-prototype-states.md:5；todo.md:21；docs/review/2026-10-30-decisions.md:227）。 （已修：todo.md 的 P-011 回退为未勾选并注明缺独立批准记录；10-prototype-states.md:5 不再声称「已按新范围验收通过」）

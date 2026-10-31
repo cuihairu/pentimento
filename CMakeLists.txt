@@ -29,14 +29,16 @@ endif()
 include(FetchContent)
 # FetchContent_MakeAvailable_once：<名字> <GIT_REPOSITORY ...> <GIT_TAG ...>
 # 同名依赖只取第一次声明，防止传递依赖重复拉取。
-# 去重判据：以 <名字> 为键（fetch_dep 调用名）；首次声明后即设置 FETCH_DEP_<名字>_DONE，
+# 去重判据：以 <名字> 为键（fetch_dep 调用名）；首次声明后即设置 GLOBAL 属性 FETCH_DEP_<名字>_DONE，
 # 与依赖是否提供同名 CMake target 无关——纯头文件/别名/不同名 target 依赖同样按 <名字> 去重。
+# GLOBAL 属性跨函数/子目录作用域可见，保证嵌套或兄弟子目录场景不重复声明。
 function(fetch_dep name)
-    if(TARGET ${name} OR DEFINED FETCH_DEP_${name}_DONE)
+    get_property(_fetch_dep_done GLOBAL PROPERTY FETCH_DEP_${name}_DONE)
+    if(TARGET ${name} OR _fetch_dep_done)
         return()
     endif()
     FetchContent_Declare(${name} ${ARGN})
-    set(FETCH_DEP_${name}_DONE ON PARENT_SCOPE)
+    set_property(GLOBAL PROPERTY FETCH_DEP_${name}_DONE ON)
     FetchContent_MakeAvailable(${name})
 endfunction()
 
