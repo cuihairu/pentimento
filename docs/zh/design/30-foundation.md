@@ -19,9 +19,9 @@
 
 **关键仓库事实（影响 P-210）**：本机 Qt 6.10.2 **不提供 WebP/TGA 解码**（无 `libqwebp`/`libqtga` 插件，且非 built-in）；PNG/JPEG/BMP 可预览。V1 五格式中的 WebP/TGA 在本环境需补充插件（Debian/Ubuntu `qt6-image-formats-plugins` 含 webp/tga/icns 等）或按「降级：暂无预览，原字节保留」处理。记录此限制，不作为「已支持」结论。
 
-**待用户输入**：macOS/Windows 可安装版本、图像插件与打包要求（缺平台证据则不宣称该平台交付）。
+**macOS / Windows 候选（记录，未真机验证）**：按 `CMakeLists.txt` 顶部注释——macOS：`brew install qt`；Windows：官方在线安装器（含 MSVC 2022 组件）或 `vcpkg qtbase`。候选版本同为 Qt 6.4+（项目 `find_package(Qt6 6.4 ...)`），图像格式插件（webp/tga）在 Windows/macOS 的 Qt 官方安装包是否内置**未验证**，真机验证并入 P-607；缺平台证据则不宣称该平台交付。
 
-**许可/部署**：项目 Apache-2.0；Qt 及依赖保留各自许可证，分发须遵守实际使用的 Qt 授权条件（静态链接、动态链接与商业授权差异须按所选打包方式确认）。
+**许可/部署**：项目 Apache-2.0；Qt 及依赖保留各自许可证，分发须遵守实际使用的 Qt 授权条件（静态链接、动态链接与商业授权差异须按所选打包方式确认）。部署要求：Windows 分发须含对应图像格式插件（`imageformats/`，如 webp/tga）与 `platforms/qwindows.dll`；macOS 分发须含插件于 `Contents/PlugIns/imageformats/` 并在 `Info.plist` 声明（本机未打包，部署清单待 P-607 真机验证）。
 
 ## P-103 版本后端接口（能力查询定义）
 

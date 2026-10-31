@@ -27,7 +27,7 @@
 ## 工程基础
 
 - [x] P-101 建立 C++17/CMake 目标结构。验收：核心库、桌面应用和测试目标独立，禁止依赖 C++20。实验代码不计入交付，明确批准后才开发。证据：`cmake --preset dev && cmake --build --preset dev && ctest --preset dev` 通过（2/2 绿：`library_history`、`security_sentinel`）；编译命令为 `-std=c++17`（build.ninja 实测，无 C++20）；目标独立：`pentimento_core`、`pentimento`、`pentimento_tests`、`pentimento_security_tests`（CMakeLists.txt:51-70）；P-015 已批准故「明确批准后才开发」门槛已满足。
-- [ ] P-102 确定 Qt 版本与模块。验收：记录三系统可安装版本、图像插件及授权部署要求。 （BLOCKED复核 2026-11-01：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
+- [x] P-102 确定 Qt 版本与模块。验收：记录三系统可安装版本、图像插件及授权部署要求。 证据：docs/zh/design/30-foundation.md#P-102（Linux 本机实测 Qt 6.10.2 配置/构建/ctest 2/2 绿，组件 Core/Gui/Widgets/Sql/Test，SQLite 驱动与 imageformats 插件清单；本机无 webp/tga 解码器（需 `qt6-image-formats-plugins` 或按降级处理）已记录；macOS/Windows 候选安装方式与部署要求已记录，真机验证并入 P-607；许可/部署要求已记录）。
 - [ ] P-103 定义版本后端接口。验收：通过能力查询区分历史、树快照、恢复、锁和远端获取。 （BLOCKED复核 2026-11-01：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
 - [ ] P-104 定义资源存储访问接口。验收：本地、挂载目录、WebDAV/SFTP 返回一致的目录与文件信息。 （BLOCKED复核 2026-11-01：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
 - [ ] P-105 建立后台任务队列。验收：耗时任务可报告进度、取消和错误且不阻塞界面。 （BLOCKED复核 2026-11-01：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
