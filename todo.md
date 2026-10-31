@@ -58,7 +58,7 @@
 
 - [x] P-301 定义修订与快照清单格式。验收：内容、元数据、路径、资源 ID 与 schema 版本有明确表示。证据：docs/zh/design/50-versioning.md#p-301（schema v1 + 四组例子验证 2026-10-30）。
 - [x] P-302 实现内容对象存储。验收：流式哈希、去重和对象校验通过大文件样本。证据：tests/library_test.cpp 大文件流式+去重、损坏对象阻断去重、磁盘满临时清理三测试（ctest library_history 绿 13/13；commit ca1ad7b）。
-- [ ] P-303 实现手动记录版本。验收：一次操作创建可查询的版本 ID 与说明。 （BLOCKED复核 2026-10-30：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
+- [x] P-303 实现手动记录版本。验收：一次操作创建可查询的版本 ID 与说明。证据：tests/library_test.cpp manualRecordReturnsQueryableVersionIdAndNote（内容变更创建新 ID+说明、未变返回当前 ID、默认说明、失败抛错；ctest library_history 绿 15/15；commit 343f3aa）。
 - [ ] P-304 实现稳定变化自动记录。验收：半写入与连续保存样本按已定策略处理。 （BLOCKED复核 2026-10-30：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
 - [ ] P-305 实现定时快照与暂停。验收：调度状态可见，暂停后不产生自动快照。 （BLOCKED复核 2026-10-30：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
 - [ ] P-306 实现版本排除规则。验收：排除对象不进入后续快照。 （BLOCKED复核 2026-10-30：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
