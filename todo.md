@@ -11,7 +11,7 @@
 - [x] P-001 确认 V1 功能范围。验收：逐项确认 requirements 中 R01–R19 的纳入与排除。证据：docs/zh/design/00-scope-and-budgets.md#p-001（R01–R19 代决记录 2026-10-30，用户可推翻）。
 - [x] P-002 确认版本后端能力表。验收：明确自建可写、Git/LFS 与 SVN 只读、时光机系统集成边界。证据：docs/zh/design/00-scope-and-budgets.md#p-002（能力矩阵 2026-10-30，用户可推翻）。
 - [x] P-003 确认 NAS 接入范围。验收：确认挂载 SMB/NFS、直接 WebDAV/SFTP 与发现机制。证据：docs/zh/design/00-scope-and-budgets.md:53-55（NAS 范围代决记录 2026-10-30，用户可推翻）。
-- [x] P-004 确认素材测试样本与性能预算。验收：记录样本格式、文件体积、资源数量和可验证阈值。证据：docs/zh/design/00-scope-and-budgets.md:69-105（样本矩阵 2,590 文件/11,960 MiB≈11.68 GiB、快速/完整两档预算、测量口径与 D-21/D-23 阈值）；docs/zh/performance.md:18 算术修正；提交 5266cd3。后续实测仍待样本权限、三系统设备、256 MiB 上限与三系统阈值输入，不影响本记录项验收。
+- [ ] P-004 确认素材测试样本与性能预算。验收：记录样本格式、文件体积、资源数量和可验证阈值。 （BLOCKED 2026-11-01：立即动作已执行——样本矩阵（2,590 文件/11,960 MiB≈11.68 GiB）、两档预算、测量口径与 D-21/D-23 阈值已记录，`docs/zh/performance.md:18` 算术已修正（docs/zh/design/00-scope-and-budgets.md#P-004，提交 5266cd3）；待用户输入——素材样本可用性与使用权限、三系统测试机可用性与磁盘余量、256 MiB 单文件上限是否取消、D-21/D-23 三系统硬件与阈值（docs/review/2026-10-30-decisions.md:142））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
 - [x] P-005 使用 ui-ux-pro-max 形成原型规范。验收：提交桌面布局、状态和键盘交互规范；不套用营销页布局。证据：`docs/zh/desktop-prototype-spec.md`。
 - [x] P-006 绘制素材库浏览原型。验收：展示真实层级、网格/列表、筛选、详情及导入入口。证据：docs/zh/design/10-prototype-states.md#p-006（示例数据/状态/焦点顺序 2026-10-30；P-012/P-013 用户审核待进行）。
 - [x] P-007 绘制版本时间轴原型。验收：区分当前、历史、已缓存与缺失版本。证据：docs/zh/design/10-prototype-states.md#p-007（五类例子 2026-10-30；已缓存按代决标为未来候选，不画成 V1 可用；P-012/P-013 用户审核待进行）。
