@@ -665,6 +665,101 @@ private slots:
         QCOMPARE(tl.unrecorded, false);
         for (const auto &entry : tl.entries) QCOMPARE(entry.current, false);
     }
+    void metadataHistoryRecordsPerFieldChanges() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("a.png");
+        put(source, "v1");
+        const QString libraryRoot = dir.filePath("library");
+        qint64 firstId = 0, metadataId = 0;
+        {
+            Library library(libraryRoot);
+            const auto asset = library.importFile(source);
+            firstId = library.revisions(asset.id).first().id;
+            // Import records a baseline (old value empty) for non-empty fields.
+            auto current = library.metadata(asset.id);
+            QCOMPARE(current.name, QStringLiteral("a.png"));
+            QCOMPARE(current.rating, -1); // no rating, distinct from 0 stars
+            QCOMPARE(current.source, QFileInfo(source).absoluteFilePath());
+            QCOMPARE(library.metadataHistory(asset.id).size(), 2);
+            // The content-hash object count before a metadata-only change.
+            const int objectsBefore = QDir(libraryRoot + QStringLiteral("/objects"))
+                .entryInfoList(QDir::Files | QDir::NoDotAndDotDot).size();
+            // Change every field at once.
+            Metadata next;
+            next.name = QStringLiteral("英雄.png");
+            next.tags = {QStringLiteral("角色"), QStringLiteral("立绘")};
+            next.rating = 5;
+            next.note = QStringLiteral("定稿");
+            next.source = QStringLiteral("https://example.com/a.png");
+            const auto result = library.updateMetadata(asset.id, next, QStringLiteral("补齐元数据"));
+            QVERIFY(!result.unchanged);
+            metadataId = result.revisionId;
+            QVERIFY(metadataId > firstId);
+            QCOMPARE(result.note, QStringLiteral("补齐元数据"));
+            // Current metadata reflects the update.
+            current = library.metadata(asset.id);
+            QCOMPARE(current.name, QStringLiteral("英雄.png"));
+            QCOMPARE(current.tags, (QStringList{QStringLiteral("角色"), QStringLiteral("立绘")}));
+            QCOMPARE(current.rating, 5);
+            QCOMPARE(current.note, QStringLiteral("定稿"));
+            QCOMPARE(current.source, QStringLiteral("https://example.com/a.png"));
+            // A metadata-only revision reuses the newest content hash and does
+            // NOT create a new content object (contentHash unchanged).
+            const auto history = library.revisions(asset.id);
+            QCOMPARE(history.size(), 2);
+            QCOMPARE(history.at(0).id, metadataId);
+            QCOMPARE(history.at(0).hash, history.at(1).hash);
+            QCOMPARE(history.at(0).note, QStringLiteral("补齐元数据"));
+            const int objectsAfter = QDir(libraryRoot + QStringLiteral("/objects"))
+                .entryInfoList(QDir::Files | QDir::NoDotAndDotDot).size();
+            QCOMPARE(objectsAfter, objectsBefore);
+            // History is read-only viewable, newest revision first; the 5 field
+            // rows of the update precede the 2 import baseline rows. Within one
+            // revision the field order is not contractual — compare as a set.
+            const auto changes = library.metadataHistory(asset.id);
+            QCOMPARE(changes.size(), 7);
+            QCOMPARE(changes.at(0).revisionId, metadataId);
+            QCOMPARE(changes.at(4).revisionId, metadataId);
+            QCOMPARE(changes.at(5).revisionId, firstId);
+            QCOMPARE(changes.at(6).revisionId, firstId);
+            QStringList fields;
+            for (int i = 0; i < 5; ++i) fields << changes.at(i).field;
+            fields.sort();
+            QStringList expectedFields{QStringLiteral("name"), QStringLiteral("tags"),
+                                       QStringLiteral("rating"), QStringLiteral("note"),
+                                       QStringLiteral("source")};
+            expectedFields.sort();
+            QCOMPARE(fields, expectedFields);
+            // The newest name change (revision metadataId) reads a.png -> 英雄.png.
+            QString oldName, newName;
+            for (const auto &change : changes) {
+                if (change.field == QStringLiteral("name")) {
+                    oldName = change.oldValue; newName = change.newValue; break;
+                }
+            }
+            QCOMPARE(oldName, QStringLiteral("a.png"));
+            QCOMPARE(newName, QStringLiteral("英雄.png"));
+            // The metadata revision also shows on the asset timeline (P-308).
+            const auto timeline = library.assetTimeline(asset.id);
+            QCOMPARE(timeline.entries.size(), 2);
+            QCOMPARE(timeline.entries.at(0).note, QStringLiteral("补齐元数据"));
+            QCOMPARE(timeline.entries.at(0).current, true);
+            // Re-applying identical metadata changes nothing (no new revision).
+            const auto again = library.updateMetadata(asset.id, next, QStringLiteral("重复"));
+            QVERIFY(again.unchanged);
+            QCOMPARE(again.revisionId, metadataId);
+            QCOMPARE(library.revisions(asset.id).size(), 2);
+            QCOMPARE(library.metadataHistory(asset.id).size(), 7);
+        }
+        // Metadata and its history survive reopen.
+        Library reopened(libraryRoot);
+        const auto asset = reopened.assets().first();
+        QCOMPARE(asset.name, QStringLiteral("英雄.png"));
+        QCOMPARE(asset.rating, 5);
+        QCOMPARE(reopened.metadata(asset.id).tags, (QStringList{QStringLiteral("角色"), QStringLiteral("立绘")}));
+        QCOMPARE(reopened.metadataHistory(asset.id).size(), 7);
+        QCOMPARE(reopened.revisions(asset.id).first().id, metadataId);
+    }
 };
 QTEST_GUILESS_MAIN(HistoryTest)
 #include "library_test.moc"

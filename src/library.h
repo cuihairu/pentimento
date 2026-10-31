@@ -13,6 +13,34 @@ struct Asset {
     QString id;
     QString name;
     QString path;
+    // P-309 current metadata (display name, tags, rating, note, source).
+    // rating is 0..5, or -1 for "no rating" (no rating != 0 stars).
+    QStringList tags;
+    int rating = -1;
+    QString note;
+    QString source;
+};
+
+// P-309 one metadata snapshot. Rating -1 means "no rating" (a distinct state
+// from 0 stars). Tags serialize as a JSON array (robust for any tag text).
+struct Metadata {
+    QString name;
+    QStringList tags;
+    int rating = -1;
+    QString note;
+    QString source;
+};
+
+// P-309 one per-field metadata change, viewable read-only. `field` is one of
+// "name"/"tags"/"rating"/"note"/"source"; values are recorded as actually
+// stored (never fabricated); `revisionId` is the revision that carried the
+// change (same contentHash as the prior revision — no new content object).
+struct MetadataChange {
+    qint64 revisionId = 0;
+    QString field;
+    QString oldValue;
+    QString newValue;
+    QString changed;
 };
 
 struct Revision {
@@ -180,6 +208,17 @@ public:
     // the newest (current) revision. This is the seam the future V1 retention
     // policy (P-602) consumes; pinned versions are always excluded (P-307).
     QVector<qint64> retentionCandidates(const QString &assetId) const;
+    // P-309 metadata history. Current metadata is readable; updates record
+    // per-field old/new values with a change timestamp and append a revision
+    // that reuses the newest content hash (no new content object). History is
+    // read-only; no fabrication of values, no auto-merge, no auto-revert.
+    Metadata metadata(const QString &assetId) const;
+    QVector<MetadataChange> metadataHistory(const QString &assetId) const;
+    // Records a metadata change and returns the revision that carries it
+    // (unchanged=true when no field actually changed — the current revision id
+    // is returned so the caller can report "already up to date").
+    RecordResult updateMetadata(const QString &assetId, const Metadata &newMeta,
+                                const QString &note = QString());
     void restore(const Asset &asset, qint64 revisionId);
     void exportRevision(const QString &assetId, qint64 revisionId, const QString &destination) const;
     QString objectPath(const QString &hash) const;
@@ -213,7 +252,7 @@ private:
     QHash<QString, QPair<qint64, qint64>> stableRecorded_;
     // P-305 schedule state (runtime only; the schedule is not a resident service).
     ScheduleState schedule_;
-    void append(const Asset &asset, const QByteArray &bytes, const QString &note);
+    qint64 append(const Asset &asset, const QByteArray &bytes, const QString &note);
     qint64 appendFromFile(const Asset &asset, const QString &source, const QString &note);
     qint64 insertRevision(const Asset &asset, const QString &hash, qint64 size, const QString &note);
     QString newTempObjectPath() const;
