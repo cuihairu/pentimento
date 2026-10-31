@@ -1,11 +1,13 @@
 #include "library.h"
 #include "platform_immutable.h"
 #include <QCryptographicHash>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QTemporaryDir>
 #include <QtTest>
+#include <cstdio>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -14,6 +16,12 @@ void put(const QString &path, const QByteArray &data) {
     QFile file(path); QVERIFY(file.open(QIODevice::WriteOnly)); QCOMPARE(file.write(data), data.size());
 }
 QByteArray get(const QString &path) { QFile file(path); return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray(); }
+// Fix the modification time so the auto-record size+mtime signature is exact.
+void setMtime(const QString &path, qint64 ms) {
+    QFile file(path); QVERIFY(file.open(QIODevice::ReadWrite));
+    QVERIFY(file.setFileTime(QDateTime::fromMSecsSinceEpoch(ms, Qt::UTC), QFileDevice::FileModificationTime));
+}
+qint64 mtimeOf(const QString &path) { return QFileInfo(path).lastModified().toMSecsSinceEpoch(); }
 }
 
 class HistoryTest : public QObject {
@@ -320,6 +328,93 @@ private slots:
         // Failures are loud, never silent: recording a missing working copy throws.
         QVERIFY(QFile::remove(asset.path));
         QVERIFY_EXCEPTION_THROWN(library.recordVersion(asset, QStringLiteral("gone")), std::runtime_error);
+    }
+    void autoRecordPolicyHandlesSampleClasses() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("sprite.png");
+        put(source, "v1");
+        Library library(dir.filePath("library"));
+        const auto asset = library.importFile(source);
+        QCOMPARE(library.revisions(asset.id).size(), 1);
+
+        // Sample: 连续写入 — the file keeps changing, so no two ticks agree and
+        // no half-written state is ever recorded.
+        for (int i = 0; i < 5; ++i) {
+            put(asset.path, QByteArray("writing-") + QByteArray::number(i));
+            setMtime(asset.path, 1700000000000LL + i * 1000);
+            library.autoRecordTick(asset);
+        }
+        QCOMPARE(library.revisions(asset.id).size(), 1);
+
+        // Sample: 长暂停（>窗口）后稳定 — recorded once two ticks agree.
+        put(asset.path, "final-after-pause");
+        setMtime(asset.path, 1700000100000LL);
+        QVERIFY(!library.autoRecordTick(asset).recorded); // first observation
+        const auto settled = library.autoRecordTick(asset);
+        QVERIFY(settled.recorded);
+        QCOMPARE(library.revisions(asset.id).size(), 2);
+        QCOMPARE(library.revisions(asset.id).first().note, QStringLiteral("自动记录"));
+        // Later ticks on the already-recorded state are quiet no-ops.
+        QVERIFY(!library.autoRecordTick(asset).recorded);
+        QCOMPARE(library.revisions(asset.id).size(), 2);
+
+        // Sample: 临时文件替换保存（写临时+改名）— detected and recorded.
+        const QString temp = asset.path + ".tmp-save";
+        put(temp, "saved-via-rename");
+        setMtime(temp, 1700000200000LL);
+        QCOMPARE(::rename(QFile::encodeName(temp).constData(), QFile::encodeName(asset.path).constData()), 0);
+        QVERIFY(!library.autoRecordTick(asset).recorded); // observe the new signature
+        QVERIFY(library.autoRecordTick(asset).recorded);
+        QCOMPARE(library.revisions(asset.id).size(), 3);
+        QCOMPARE(library.readObject(library.revisions(asset.id).first().hash), QByteArray("saved-via-rename"));
+
+        // Sample: 同大小写入（mtime 变、size 不变）— caught by the mtime half.
+        put(asset.path, "same-len-A");
+        setMtime(asset.path, 1700000300000LL);
+        library.autoRecordTick(asset);
+        QVERIFY(library.autoRecordTick(asset).recorded);
+        QCOMPARE(library.revisions(asset.id).size(), 4);
+        put(asset.path, "same-len-B");
+        setMtime(asset.path, 1700000400000LL);
+        library.autoRecordTick(asset);
+        QVERIFY(library.autoRecordTick(asset).recorded);
+        QCOMPARE(library.revisions(asset.id).size(), 5);
+        QCOMPARE(library.readObject(library.revisions(asset.id).first().hash), QByteArray("same-len-B"));
+
+        // Same content with only mtime bumped (touch): unchanged, no duplicate.
+        setMtime(asset.path, 1700000500000LL);
+        library.autoRecordTick(asset);
+        const auto touched = library.autoRecordTick(asset);
+        QVERIFY(touched.unchanged);
+        QVERIFY(!touched.recorded);
+        QCOMPARE(library.revisions(asset.id).size(), 5);
+    }
+    void stableRecordRetriesWhenFileMovesMidRead() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("doc.psd");
+        put(source, "v1");
+        Library library(dir.filePath("library"));
+        const auto asset = library.importFile(source);
+        // A write lands between the stability observation and the read: the
+        // observed size+mtime no longer matches, so the read was of a moving
+        // target. Nothing is recorded and retry is reported.
+        const qint64 staleSize = QFileInfo(asset.path).size();
+        const qint64 staleMtime = mtimeOf(asset.path);
+        put(asset.path, "changed-mid-read");
+        setMtime(asset.path, staleMtime + 60000);
+        const auto torn = library.recordStableVersion(asset, staleSize, staleMtime);
+        QVERIFY(torn.retry);
+        QVERIFY(!torn.recorded);
+        QCOMPARE(library.revisions(asset.id).size(), 1);
+        // No torn object leaked into the store (only the import's object).
+        QCOMPARE(QDir(library.root() + "/objects").entryInfoList(QDir::Files).size(), 1);
+        QCOMPARE(QDir(library.root() + "/objects/.tmp").entryInfoList(QDir::Files).size(), 0);
+        // Once the file settles, a retry with the matching signature records it.
+        const auto info = QFileInfo(asset.path);
+        const auto settled = library.recordStableVersion(asset, info.size(), info.lastModified().toMSecsSinceEpoch());
+        QVERIFY(settled.recorded);
+        QCOMPARE(library.revisions(asset.id).size(), 2);
+        QCOMPARE(library.readObject(library.revisions(asset.id).first().hash), QByteArray("changed-mid-read"));
     }
 };
 QTEST_GUILESS_MAIN(HistoryTest)

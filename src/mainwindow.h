@@ -2,7 +2,6 @@
 #include "library.h"
 #include "sentinel.h"
 #include <QMainWindow>
-#include <QMap>
 #include <memory>
 
 class QListWidget;
@@ -26,8 +25,6 @@ private:
     QLineEdit *search_;
     QPushButton *restore_;
     QPushButton *export_;
-    QMap<QString, QPair<qint64, qint64>> observations_;
-    QMap<QString, QPair<qint64, qint64>> recorded_;
     std::unique_ptr<Sentinel> sentinel_;
     Asset selected() const;
     void pollSentinel();

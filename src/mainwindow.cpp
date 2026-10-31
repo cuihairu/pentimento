@@ -247,17 +247,12 @@ void MainWindow::exportFile() {
 
 void MainWindow::scanChanges() {
     for (const auto &asset : assets_) {
-        const QFileInfo info(asset.path);
-        if (!info.exists()) { observations_.remove(asset.id); continue; }
-        const auto signature = qMakePair(info.size(), info.lastModified().toMSecsSinceEpoch());
-        if (!observations_.contains(asset.id) || observations_.value(asset.id) != signature) {
-            observations_[asset.id] = signature;
-            continue;
-        }
-        if (recorded_.contains(asset.id) && recorded_.value(asset.id) == signature) continue;
         try {
-            if (library_.capture(asset, QStringLiteral("自动记录")) && selected().id == asset.id) reloadHistory();
-            recorded_[asset.id] = signature;
+            // P-304 stable-change policy: two stable ticks + read-before/after
+            // recheck, so a half-written or continuously-written file is never
+            // recorded as a version (retry re-observes on a later tick).
+            const auto tick = library_.autoRecordTick(asset);
+            if (tick.recorded && selected().id == asset.id) reloadHistory();
         } catch (const std::exception &error) {
             statusBar()->showMessage(QStringLiteral("自动记录失败：%1").arg(QString::fromUtf8(error.what())));
         }

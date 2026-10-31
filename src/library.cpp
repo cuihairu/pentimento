@@ -188,6 +188,7 @@ StoredObject Library::publishTempObject(const QString &temp, qint64 size) {
     // 完整校验：re-hash the finished temporary object before it is trusted.
     const QString hash = streamDigest(temp);
     const QString path = objectPath(hash);
+    bool created = false;
     if (QFileInfo::exists(path)) {
         // Dedup: identical content is already stored. The existing object must
         // actually match; a mismatch is corruption and must block the store
@@ -200,12 +201,14 @@ StoredObject Library::publishTempObject(const QString &temp, qint64 size) {
     } else if (!QFile::rename(temp, path)) {
         QFile::remove(temp);
         fail(QStringLiteral("无法发布历史对象"));
+    } else {
+        created = true;
     }
     // The version store is append-only: once an object lands it must resist
     // later tampering by a same-user ransomware process. Best-effort + idempotent
     // (chattr +i where the OS allows it, read-only mode bits otherwise).
     platform::makeImmutable(path);
-    return {hash, size};
+    return {hash, size, created};
 }
 
 qint64 Library::insertRevision(const Asset &asset, const QString &hash, qint64 size, const QString &note) {
@@ -237,6 +240,69 @@ RecordResult Library::recordVersion(const Asset &asset, const QString &note) {
         return {history.first().id, history.first().note, true};
     const QString effective = note.isEmpty() ? QStringLiteral("手动快照") : note;
     return {appendFromFile(asset, asset.path, note), effective, false};
+}
+
+namespace {
+bool signatureMatches(const Asset &asset, qint64 size, qint64 mtimeMs) {
+    const QFileInfo info(asset.path);
+    return info.exists() && info.size() == size && info.lastModified().toMSecsSinceEpoch() == mtimeMs;
+}
+}
+
+StableTick Library::recordStableVersion(const Asset &asset, qint64 size, qint64 mtimeMs, const QString &note) {
+    // Read-before/after复核, first half: a working copy that changed between
+    // the stability observation and this read is a moving target — retry.
+    const QString hash = streamDigest(asset.path);
+    if (!signatureMatches(asset, size, mtimeMs)) return {false, false, true, 0};
+    const auto history = revisions(asset.id);
+    if (!history.isEmpty() && history.first().hash == hash) return {false, true, false, history.first().id};
+    // Second read pass (store) can still race a write; the object it publishes
+    // is internally consistent (temp-verified) but may be a torn snapshot.
+    const auto stored = storeObject(asset.path);
+    if (!signatureMatches(asset, size, mtimeMs)) {
+        // The file moved while it was copied: discard the fresh object so a torn
+        // mid-write snapshot never enters history, then let the caller retry.
+        if (stored.created) {
+            const QString path = objectPath(stored.hash);
+            platform::makeMutable(path);
+            QFile::remove(path);
+        }
+        return {false, false, true, 0};
+    }
+    return {true, false, false, insertRevision(asset, stored.hash, stored.size, note)};
+}
+
+StableTick Library::autoRecordTick(const Asset &asset, const QString &note) {
+    const QString effective = note.isEmpty() ? QStringLiteral("自动记录") : note;
+    const QFileInfo info(asset.path);
+    if (!info.exists()) {
+        stablePending_.remove(asset.id);
+        stableRecorded_.remove(asset.id);
+        return {};
+    }
+    const auto sig = qMakePair(info.size(), info.lastModified().toMSecsSinceEpoch());
+    // Two consecutive ticks with the same size+mtime signature = the working
+    // copy has stopped being written (half-written / continuous-write files
+    // keep changing and never reach this point).
+    const auto pending = stablePending_.constFind(asset.id);
+    if (pending == stablePending_.constEnd() || pending.value() != sig) {
+        stablePending_.insert(asset.id, sig);
+        return {};
+    }
+    if (stableRecorded_.value(asset.id) == sig) return {}; // this state was already recorded
+    StableTick result;
+    try {
+        result = recordStableVersion(asset, sig.first, sig.second, effective);
+    } catch (...) {
+        stablePending_.remove(asset.id); // loud failure: re-observe from scratch
+        throw;
+    }
+    if (result.retry) {
+        stablePending_.remove(asset.id); // file moved during read: observe again
+        return result;
+    }
+    if (result.recorded || result.unchanged) stableRecorded_.insert(asset.id, sig);
+    return result;
 }
 
 Asset Library::importFile(const QString &source) {

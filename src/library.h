@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QHash>
 #include <QSqlDatabase>
 #include <QString>
 #include <QVector>
@@ -33,9 +34,11 @@ struct Snapshot {
 
 // One object stored in the content-addressed store. `hash` is the SHA-256 of
 // the stored bytes (lowercase hex); `size` is the byte count that was stored.
+// `created` is true when this call published a new object (dedup hit otherwise).
 struct StoredObject {
     QString hash;
     qint64 size = 0;
+    bool created = false;
 };
 
 // Result of recording a version. `revisionId` is the queryable version id that
@@ -46,6 +49,17 @@ struct RecordResult {
     qint64 revisionId = 0;
     QString note;
     bool unchanged = false;
+};
+
+// Result of one auto-record tick. Exactly one of `recorded` / `unchanged` /
+// `retry` may be true: a new version was recorded, the content was already the
+// newest version, or the file moved during the read (so nothing was recorded and
+// the caller should observe again next tick).
+struct StableTick {
+    bool recorded = false;
+    bool unchanged = false;
+    bool retry = false;
+    qint64 revisionId = 0;
 };
 
 // One library, one writer. Original imports are never modified.
@@ -66,6 +80,19 @@ public:
     // caller can tell the user what is already protected. Throws a loud error on
     // a failed read/write/index registration instead of silently doing nothing.
     RecordResult recordVersion(const Asset &asset, const QString &note = QString());
+    // P-304 stable-change auto-record policy. Call once per timer tick per
+    // asset: records the working copy only after TWO consecutive ticks observe
+    // the same size+mtime signature (half-written and continuously-written
+    // files stay unstable and are not recorded). See recordStableVersion for
+    // the read-before/after recheck.
+    StableTick autoRecordTick(const Asset &asset, const QString &note = QString());
+    // Records the asset's current content, but only if it still matches the
+    // observed size+mtime signature BOTH before and after streaming the file.
+    // A file that moved during the read (a torn mid-write snapshot) is never
+    // recorded: any fresh object it created is discarded and retry=true is
+    // returned so the caller observes again.
+    StableTick recordStableVersion(const Asset &asset, qint64 size, qint64 mtimeMs,
+                                   const QString &note = QString());
     void restore(const Asset &asset, qint64 revisionId);
     void exportRevision(const QString &assetId, qint64 revisionId, const QString &destination) const;
     QString objectPath(const QString &hash) const;
@@ -93,6 +120,10 @@ private:
     QString connection_;
     QSqlDatabase db_;
     std::unique_ptr<QLockFile> lock_;
+    // P-304 per-asset observation state: signature observed on the previous tick
+    // (waiting for a second consecutive match) and the signature already recorded.
+    QHash<QString, QPair<qint64, qint64>> stablePending_;
+    QHash<QString, QPair<qint64, qint64>> stableRecorded_;
     void append(const Asset &asset, const QByteArray &bytes, const QString &note);
     qint64 appendFromFile(const Asset &asset, const QString &source, const QString &note);
     qint64 insertRevision(const Asset &asset, const QString &hash, qint64 size, const QString &note);
