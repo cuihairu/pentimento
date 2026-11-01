@@ -4,7 +4,7 @@
 <context>
     <name>CompareCanvas</name>
     <message>
-        <location filename="../src/compare_canvas.cpp" line="+85"/>
+        <location filename="../src/compare_canvas.cpp" line="+124"/>
         <source>此版本不可预览</source>
         <translation>此版本不可预览</translation>
     </message>
@@ -304,13 +304,13 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+1383"/>
+        <location line="+1393"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>恢复到锚点</translation>
     </message>
     <message>
-        <location line="-1383"/>
+        <location line="-1393"/>
         <source>素材库</source>
         <translation>素材库</translation>
     </message>
@@ -348,12 +348,12 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+1135"/>
+        <location line="+1145"/>
         <source>添加</source>
         <translation>添加</translation>
     </message>
     <message>
-        <location line="-1134"/>
+        <location line="-1144"/>
         <source>移除</source>
         <translation>移除</translation>
     </message>
@@ -572,14 +572,14 @@
     </message>
     <message>
         <location line="+3"/>
-        <location line="+806"/>
+        <location line="+816"/>
         <location line="+223"/>
         <location line="+91"/>
         <source>关闭</source>
         <translation>关闭</translation>
     </message>
     <message>
-        <location line="-1119"/>
+        <location line="-1129"/>
         <source>每 15 分钟</source>
         <translation>每 15 分钟</translation>
     </message>
@@ -595,20 +595,20 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+891"/>
+        <location line="+901"/>
         <source>定时快照未启用</source>
         <translation>定时快照未启用</translation>
     </message>
     <message>
-        <location line="-888"/>
+        <location line="-898"/>
         <location line="+114"/>
-        <location line="+749"/>
+        <location line="+759"/>
         <location line="+11"/>
         <source>暂停</source>
         <translation>暂停</translation>
     </message>
     <message>
-        <location line="-872"/>
+        <location line="-882"/>
         <source>仅应用运行时生效；退出应用期间不算持续备份。</source>
         <translation>仅应用运行时生效；退出应用期间不算持续备份。</translation>
     </message>
@@ -675,12 +675,12 @@
     <message>
         <location line="+1"/>
         <location line="+238"/>
-        <location line="+534"/>
+        <location line="+544"/>
         <source>恢复</source>
         <translation>恢复</translation>
     </message>
     <message>
-        <location line="-748"/>
+        <location line="-758"/>
         <source>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</source>
         <translation>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</translation>
     </message>
@@ -1084,12 +1084,22 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation>适配窗口（统一比例）</translation>
     </message>
     <message>
+        <location line="+6"/>
+        <source>滑动对比</source>
+        <translation>滑动对比</translation>
+    </message>
+    <message>
         <location line="+15"/>
         <source>两版尺寸不同：%1×%2 与 %3×%4（左上对齐，不拉伸；空白为无内容区域）</source>
         <translation>两版尺寸不同：%1×%2 与 %3×%4（左上对齐，不拉伸；空白为无内容区域）</translation>
     </message>
     <message>
-        <location line="+222"/>
+        <location line="+9"/>
+        <source>滑动对比：拖动分界线；左右键步进；[ / ] 调整步进；缩放后分界线保持同一图像坐标。</source>
+        <translation>滑动对比：拖动分界线；左右键步进；[ / ] 调整步进；缩放后分界线保持同一图像坐标。</translation>
+    </message>
+    <message>
+        <location line="+217"/>
         <source>字段历史</source>
         <translation>字段历史</translation>
     </message>
@@ -1134,7 +1144,7 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation type="vanished">内容未变化，无需重复保存</translation>
     </message>
     <message>
-        <location line="-402"/>
+        <location line="-412"/>
         <source>恢复历史版本</source>
         <translation>恢复历史版本</translation>
     </message>
@@ -1151,7 +1161,7 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation>导出历史版本</translation>
     </message>
     <message>
-        <location line="+85"/>
+        <location line="+95"/>
         <source>自动记录失败：%1</source>
         <translation>自动记录失败：%1</translation>
     </message>

@@ -1098,6 +1098,11 @@ void MainWindow::compareVersions() {
     auto *fitCheck = new QCheckBox(tr("适配窗口（统一比例）"), bar);
     fitCheck->setChecked(true);
     connect(fitCheck, &QCheckBox::toggled, canvas, &CompareCanvas::setFit);
+    // P-314: sliding-divider wipe over the same shared transform. The divider
+    // is dragged with the mouse, stepped with Left/Right, and its step size is
+    // adjusted with [ / ].
+    auto *slidingCheck = new QCheckBox(tr("滑动对比"), bar);
+    connect(slidingCheck, &QCheckBox::toggled, canvas, &CompareCanvas::setSliding);
     connect(canvas, &CompareCanvas::zoomChanged, bar, [zoomLabel](qreal factor) {
         zoomLabel->setText(QStringLiteral("%1%").arg(qRound(factor * 100)));
     });
@@ -1106,6 +1111,7 @@ void MainWindow::compareVersions() {
     barLayout->addStretch(1);
     barLayout->addWidget(zoomLabel);
     barLayout->addWidget(fitCheck);
+    barLayout->addWidget(slidingCheck);
     barLayout->addStretch(1);
     barLayout->addWidget(rightLabel);
     // P-313: differing sizes are stated explicitly — never auto-stretched.
@@ -1118,6 +1124,10 @@ void MainWindow::compareVersions() {
     }
     layout->addWidget(canvas, 1);
     layout->addWidget(bar);
+    // P-314: divider interaction is discoverable and explicit.
+    auto *dividerHint = new QLabel(tr("滑动对比：拖动分界线；左右键步进；[ / ] 调整步进；缩放后分界线保持同一图像坐标。"), &dialog);
+    dividerHint->setStyleSheet("color:#888;");
+    layout->addWidget(dividerHint);
     auto *closeBtn = new QPushButton(tr("关闭"), &dialog);
     connect(closeBtn, &QPushButton::clicked, &dialog, &QDialog::accept);
     layout->addWidget(closeBtn);

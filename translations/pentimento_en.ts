@@ -4,7 +4,7 @@
 <context>
     <name>CompareCanvas</name>
     <message>
-        <location filename="../src/compare_canvas.cpp" line="+85"/>
+        <location filename="../src/compare_canvas.cpp" line="+124"/>
         <source>此版本不可预览</source>
         <translation>This version cannot be previewed</translation>
     </message>
@@ -304,13 +304,13 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+1383"/>
+        <location line="+1393"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>Restore to anchor</translation>
     </message>
     <message>
-        <location line="-1383"/>
+        <location line="-1393"/>
         <source>素材库</source>
         <translation>Library</translation>
     </message>
@@ -348,12 +348,12 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+1135"/>
+        <location line="+1145"/>
         <source>添加</source>
         <translation>Add</translation>
     </message>
     <message>
-        <location line="-1134"/>
+        <location line="-1144"/>
         <source>移除</source>
         <translation>Remove</translation>
     </message>
@@ -572,14 +572,14 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+3"/>
-        <location line="+806"/>
+        <location line="+816"/>
         <location line="+223"/>
         <location line="+91"/>
         <source>关闭</source>
         <translation>Off</translation>
     </message>
     <message>
-        <location line="-1119"/>
+        <location line="-1129"/>
         <source>每 15 分钟</source>
         <translation>Every 15 minutes</translation>
     </message>
@@ -595,20 +595,20 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location line="+891"/>
+        <location line="+901"/>
         <source>定时快照未启用</source>
         <translation>Scheduled snapshots off</translation>
     </message>
     <message>
-        <location line="-888"/>
+        <location line="-898"/>
         <location line="+114"/>
-        <location line="+749"/>
+        <location line="+759"/>
         <location line="+11"/>
         <source>暂停</source>
         <translation>Pause</translation>
     </message>
     <message>
-        <location line="-872"/>
+        <location line="-882"/>
         <source>仅应用运行时生效；退出应用期间不算持续备份。</source>
         <translation>Active only while the app runs; exiting is never counted as continuous backup.</translation>
     </message>
@@ -675,12 +675,12 @@ Restoring appends a new version; existing history is always kept.</translation>
     <message>
         <location line="+1"/>
         <location line="+238"/>
-        <location line="+534"/>
+        <location line="+544"/>
         <source>恢复</source>
         <translation>Resume</translation>
     </message>
     <message>
-        <location line="-748"/>
+        <location line="-758"/>
         <source>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</source>
         <translation>Local library: %1 · stable changes to working copies are recorded automatically</translation>
     </message>
@@ -1084,12 +1084,22 @@ The original file and history are fully preserved and can be exported.</translat
         <translation>Fit window (unified scale)</translation>
     </message>
     <message>
+        <location line="+6"/>
+        <source>滑动对比</source>
+        <translation>Sliding compare</translation>
+    </message>
+    <message>
         <location line="+15"/>
         <source>两版尺寸不同：%1×%2 与 %3×%4（左上对齐，不拉伸；空白为无内容区域）</source>
         <translation>Sizes differ: %1x%2 vs %3x%4 (top-left aligned, never stretched; empty area means no content on that side)</translation>
     </message>
     <message>
-        <location line="+222"/>
+        <location line="+9"/>
+        <source>滑动对比：拖动分界线；左右键步进；[ / ] 调整步进；缩放后分界线保持同一图像坐标。</source>
+        <translation>Sliding compare: drag the divider; Left/Right step it; [ / ] adjust the step; after zoom the divider stays on the same image coordinate.</translation>
+    </message>
+    <message>
+        <location line="+217"/>
         <source>字段历史</source>
         <translation>Field history</translation>
     </message>
@@ -1134,7 +1144,7 @@ The original file and history are fully preserved and can be exported.</translat
         <translation type="vanished">Content unchanged; nothing to save</translation>
     </message>
     <message>
-        <location line="-402"/>
+        <location line="-412"/>
         <source>恢复历史版本</source>
         <translation>Restore revision</translation>
     </message>
@@ -1151,7 +1161,7 @@ Unrecorded current content is saved first. Close the file in external editors.</
         <translation>Export revision</translation>
     </message>
     <message>
-        <location line="+85"/>
+        <location line="+95"/>
         <source>自动记录失败：%1</source>
         <translation>Auto-record failed: %1</translation>
     </message>

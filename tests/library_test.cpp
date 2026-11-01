@@ -1891,6 +1891,51 @@ private slots:
         QTest::mouseRelease(&empty, Qt::LeftButton, Qt::NoModifier, QPoint(120, 90));
         QCOMPARE(empty.origin(), originBefore);
     }
+    void slidingDividerComparesSameCoordinate() {
+        CompareCanvas canvas;
+        canvas.resize(400, 300);
+        QImage left(100, 50, QImage::Format_RGB32);
+        QImage right(100, 50, QImage::Format_RGB32);
+        left.fill(Qt::red);
+        right.fill(Qt::blue);
+        canvas.setImages(left, right);
+        canvas.show();
+
+        // Sliding mode: the wipe divider lives in image space.
+        canvas.setSliding(true);
+        QVERIFY(canvas.isSliding());
+        // Both images must now fit the FULL viewport: min(400/100, 300/50).
+        QCOMPARE(canvas.zoom(), 4.0);
+        canvas.setDivider(60.0);
+        QCOMPARE(canvas.divider(), 60.0);
+        // A zoom does not move the image coordinate of the divider...
+        canvas.setZoom(1.0);
+        QCOMPARE(canvas.divider(), 60.0);
+        // ...only its viewport position.
+        const int vx = canvas.dividerViewportX();
+        QVERIFY(vx > 0 && vx < 400);
+        // Left/Right step the divider; [ / ] adjust the step size.
+        const qreal before = canvas.divider();
+        QTest::keyClick(&canvas, Qt::Key_Right);
+        QVERIFY(canvas.divider() > before);
+        const qreal afterStep = canvas.divider();
+        QTest::keyClick(&canvas, Qt::Key_BracketLeft);
+        QCOMPARE(canvas.dividerStep(), 20.0);
+        // Dragging near the divider follows the cursor (image-space update).
+        const int nowVx = canvas.dividerViewportX();
+        QTest::mousePress(&canvas, Qt::LeftButton, Qt::NoModifier, QPoint(nowVx + 2, 150));
+        QTest::mouseMove(&canvas, QPoint(nowVx - 30, 150));
+        QTest::mouseRelease(&canvas, Qt::LeftButton, Qt::NoModifier, QPoint(nowVx - 30, 150));
+        QVERIFY(canvas.divider() < afterStep);
+        // One side failing to decode: the other side still renders (no crash).
+        CompareCanvas oneSided;
+        oneSided.resize(300, 200);
+        oneSided.setImages(QImage(), right);
+        oneSided.setSliding(true);
+        oneSided.show();
+        QVERIFY(oneSided.hasImages());
+        QVERIFY(!oneSided.grab().isNull());
+    }
 };
 
 // A QApplication is required: P-313's CompareCanvas is a widget and cannot be

@@ -27,6 +27,21 @@ public:
     QPoint origin() const { return origin_; }
     bool hasImages() const { return !left_.isNull() || !right_.isNull(); }
 
+    // P-314: sliding-divider mode. Left of the divider shows the left image,
+    // right of it the right image, both under the SAME transform — the divider
+    // is kept as an image coordinate, so after a zoom it still marks the same
+    // content position in both versions. Mouse-drag moves it, Left/Right step
+    // it, and [ / ] adjust the step size (px, before the shared scale).
+    void setSliding(bool on);
+    bool isSliding() const { return sliding_; }
+    void setDivider(qreal imageX);
+    qreal divider() const { return dividerX_; }
+    void stepDivider(int direction);
+    void setDividerStep(qreal px);
+    qreal dividerStep() const { return dividerStepPx_; }
+    // The divider's viewport x under the current transform (inspection hook).
+    int dividerViewportX() const;
+
 signals:
     void zoomChanged(qreal factor);
 
@@ -36,6 +51,7 @@ protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;
 
 private:
     QImage left_;
@@ -48,7 +64,14 @@ private:
     QPoint dragLast_;
     bool dragging_ = false;
 
+    // P-314: divider in image space (survives zoom), step in viewport px.
+    bool sliding_ = false;
+    qreal dividerX_ = 0.0;
+    qreal dividerStepPx_ = 40.0;
+    bool draggingDivider_ = false;
+
     QRect paneRect(int index) const; // 0 = left, 1 = right
+    QRect viewport() const;          // full area in sliding mode, left pane otherwise
     qreal fitScale() const;          // one unified scale so both panes fit
     void drawPane(QPainter &painter, const QRect &pane, const QImage &image);
     void clampOrigin(const QRect &pane);
