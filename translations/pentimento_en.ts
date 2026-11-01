@@ -4,7 +4,7 @@
 <context>
     <name>Library</name>
     <message>
-        <location filename="../src/library.cpp" line="+26"/>
+        <location filename="../src/library.cpp" line="+27"/>
         <location line="+19"/>
         <location line="+6"/>
         <location line="+7"/>
@@ -52,7 +52,7 @@
         <translation>Library is corrupt or the index cannot be opened: %1</translation>
     </message>
     <message>
-        <location line="+46"/>
+        <location line="+64"/>
         <source>素材库 schema 版本不兼容（%1），请使用匹配版本打开</source>
         <translation>Library schema version is incompatible (%1); open with a matching version</translation>
     </message>
@@ -67,7 +67,22 @@
         <translation>Invalid rating: %1</translation>
     </message>
     <message>
-        <location line="+123"/>
+        <location line="+120"/>
+        <source>排除规则不能为空</source>
+        <translation>Exclusion rule must not be empty</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>未知的排除规则类型</source>
+        <translation>Unknown exclusion rule kind</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>该排除规则已存在</source>
+        <translation>This exclusion rule already exists</translation>
+    </message>
+    <message>
+        <location line="+40"/>
         <source>名称不能为空</source>
         <translation>Name cannot be empty</translation>
     </message>
@@ -133,19 +148,19 @@
         <translation>History object verification failed; operation stopped</translation>
     </message>
     <message>
-        <location line="-242"/>
+        <location line="-287"/>
         <source>历史对象内容不一致</source>
         <translation>History object content mismatch</translation>
     </message>
     <message>
-        <location line="-367"/>
+        <location line="-385"/>
         <location line="+7"/>
         <location line="+4"/>
         <source>无法写入暂存对象：%1</source>
         <translation>Cannot write the staged object: %1</translation>
     </message>
     <message>
-        <location line="+601"/>
+        <location line="+664"/>
         <source>无法发布历史对象</source>
         <translation>Cannot publish the history object</translation>
     </message>
@@ -170,8 +185,8 @@
         <translation>No revision found for this asset</translation>
     </message>
     <message>
-        <location line="-385"/>
-        <location line="+395"/>
+        <location line="-430"/>
+        <location line="+440"/>
         <source>请导出到素材库之外的现有目录</source>
         <translation>Export to an existing directory outside the library</translation>
     </message>
@@ -200,12 +215,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+842"/>
+        <location line="+847"/>
         <source>记录版本</source>
         <translation>Record version</translation>
     </message>
     <message>
-        <location line="-841"/>
+        <location line="-846"/>
         <source>编辑工作副本</source>
         <translation>Edit working copy</translation>
     </message>
@@ -241,13 +256,13 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+1015"/>
+        <location line="+1088"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>Restore to anchor</translation>
     </message>
     <message>
-        <location line="-1017"/>
+        <location line="-1090"/>
         <source>素材库</source>
         <translation>Library</translation>
     </message>
@@ -268,13 +283,13 @@
     </message>
     <message>
         <location line="+51"/>
-        <location line="+640"/>
+        <location line="+645"/>
         <location line="+16"/>
         <source>标签</source>
         <translation>Tags</translation>
     </message>
     <message>
-        <location line="-653"/>
+        <location line="-658"/>
         <source>标签列表</source>
         <translation>Tag list</translation>
     </message>
@@ -285,11 +300,12 @@
     </message>
     <message>
         <location line="+1"/>
+        <location line="+939"/>
         <source>添加</source>
         <translation>Add</translation>
     </message>
     <message>
-        <location line="+1"/>
+        <location line="-938"/>
         <source>移除</source>
         <translation>Remove</translation>
     </message>
@@ -431,12 +447,12 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+3"/>
-        <location line="+575"/>
+        <location line="+580"/>
         <source>历史版本</source>
         <translation>Historical version</translation>
     </message>
     <message>
-        <location line="-572"/>
+        <location line="-577"/>
         <source>恢复此版本</source>
         <translation>Restore this version</translation>
     </message>
@@ -477,12 +493,12 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location line="+364"/>
+        <location line="+369"/>
         <source>未附加证据</source>
         <translation>No evidence attached</translation>
     </message>
     <message>
-        <location line="-359"/>
+        <location line="-364"/>
         <source>记录（旧记录可回看）</source>
         <translation>Records (old entries stay viewable)</translation>
     </message>
@@ -518,25 +534,30 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location line="+695"/>
+        <location line="+700"/>
         <source>定时快照未启用</source>
         <translation>Scheduled snapshots off</translation>
     </message>
     <message>
-        <location line="-692"/>
-        <location line="+68"/>
+        <location line="-697"/>
+        <location line="+73"/>
         <location line="+599"/>
         <location line="+11"/>
         <source>暂停</source>
         <translation>Pause</translation>
     </message>
     <message>
-        <location line="-676"/>
+        <location line="-681"/>
         <source>仅应用运行时生效；退出应用期间不算持续备份。</source>
         <translation>Active only while the app runs; exiting is never counted as continuous backup.</translation>
     </message>
     <message>
-        <location line="+25"/>
+        <location line="+5"/>
+        <source>排除规则…</source>
+        <translation>Exclusion rules…</translation>
+    </message>
+    <message>
+        <location line="+24"/>
         <source>重命名…</source>
         <translation>Rename…</translation>
     </message>
@@ -546,7 +567,7 @@ Restoring appends a new version; existing history is always kept.</translation>
         <translation>Move to folder…</translation>
     </message>
     <message>
-        <location line="+34"/>
+        <location line="+35"/>
         <source>系统（应用退到后台）</source>
         <translation>System (app in background)</translation>
     </message>
@@ -844,6 +865,16 @@ The original file and history are fully preserved and can be exported.</translat
         <translation>Content unchanged (current version #%1); nothing to save again</translation>
     </message>
     <message>
+        <location line="+251"/>
+        <source>（%1 个被排除）</source>
+        <translation>(%1 excluded)</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>#%1 %2 · %3 个素材%4</source>
+        <translation>#%1 %2 · %3 assets%4</translation>
+    </message>
+    <message>
         <source>已记录新版本</source>
         <translation type="vanished">New version recorded</translation>
     </message>
@@ -852,7 +883,7 @@ The original file and history are fully preserved and can be exported.</translat
         <translation type="vanished">Content unchanged; nothing to save</translation>
     </message>
     <message>
-        <location line="+8"/>
+        <location line="-244"/>
         <source>恢复历史版本</source>
         <translation>Restore revision</translation>
     </message>
@@ -910,7 +941,55 @@ Unrecorded current content is saved first. Close the file in external editors.</
         <translation>Scheduled snapshot failed: %1</translation>
     </message>
     <message>
-        <location line="+13"/>
+        <location line="+9"/>
+        <source>版本排除规则</source>
+        <translation>Version exclusion rules</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>命中规则的对象不进入后续快照；历史保留，被排除 ≠ 已删除，恢复时不会触碰其当前文件。</source>
+        <translation>Assets matching a rule stay out of later snapshots; history is kept, excluded is not deleted, and a restore never touches their current file.</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <location line="+16"/>
+        <source>扩展名</source>
+        <translation>Extension</translation>
+    </message>
+    <message>
+        <location line="-15"/>
+        <location line="+16"/>
+        <source>路径</source>
+        <translation>Path</translation>
+    </message>
+    <message>
+        <location line="-15"/>
+        <location line="+15"/>
+        <source>名称</source>
+        <translation>Name</translation>
+    </message>
+    <message>
+        <location line="-13"/>
+        <source>如：psd、scenes、hero_*.png</source>
+        <translation>e.g. psd, scenes, hero_*.png</translation>
+    </message>
+    <message>
+        <location line="+9"/>
+        <source>删除选中</source>
+        <translation>Remove selected</translation>
+    </message>
+    <message>
+        <location line="+22"/>
+        <source>无法添加排除规则</source>
+        <translation>Cannot add exclusion rule</translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <source>无法删除排除规则</source>
+        <translation>Cannot remove exclusion rule</translation>
+    </message>
+    <message>
+        <location line="+15"/>
         <source>紧急快照失败：%1</source>
         <translation>Emergency snapshot failed: %1</translation>
     </message>
@@ -938,12 +1017,11 @@ Close external editors, then roll back via &quot;Restore revision&quot; or &quot
         <translation>No emergency snapshot anchor yet</translation>
     </message>
     <message>
-        <location line="+5"/>
         <source>#%1 %2 · %3 个素材</source>
-        <translation>#%1 %2 · %3 assets</translation>
+        <translation type="vanished">#%1 %2 · %3 assets</translation>
     </message>
     <message>
-        <location line="+6"/>
+        <location line="+16"/>
         <source>选择感染前锚点（回滚形成新版本，不销毁后续历史）</source>
         <translation>Choose a pre-infection anchor (rollback forms new versions; later history is preserved)</translation>
     </message>

@@ -46,7 +46,8 @@ struct Snapshot {
     qint64 id = 0;
     QString created;
     QString note;
-    int assets = 0;
+    int assets = 0;      // present (backed-up) entries
+    int excluded = 0;    // entries skipped by an exclusion rule (P-306)
 };
 
 // One manual source/author/license entry, exactly as the user typed it (P-215).
@@ -60,6 +61,14 @@ struct Provenance {
     QString evidence;    // object hash of the attached evidence file, empty = none
     QString evidenceName; // original file name of the evidence attachment
     QString recorded;    // UTC ISO timestamp stamped by the library on append
+};
+
+// P-306: one version-exclusion rule. Kind is extension|path|name; the pattern
+// is stored normalized. A rule only affects snapshots taken after it exists.
+struct Exclusion {
+    QString kind;       // "extension" | "path" | "name"
+    QString pattern;    // normalized pattern text
+    QString created;    // UTC ISO timestamp stamped by the library on add
 };
 
 // One library, one writer. Original imports are never modified.
@@ -98,7 +107,15 @@ public:
     // asset is restored via the normal "restore forms a new version" path, so
     // later history is preserved rather than destroyed. Returns how many assets
     // actually changed. Assets already at the anchor content are skipped.
+    // Entries excluded by a rule (P-306) are skipped — "excluded" is never a
+    // deletion, so a rollback must not touch an excluded asset's working file.
     int rollbackAll(qint64 snapshotId);
+    // P-306: version-exclusion rules. addExclusion throws on an empty pattern or
+    // a duplicate; removeExclusion is a no-op when absent. Rules only affect
+    // snapshots taken after they exist; history is never retroactively removed.
+    void addExclusion(const QString &kind, const QString &pattern);
+    void removeExclusion(const QString &kind, const QString &pattern);
+    QVector<Exclusion> exclusions() const;
     // Version-backend capability report (P-103): the self-built backend.
     BackendInfo backendInfo() const;
     QString root() const { return root_; }

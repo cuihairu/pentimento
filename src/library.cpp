@@ -1,5 +1,6 @@
 #include "library.h"
 
+#include "exclusion.h"
 #include "platform_immutable.h"
 #include "preview.h"
 
@@ -130,7 +131,11 @@ void Library::openAndInitialize(const QString &catalog) {
              // viewable. evidence is an objects/ content hash (empty = none).
              QStringLiteral("CREATE TABLE IF NOT EXISTS provenance(id INTEGER PRIMARY KEY AUTOINCREMENT,asset_id TEXT NOT NULL REFERENCES assets(id),source TEXT NOT NULL,author TEXT NOT NULL,license TEXT NOT NULL,evidence TEXT NOT NULL,evidence_name TEXT NOT NULL,recorded TEXT NOT NULL)"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS snapshots(id INTEGER PRIMARY KEY AUTOINCREMENT,created TEXT NOT NULL,note TEXT NOT NULL)"),
-             QStringLiteral("CREATE TABLE IF NOT EXISTS snapshot_assets(snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),asset_id TEXT NOT NULL REFERENCES assets(id),revision_id INTEGER NOT NULL,PRIMARY KEY(snapshot_id,asset_id))")}) {
+             QStringLiteral("CREATE TABLE IF NOT EXISTS snapshot_assets(snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),asset_id TEXT NOT NULL REFERENCES assets(id),revision_id INTEGER NOT NULL,PRIMARY KEY(snapshot_id,asset_id))"),
+             // P-306: version-exclusion rules (kind extension|path|name). A rule
+             // only affects snapshots taken after it exists; history is never
+             // retroactively removed, and an exclusion is not a deletion.
+             QStringLiteral("CREATE TABLE IF NOT EXISTS exclusions(kind TEXT NOT NULL,pattern TEXT NOT NULL,created TEXT NOT NULL,PRIMARY KEY(kind,pattern))")}) {
         if (!q.exec(sql)) fail(q.lastError().text());
     }
     // P-216/P-217: assets gain a logical folder column plus filtering facts
@@ -151,6 +156,20 @@ void Library::openAndInitialize(const QString &catalog) {
     ensureColumn(QStringLiteral("format"), QStringLiteral("format TEXT NOT NULL DEFAULT ''"));
     ensureColumn(QStringLiteral("width"), QStringLiteral("width INTEGER NOT NULL DEFAULT 0"));
     ensureColumn(QStringLiteral("height"), QStringLiteral("height INTEGER NOT NULL DEFAULT 0"));
+    // P-306: snapshot entries carry a state (present|excluded; tombstone|missing
+    // arrive with P-310/P-311) plus the exclusion reason that produced it.
+    const auto ensureSnapshotColumn = [&](const QString &name, const QString &ddl) {
+        QSqlQuery check(db_);
+        check.prepare("SELECT COUNT(*) FROM pragma_table_info('snapshot_assets') WHERE name=?");
+        check.addBindValue(name);
+        execute(check);
+        if (check.next() && check.value(0).toInt() == 0) {
+            if (!q.exec("ALTER TABLE snapshot_assets ADD COLUMN " + ddl))
+                fail(q.lastError().text());
+        }
+    };
+    ensureSnapshotColumn(QStringLiteral("state"), QStringLiteral("state TEXT NOT NULL DEFAULT 'present'"));
+    ensureSnapshotColumn(QStringLiteral("reason"), QStringLiteral("reason TEXT NOT NULL DEFAULT ''"));
     // Schema/identity metadata. A library predating the meta table, or with an
     // unknown schema version, must not be silently treated as current (P-201).
     QSqlQuery meta(db_);
@@ -437,6 +456,51 @@ void Library::exportEvidence(const QString &hash, const QString &destination) co
     if (parent.isEmpty() || parent == canonicalRoot || parent.startsWith(canonicalRoot + '/'))
         fail(Library::tr("请导出到素材库之外的现有目录"));
     writeFile(dest, readObject(hash));
+}
+
+// --- Version-exclusion rules (P-306) -------------------------------------------
+// A rule (path / pattern / extension) keeps the matching asset out of snapshots
+// taken after the rule exists. It never removes history and is never a deletion.
+
+void Library::addExclusion(const QString &kind, const QString &pattern) {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
+    const QString normalized = exclusionNormalize(kind, pattern);
+    if (normalized.isEmpty()) fail(Library::tr("排除规则不能为空"));
+    if (kind != QLatin1String("extension") && kind != QLatin1String("path") && kind != QLatin1String("name"))
+        fail(Library::tr("未知的排除规则类型"));
+    QSqlQuery find(db_);
+    find.prepare("SELECT COUNT(*) FROM exclusions WHERE kind=? AND pattern=?");
+    find.addBindValue(kind);
+    find.addBindValue(normalized);
+    execute(find);
+    if (find.next() && find.value(0).toInt() > 0) fail(Library::tr("该排除规则已存在"));
+    QSqlQuery ins(db_);
+    ins.prepare("INSERT INTO exclusions(kind,pattern,created) VALUES(?,?,?)");
+    ins.addBindValue(kind);
+    ins.addBindValue(normalized);
+    ins.addBindValue(QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
+    execute(ins);
+}
+
+void Library::removeExclusion(const QString &kind, const QString &pattern) {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
+    QSqlQuery del(db_);
+    del.prepare("DELETE FROM exclusions WHERE kind=? AND pattern=?");
+    del.addBindValue(kind);
+    del.addBindValue(exclusionNormalize(kind, pattern));
+    execute(del);
+}
+
+QVector<Exclusion> Library::exclusions() const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
+    QSqlQuery q(db_);
+    q.prepare("SELECT kind,pattern,created FROM exclusions ORDER BY kind,pattern");
+    execute(q);
+    QVector<Exclusion> result;
+    while (q.next()) {
+        result.push_back({q.value(0).toString(), q.value(1).toString(), q.value(2).toString()});
+    }
+    return result;
 }
 
 // --- Folder organization and asset identity (P-216) ----------------------------
@@ -861,7 +925,28 @@ qint64 Library::snapshotAll(const QString &note) {
         execute(q);
         snapshotId = q.lastInsertId().toLongLong();
         const auto all = assets();
+        const auto rules = exclusions();
         for (const auto &asset : all) {
+            // P-306: an asset hitting an exclusion rule is listed in this
+            // snapshot as excluded but gets no anchor and is never backed up —
+            // it simply stays out of subsequent snapshots, and "excluded" is
+            // never a deletion, so a rollback will not touch it.
+            QString hit;
+            for (const auto &rule : rules) {
+                hit = exclusionReason(rule.kind, rule.pattern, asset.folder, asset.name);
+                if (!hit.isEmpty()) break;
+            }
+            if (!hit.isEmpty()) {
+                QSqlQuery ins(db_);
+                ins.prepare("INSERT OR REPLACE INTO snapshot_assets(snapshot_id,asset_id,revision_id,state,reason) VALUES(?,?,?,?,?)");
+                ins.addBindValue(snapshotId);
+                ins.addBindValue(asset.id);
+                ins.addBindValue(0);
+                ins.addBindValue(QStringLiteral("excluded"));
+                ins.addBindValue(hit);
+                execute(ins);
+                continue;
+            }
             const auto history = revisions(asset.id);
             QFile file(asset.path);
             QByteArray current;
@@ -888,10 +973,12 @@ qint64 Library::snapshotAll(const QString &note) {
                 append(asset, current, QStringLiteral("紧急快照锚点"));
             if (!anchor) continue; // no clean history to recover to
             QSqlQuery ins(db_);
-            ins.prepare("INSERT OR REPLACE INTO snapshot_assets(snapshot_id,asset_id,revision_id) VALUES(?,?,?)");
+            ins.prepare("INSERT OR REPLACE INTO snapshot_assets(snapshot_id,asset_id,revision_id,state,reason) VALUES(?,?,?,?,?)");
             ins.addBindValue(snapshotId);
             ins.addBindValue(asset.id);
             ins.addBindValue(anchor);
+            ins.addBindValue(QStringLiteral("present"));
+            ins.addBindValue(QString());
             execute(ins);
         }
         if (!db_.commit()) fail(db_.lastError().text());
@@ -905,13 +992,16 @@ qint64 Library::snapshotAll(const QString &note) {
 QVector<Snapshot> Library::snapshots() const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
     QSqlQuery q(db_);
-    q.prepare("SELECT s.id,s.created,s.note,COUNT(sa.asset_id) FROM snapshots s "
-              "LEFT JOIN snapshot_assets sa ON sa.snapshot_id=s.id GROUP BY s.id ORDER BY s.id DESC");
+    q.prepare("SELECT s.id,s.created,s.note,"
+              "SUM(CASE WHEN sa.state='excluded' THEN 0 ELSE 1 END),"
+              "SUM(CASE WHEN sa.state='excluded' THEN 1 ELSE 0 END) "
+              "FROM snapshots s LEFT JOIN snapshot_assets sa ON sa.snapshot_id=s.id "
+              "GROUP BY s.id ORDER BY s.id DESC");
     execute(q);
     QVector<Snapshot> result;
     while (q.next()) {
-        result.push_back({q.value(0).toLongLong(), q.value(1).toString(),
-                          q.value(2).toString(), q.value(3).toInt()});
+        result.push_back({q.value(0).toLongLong(), q.value(1).toString(), q.value(2).toString(),
+                          q.value(3).toInt(), q.value(4).toInt()});
     }
     return result;
 }
@@ -921,7 +1011,10 @@ int Library::rollbackAll(qint64 snapshotId) {
     QHash<QString, Asset> byId;
     for (const auto &asset : assets()) byId.insert(asset.id, asset);
     QSqlQuery q(db_);
-    q.prepare("SELECT asset_id, revision_id FROM snapshot_assets WHERE snapshot_id=?");
+    // P-306: an excluded entry has no anchor (revision_id 0) and is never a
+    // deletion — rollback only touches present entries, so a restore can never
+    // damage an excluded asset's current working file.
+    q.prepare("SELECT asset_id, revision_id FROM snapshot_assets WHERE snapshot_id=? AND state='present'");
     q.addBindValue(snapshotId);
     execute(q);
     int restored = 0;

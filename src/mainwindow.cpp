@@ -315,11 +315,15 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     auto *snapNote = new QLabel(tr("仅应用运行时生效；退出应用期间不算持续备份。"));
     snapNote->setWordWrap(true);
     snapNote->setStyleSheet("color:#888;");
+    // P-306: exclusion rules keep matching assets out of snapshots taken after
+    // the rule exists; history is kept and an exclusion is never a deletion.
+    exclusionBtn_ = new QPushButton(tr("排除规则…"));
     rightLayout->addWidget(snapTitle);
     rightLayout->addWidget(snapshotPeriodCombo_);
     rightLayout->addWidget(snapshotStatus_);
     rightLayout->addWidget(snapshotPauseBtn_);
     rightLayout->addWidget(snapNote);
+    rightLayout->addWidget(exclusionBtn_);
     splitter->addWidget(left); splitter->addWidget(center); splitter->addWidget(right);
     splitter->setSizes({260, 660, 300});
     setCentralWidget(splitter);
@@ -368,6 +372,7 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     connect(snapshotPeriodCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &MainWindow::setSnapshotPeriod);
     connect(snapshotPauseBtn_, &QPushButton::clicked, this, &MainWindow::toggleSnapshotPause);
+    connect(exclusionBtn_, &QPushButton::clicked, this, &MainWindow::manageExclusions);
     connect(qApp, &QApplication::applicationStateChanged, this, [this](Qt::ApplicationState state) {
         if (!snapshotSchedule_.enabled()) return;
         if (state != Qt::ApplicationActive) {
@@ -1058,6 +1063,69 @@ void MainWindow::drainSnapshotResult() {
     updateSnapshotStatus();
 }
 
+// P-306: manage version-exclusion rules in a modal dialog (kept off the main
+// panel so it does not crowd the versioning column). A rule is added with a
+// kind (extension/path/name) and a pattern, or removed by selecting it.
+void MainWindow::manageExclusions() {
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("版本排除规则"));
+    dialog.resize(440, 320);
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *hint = new QLabel(tr("命中规则的对象不进入后续快照；历史保留，被排除 ≠ 已删除，恢复时不会触碰其当前文件。"));
+    hint->setWordWrap(true);
+    layout->addWidget(hint);
+    auto *kindCombo = new QComboBox;
+    kindCombo->addItem(tr("扩展名"), QStringLiteral("extension"));
+    kindCombo->addItem(tr("路径"), QStringLiteral("path"));
+    kindCombo->addItem(tr("名称"), QStringLiteral("name"));
+    auto *patternEdit = new QLineEdit;
+    patternEdit->setPlaceholderText(tr("如：psd、scenes、hero_*.png"));
+    auto *addBtn = new QPushButton(tr("添加"));
+    auto *row = new QHBoxLayout;
+    row->addWidget(kindCombo);
+    row->addWidget(patternEdit, 1);
+    row->addWidget(addBtn);
+    layout->addLayout(row);
+    auto *list = new QListWidget;
+    layout->addWidget(list, 1);
+    auto *removeBtn = new QPushButton(tr("删除选中"));
+    layout->addWidget(removeBtn);
+    const auto kindLabel = [this](const QString &kind) {
+        return kind == QLatin1String("extension") ? tr("扩展名")
+               : kind == QLatin1String("path") ? tr("路径") : tr("名称");
+    };
+    const auto reload = [&] {
+        list->clear();
+        for (const auto &rule : library_.exclusions()) {
+            auto *item = new QListWidgetItem(QStringLiteral("%1 · %2").arg(kindLabel(rule.kind), rule.pattern));
+            item->setData(Qt::UserRole, rule.kind);
+            item->setData(Qt::UserRole + 1, rule.pattern);
+            list->addItem(item);
+        }
+    };
+    reload();
+    connect(addBtn, &QPushButton::clicked, &dialog, [&] {
+        try {
+            library_.addExclusion(kindCombo->currentData().toString(), patternEdit->text());
+            patternEdit->clear();
+            reload();
+        } catch (const std::exception &e) {
+            QMessageBox::warning(&dialog, tr("无法添加排除规则"), QString::fromUtf8(e.what()));
+        }
+    });
+    connect(removeBtn, &QPushButton::clicked, &dialog, [&] {
+        const auto item = list->currentItem();
+        if (!item) return;
+        try {
+            library_.removeExclusion(item->data(Qt::UserRole).toString(), item->data(Qt::UserRole + 1).toString());
+            reload();
+        } catch (const std::exception &e) {
+            QMessageBox::warning(&dialog, tr("无法删除排除规则"), QString::fromUtf8(e.what()));
+        }
+    });
+    dialog.exec();
+}
+
 void MainWindow::pollSentinel() {
     if (!sentinel_) return;
     const auto alert = sentinel_->check();
@@ -1080,11 +1148,16 @@ void MainWindow::rollbackToSnapshot() {
         return;
     }
     QStringList labels;
-    for (const auto &snapshot : snapshots)
-        labels << tr("#%1 %2 · %3 个素材")
+    for (const auto &snapshot : snapshots) {
+        // P-306: an excluded entry is listed separately; rollback never touches it.
+        const QString excluded = snapshot.excluded > 0
+            ? tr("（%1 个被排除）").arg(snapshot.excluded) : QString();
+        labels << tr("#%1 %2 · %3 个素材%4")
                       .arg(snapshot.id)
                       .arg(snapshot.created)
-                      .arg(snapshot.assets);
+                      .arg(snapshot.assets)
+                      .arg(excluded);
+    }
     bool ok = false;
     const auto choice = QInputDialog::getItem(this, tr("恢复到锚点"),
                                               tr("选择感染前锚点（回滚形成新版本，不销毁后续历史）"), labels, 0, false, &ok);

@@ -105,6 +105,10 @@ private:
     SnapshotSchedule snapshotSchedule_;
     bool snapshotAsyncDone_ = false;    // worker result, drained by the scan tick
     QString snapshotAsyncError_;
+    // P-306: version-exclusion rules managed from a dialog (kept out of the
+    // main panel to avoid crowding); they only affect snapshots taken after
+    // they exist and never remove history.
+    QPushButton *exclusionBtn_;
     QPushButton *restore_;
     QPushButton *export_;
     QMap<QString, QPair<qint64, qint64>> observations_;
@@ -163,6 +167,7 @@ private:
     void checkSnapshotSchedule();
     void drainSnapshotResult();
     void submitScheduledSnapshot();
+    void manageExclusions();
     void rollbackToSnapshot();
     void report(const std::exception &error);
 };

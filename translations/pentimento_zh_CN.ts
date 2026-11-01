@@ -4,7 +4,7 @@
 <context>
     <name>Library</name>
     <message>
-        <location filename="../src/library.cpp" line="+26"/>
+        <location filename="../src/library.cpp" line="+27"/>
         <location line="+19"/>
         <location line="+6"/>
         <location line="+7"/>
@@ -52,7 +52,7 @@
         <translation>素材库损坏或索引无法打开：%1</translation>
     </message>
     <message>
-        <location line="+46"/>
+        <location line="+64"/>
         <source>素材库 schema 版本不兼容（%1），请使用匹配版本打开</source>
         <translation>素材库 schema 版本不兼容（%1），请使用匹配版本打开</translation>
     </message>
@@ -67,7 +67,22 @@
         <translation>无效的评分：%1</translation>
     </message>
     <message>
-        <location line="+123"/>
+        <location line="+120"/>
+        <source>排除规则不能为空</source>
+        <translation>排除规则不能为空</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>未知的排除规则类型</source>
+        <translation>未知的排除规则类型</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>该排除规则已存在</source>
+        <translation>该排除规则已存在</translation>
+    </message>
+    <message>
+        <location line="+40"/>
         <source>名称不能为空</source>
         <translation>名称不能为空</translation>
     </message>
@@ -133,19 +148,19 @@
         <translation>历史对象校验失败；已停止操作</translation>
     </message>
     <message>
-        <location line="-242"/>
+        <location line="-287"/>
         <source>历史对象内容不一致</source>
         <translation>历史对象内容不一致</translation>
     </message>
     <message>
-        <location line="-367"/>
+        <location line="-385"/>
         <location line="+7"/>
         <location line="+4"/>
         <source>无法写入暂存对象：%1</source>
         <translation>无法写入暂存对象：%1</translation>
     </message>
     <message>
-        <location line="+601"/>
+        <location line="+664"/>
         <source>无法发布历史对象</source>
         <translation>无法发布历史对象</translation>
     </message>
@@ -170,8 +185,8 @@
         <translation>找不到属于当前素材的历史版本</translation>
     </message>
     <message>
-        <location line="-385"/>
-        <location line="+395"/>
+        <location line="-430"/>
+        <location line="+440"/>
         <source>请导出到素材库之外的现有目录</source>
         <translation>请导出到素材库之外的现有目录</translation>
     </message>
@@ -200,12 +215,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+842"/>
+        <location line="+847"/>
         <source>记录版本</source>
         <translation>记录版本</translation>
     </message>
     <message>
-        <location line="-841"/>
+        <location line="-846"/>
         <source>编辑工作副本</source>
         <translation>编辑工作副本</translation>
     </message>
@@ -241,13 +256,13 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+1015"/>
+        <location line="+1088"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>恢复到锚点</translation>
     </message>
     <message>
-        <location line="-1017"/>
+        <location line="-1090"/>
         <source>素材库</source>
         <translation>素材库</translation>
     </message>
@@ -268,13 +283,13 @@
     </message>
     <message>
         <location line="+51"/>
-        <location line="+640"/>
+        <location line="+645"/>
         <location line="+16"/>
         <source>标签</source>
         <translation>标签</translation>
     </message>
     <message>
-        <location line="-653"/>
+        <location line="-658"/>
         <source>标签列表</source>
         <translation>标签列表</translation>
     </message>
@@ -285,11 +300,12 @@
     </message>
     <message>
         <location line="+1"/>
+        <location line="+939"/>
         <source>添加</source>
         <translation>添加</translation>
     </message>
     <message>
-        <location line="+1"/>
+        <location line="-938"/>
         <source>移除</source>
         <translation>移除</translation>
     </message>
@@ -431,12 +447,12 @@
     </message>
     <message>
         <location line="+3"/>
-        <location line="+575"/>
+        <location line="+580"/>
         <source>历史版本</source>
         <translation>历史版本</translation>
     </message>
     <message>
-        <location line="-572"/>
+        <location line="-577"/>
         <source>恢复此版本</source>
         <translation>恢复此版本</translation>
     </message>
@@ -477,12 +493,12 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+364"/>
+        <location line="+369"/>
         <source>未附加证据</source>
         <translation>未附加证据</translation>
     </message>
     <message>
-        <location line="-359"/>
+        <location line="-364"/>
         <source>记录（旧记录可回看）</source>
         <translation>记录（旧记录可回看）</translation>
     </message>
@@ -518,25 +534,30 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+695"/>
+        <location line="+700"/>
         <source>定时快照未启用</source>
         <translation>定时快照未启用</translation>
     </message>
     <message>
-        <location line="-692"/>
-        <location line="+68"/>
+        <location line="-697"/>
+        <location line="+73"/>
         <location line="+599"/>
         <location line="+11"/>
         <source>暂停</source>
         <translation>暂停</translation>
     </message>
     <message>
-        <location line="-676"/>
+        <location line="-681"/>
         <source>仅应用运行时生效；退出应用期间不算持续备份。</source>
         <translation>仅应用运行时生效；退出应用期间不算持续备份。</translation>
     </message>
     <message>
-        <location line="+25"/>
+        <location line="+5"/>
+        <source>排除规则…</source>
+        <translation>排除规则…</translation>
+    </message>
+    <message>
+        <location line="+24"/>
         <source>重命名…</source>
         <translation>重命名…</translation>
     </message>
@@ -546,7 +567,7 @@
         <translation>移动到文件夹…</translation>
     </message>
     <message>
-        <location line="+34"/>
+        <location line="+35"/>
         <source>系统（应用退到后台）</source>
         <translation>系统（应用退到后台）</translation>
     </message>
@@ -844,6 +865,16 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation>内容未变化（当前版本 #%1），无需重复保存</translation>
     </message>
     <message>
+        <location line="+251"/>
+        <source>（%1 个被排除）</source>
+        <translation>（%1 个被排除）</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>#%1 %2 · %3 个素材%4</source>
+        <translation>#%1 %2 · %3 个素材%4</translation>
+    </message>
+    <message>
         <source>已记录新版本</source>
         <translation type="vanished">已记录新版本</translation>
     </message>
@@ -852,7 +883,7 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation type="vanished">内容未变化，无需重复保存</translation>
     </message>
     <message>
-        <location line="+8"/>
+        <location line="-244"/>
         <source>恢复历史版本</source>
         <translation>恢复历史版本</translation>
     </message>
@@ -910,7 +941,55 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation>定时快照失败：%1</translation>
     </message>
     <message>
-        <location line="+13"/>
+        <location line="+9"/>
+        <source>版本排除规则</source>
+        <translation>版本排除规则</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>命中规则的对象不进入后续快照；历史保留，被排除 ≠ 已删除，恢复时不会触碰其当前文件。</source>
+        <translation>命中规则的对象不进入后续快照；历史保留，被排除 ≠ 已删除，恢复时不会触碰其当前文件。</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <location line="+16"/>
+        <source>扩展名</source>
+        <translation>扩展名</translation>
+    </message>
+    <message>
+        <location line="-15"/>
+        <location line="+16"/>
+        <source>路径</source>
+        <translation>路径</translation>
+    </message>
+    <message>
+        <location line="-15"/>
+        <location line="+15"/>
+        <source>名称</source>
+        <translation>名称</translation>
+    </message>
+    <message>
+        <location line="-13"/>
+        <source>如：psd、scenes、hero_*.png</source>
+        <translation>如：psd、scenes、hero_*.png</translation>
+    </message>
+    <message>
+        <location line="+9"/>
+        <source>删除选中</source>
+        <translation>删除选中</translation>
+    </message>
+    <message>
+        <location line="+22"/>
+        <source>无法添加排除规则</source>
+        <translation>无法添加排除规则</translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <source>无法删除排除规则</source>
+        <translation>无法删除排除规则</translation>
+    </message>
+    <message>
+        <location line="+15"/>
         <source>紧急快照失败：%1</source>
         <translation>紧急快照失败：%1</translation>
     </message>
@@ -938,12 +1017,11 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation>还没有紧急快照锚点</translation>
     </message>
     <message>
-        <location line="+5"/>
         <source>#%1 %2 · %3 个素材</source>
-        <translation>#%1 %2 · %3 个素材</translation>
+        <translation type="vanished">#%1 %2 · %3 个素材</translation>
     </message>
     <message>
-        <location line="+6"/>
+        <location line="+16"/>
         <source>选择感染前锚点（回滚形成新版本，不销毁后续历史）</source>
         <translation>选择感染前锚点（回滚形成新版本，不销毁后续历史）</translation>
     </message>

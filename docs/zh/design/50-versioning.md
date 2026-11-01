@@ -65,6 +65,7 @@
 - 规则：路径/模式/扩展名；命中原因记录；清单中排除标记（`excluded:true`）。
 - 只影响后续快照，历史保留；**「被排除」≠「已删除」**（防恢复时误删当前文件）。
 - 不做：追溯删除旧版本；排除对象默认为删除墓碑。
+- 实现（2026-11-01）：匹配抽成纯逻辑 src/exclusion.h（UI 无关可单测）——kind=extension（名字以 .+模式 结尾，大小写不敏感，模式前导点去除）、name（QDir::match 通配文件名）、path（QDir::match 逻辑路径 folder/name，另有裸文件夹前缀匹配以覆盖其整棵子树）；exclusionReason 返回人类可读命中原因，exclusionNormalize 规范化存储。库：exclusions 表（kind,pattern,created，PK(kind,pattern)）+ snapshot_assets 增列 state（present|excluded，未来 P-310/P-311 扩展 tombstone|missing）与 reason；addExclusion（空/重复抛错）/removeExclusion/exclusions；snapshotAll 命中规则的对象登记为 excluded 行（无锚点、不备份、记录命中原因），未命中登记 present；rollbackAll 只回滚 state='present' 行——被排除资产的工作副本绝不触碰（被排除≠已删除）；Snapshot 增 excluded 计数，rollback 界面显示「（N 个被排除）」。UI：右侧面板「排除规则…」按钮开模态对话框（类型下拉 扩展名/路径/名称 + 模式输入 + 添加 + 规则列表 + 删除选中，说明「命中规则的对象不进入后续快照；历史保留，被排除 ≠ 已删除」）。测试 exclusionRulesMatchKindPatternAndNeverDelete（三类匹配+大小写+前导点+裸文件夹子树+不命中+规范化）与 exclusionRulesKeepAssetsOutOfSnapshots（排除对象不入快照且无锚点、present 资产正常锚定、重复/空规则拒绝、回滚跳过被排除资产且其文件未动、删除规则后下一快照重新包含）。ctest 2/2 绿；offscreen 冒烟正常。
 
 ## P-307 关键版本固定
 

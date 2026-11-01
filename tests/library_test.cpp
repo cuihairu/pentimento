@@ -1,5 +1,6 @@
 #include "library.h"
 #include "backend.h"
+#include "exclusion.h"
 #include "filter.h"
 #include "i18n.h"
 #include "importer.h"
@@ -1228,6 +1229,82 @@ private slots:
         sched.setPeriod(0, t2);
         QVERIFY(!sched.enabled());
         QVERIFY(!sched.due(t2.addSecs(1000)));
+    }
+
+    void exclusionRulesMatchKindPatternAndNeverDelete() {
+        // Extension: case-insensitive suffix; a leading dot in the pattern is
+        // normalized away and matching accepts it either way.
+        QVERIFY(exclusionReason(QStringLiteral("extension"), QStringLiteral("psd"),
+                                QString(), QStringLiteral("hero.png")).isEmpty());
+        QVERIFY(!exclusionReason(QStringLiteral("extension"), QStringLiteral("psd"),
+                                 QString(), QStringLiteral("hero.psd")).isEmpty());
+        QVERIFY(!exclusionReason(QStringLiteral("extension"), QStringLiteral(".PSD"),
+                                 QString(), QStringLiteral("hero.psd")).isEmpty());
+        // Path: a glob against folder/name, plus a bare folder covering its subtree.
+        QVERIFY(!exclusionReason(QStringLiteral("path"), QStringLiteral("scenes"),
+                                 QStringLiteral("scenes"), QStringLiteral("bg.jpg")).isEmpty());
+        QVERIFY(!exclusionReason(QStringLiteral("path"), QStringLiteral("scenes"),
+                                 QStringLiteral("scenes/outdoor"), QStringLiteral("bg.jpg")).isEmpty());
+        QVERIFY(!exclusionReason(QStringLiteral("path"), QStringLiteral("scenes/*"),
+                                 QStringLiteral("scenes"), QStringLiteral("bg.jpg")).isEmpty());
+        QVERIFY(exclusionReason(QStringLiteral("path"), QStringLiteral("scenes"),
+                                QStringLiteral("characters"), QStringLiteral("bg.jpg")).isEmpty());
+        // Name: a glob against the file name.
+        QVERIFY(!exclusionReason(QStringLiteral("name"), QStringLiteral("hero_*.png"),
+                                 QStringLiteral("characters"), QStringLiteral("hero_front.png")).isEmpty());
+        QVERIFY(exclusionReason(QStringLiteral("name"), QStringLiteral("hero_*.png"),
+                                QStringLiteral("characters"), QStringLiteral("bg.png")).isEmpty());
+        // Normalization: extension strips a leading dot; path drops a trailing slash.
+        QCOMPARE(exclusionNormalize(QStringLiteral("extension"), QStringLiteral(" .psd ")), QStringLiteral("psd"));
+        QCOMPARE(exclusionNormalize(QStringLiteral("path"), QStringLiteral("scenes/")), QStringLiteral("scenes"));
+    }
+
+    void exclusionRulesKeepAssetsOutOfSnapshots() {
+        QTemporaryDir dir;
+        put(dir.filePath("a.png"), "png-a");
+        put(dir.filePath("b.psd"), "psd-b");
+        Library lib(dir.filePath("lib"));
+        const auto a = lib.importFile(dir.filePath("a.png"));
+        const auto b = lib.importFile(dir.filePath("b.psd"));
+
+        // Before any rule: a snapshot anchors both.
+        lib.addExclusion(QStringLiteral("extension"), QStringLiteral("psd"));
+        QCOMPARE(lib.exclusions().size(), 1);
+        const auto rules = lib.exclusions();
+        QCOMPARE(rules.first().kind, QStringLiteral("extension"));
+        QCOMPARE(rules.first().pattern, QStringLiteral("psd"));
+        const qint64 snap1 = lib.snapshotAll(QStringLiteral("带排除规则"));
+        auto snaps = lib.snapshots();
+        QVERIFY(!snaps.isEmpty());
+        QCOMPARE(snaps.first().assets, 1);   // only the PNG is backed up
+        QCOMPARE(snaps.first().excluded, 1); // the PSD is listed as excluded
+
+        // The excluded asset got no anchor revision and was not backed up.
+        QCOMPARE(lib.revisions(b.id).size(), 1); // import revision only
+        // The present asset still has its import revision as the anchor.
+        QCOMPARE(lib.revisions(a.id).size(), 1);
+
+        // Duplicate / empty rules are refused.
+        bool threw = false;
+        try { lib.addExclusion(QStringLiteral("extension"), QStringLiteral("psd")); } catch (...) { threw = true; }
+        QVERIFY(threw);
+        threw = false;
+        try { lib.addExclusion(QStringLiteral("extension"), QStringLiteral("  ")); } catch (...) { threw = true; }
+        QVERIFY(threw);
+
+        // Rollback skips the excluded asset: the PSD working file is untouched
+        // (excluded is never a deletion) and its history keeps the import version.
+        QCOMPARE(QFileInfo(b.path).size(), qint64(5));
+        const int restored = lib.rollbackAll(snap1);
+        QCOMPARE(restored, 0); // both already at their (only) revision content
+
+        // Removing the rule lets the next snapshot include the asset again.
+        lib.removeExclusion(QStringLiteral("extension"), QStringLiteral("psd"));
+        QVERIFY(lib.exclusions().isEmpty());
+        lib.snapshotAll(QStringLiteral("无排除规则"));
+        snaps = lib.snapshots();
+        QCOMPARE(snaps.first().assets, 2);
+        QCOMPARE(snaps.first().excluded, 0);
     }
 
     void contentObjectStorageStreamsAndDeduplicates() {
