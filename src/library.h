@@ -14,7 +14,12 @@ class QLockFile;
 struct Asset {
     QString id;
     QString name;
+    // Absolute working-file path under the current library root. Recomputed from
+    // the stored relative path on every query, so a relocated library (moved to
+    // another location or volume) resolves assets against its new root (P-202).
     QString path;
+    // Path relative to the library root, as persisted in the catalog.
+    QString relative;
 };
 
 struct Revision {
@@ -66,6 +71,11 @@ public:
     // Library identity (P-202): a random UUID stamped at creation and persisted
     // in the meta table; used to validate a relocated library before reopening.
     QString libraryId() const;
+    // Read a library's identity from its catalog WITHOUT taking the write lock.
+    // Used when re-locating a missing library: verify this is the same library
+    // (same id) before opening it at the new path. Throws when the directory is
+    // not a valid library.
+    static QString peekLibraryId(const QString &root);
 private:
     QString root_;
     QString connection_;

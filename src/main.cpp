@@ -1,8 +1,10 @@
 #include "i18n.h"
 #include "mainwindow.h"
+#include "recent.h"
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QDir>
+#include <QFileInfo>
 #include <QMessageBox>
 #include <QStandardPaths>
 #include <QTimer>
@@ -24,10 +26,21 @@ int main(int argc, char **argv) {
     parser.addOption({"library", "Library directory", "path"});
     parser.addOption({"screenshot", "Save a UI screenshot and exit (smoke check)", "path"});
     parser.process(app);
-    const QString root = parser.isSet("library") ? parser.value("library")
-        : QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/library";
+    // P-202: no explicit --library falls back to the most recently used one if
+    // it still exists; otherwise the default per-user location.
+    QString root;
+    if (parser.isSet("library")) {
+        root = parser.value("library");
+    } else {
+        const auto recentLibs = recent::libraries();
+        for (const auto &entry : recentLibs)
+            if (QFileInfo::exists(entry.path)) { root = entry.path; break; }
+        if (root.isEmpty())
+            root = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/library";
+    }
     try {
         Library library(root);
+        recent::remember(library.libraryId(), library.root());
         MainWindow window(library);
         window.show();
         if (parser.isSet("screenshot")) QTimer::singleShot(400, &window, [&] {

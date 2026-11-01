@@ -2,6 +2,7 @@
 #include "backend.h"
 #include "i18n.h"
 #include "platform_immutable.h"
+#include "recent.h"
 #include "storage.h"
 #include "taskqueue.h"
 #include <QTranslator>
@@ -356,6 +357,61 @@ private slots:
             QSqlDatabase::removeDatabase("schema_stamp");
         }
         QVERIFY_EXCEPTION_THROWN(Library wrong(dir.filePath("schemav")), std::runtime_error);
+    }
+    void libraryRelocatesAcrossVolumesWithIdentityCheck() {
+        QTemporaryDir volumeA;
+        QTemporaryDir volumeB; // a different "volume": relocation must still work
+        put(volumeA.filePath("hero.png"), "pixel data");
+        QString id;
+        {
+            Library library(volumeA.filePath("lib"));
+            const auto asset = library.importFile(volumeA.filePath("hero.png"));
+            id = library.libraryId();
+            QVERIFY(!id.isEmpty());
+            // The catalog persists a root-relative path; the working path is derived.
+            QVERIFY(asset.relative.startsWith(QStringLiteral("working/")));
+            QVERIFY(QFileInfo(asset.path).absolutePath().startsWith(volumeA.filePath("lib")));
+            QCOMPARE(library.assets().first().path, asset.path);
+        }
+        // Relocation validation: the moved directory keeps the same identity and
+        // can be verified WITHOUT taking the write lock.
+        QVERIFY(QDir().rename(volumeA.filePath("lib"), volumeB.filePath("moved")));
+        QCOMPARE(Library::peekLibraryId(volumeB.filePath("moved")), id);
+        // peekLibraryId must also reject non-library directories.
+        QVERIFY_EXCEPTION_THROWN(Library::peekLibraryId(volumeA.path()), std::runtime_error);
+        // Reopened at the new location: same identity, assets resolve under the
+        // new root, history and content are intact.
+        Library relocated(volumeB.filePath("moved"));
+        QCOMPARE(relocated.libraryId(), id);
+        const auto asset = relocated.assets().first();
+        QVERIFY(asset.path.startsWith(volumeB.filePath("moved")));
+        QVERIFY(QFileInfo(asset.path).absolutePath().startsWith(volumeB.filePath("moved")));
+        QCOMPARE(get(asset.path), QByteArray("pixel data"));
+        QCOMPARE(relocated.revisions(asset.id).size(), 1);
+    }
+    void recentLibraryListPersistsDeduplicatesAndCaps() {
+        QTemporaryDir dir;
+        recent::setStoragePath(dir.filePath("settings.ini"));
+        recent::clear();
+        recent::remember("id-1", "/vol/a/lib");
+        recent::remember("id-2", "/vol/b/lib");
+        // Re-opening the same library (possibly at a new path) moves it to the
+        // front and replaces the stale path instead of duplicating the entry.
+        recent::remember("id-1", "/vol/c/relocated");
+        const auto list = recent::libraries();
+        QCOMPARE(list.size(), 2);
+        QCOMPARE(list.first().id, QString("id-1"));
+        QCOMPARE(list.first().path, QString("/vol/c/relocated"));
+        QCOMPARE(list.at(1).id, QString("id-2"));
+        // Forgetting removes exactly that library.
+        recent::forget("id-2");
+        QCOMPARE(recent::libraries().size(), 1);
+        // The list is capped so it cannot grow without bound.
+        for (int i = 0; i < 20; ++i) recent::remember(QString("id-%1").arg(i), QString("/p/%1").arg(i));
+        QVERIFY(recent::libraries().size() <= 10);
+        recent::clear();
+        QVERIFY(recent::libraries().isEmpty());
+        recent::setStoragePath(QString());
     }
     void historyObjectsSurviveWorkspaceEncryption() {
         QTemporaryDir dir;

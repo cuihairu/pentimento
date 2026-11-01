@@ -130,12 +130,42 @@ QString Library::libraryId() const {
     fail(Library::tr("素材库缺少身份标识（library_id），库可能已损坏"));
 }
 
+QString Library::peekLibraryId(const QString &root) {
+    const QString catalog = QDir(root).absoluteFilePath("catalog.sqlite");
+    if (!QFileInfo::exists(catalog) || !QFileInfo(catalog).isReadable())
+        fail(Library::tr("该路径不是有效的素材库（未找到可读的 catalog.sqlite）"));
+    // A short-lived read-only connection; deliberately never takes library.lock,
+    // so relocation validation cannot block on a running library.
+    const QString connection = QStringLiteral("peek_") + QUuid::createUuid().toString(QUuid::WithoutBraces);
+    QString id;
+    {
+        auto db = QSqlDatabase::addDatabase("QSQLITE", connection);
+        db.setDatabaseName(catalog);
+        if (db.open()) {
+            QSqlQuery q(db);
+            if (q.exec("SELECT value FROM meta WHERE key='library_id'") && q.next())
+                id = q.value(0).toString();
+            db.close();
+        }
+    }
+    QSqlDatabase::removeDatabase(connection);
+    if (id.isEmpty()) fail(Library::tr("该素材库缺少身份标识（library_id），库可能已损坏"));
+    return id;
+}
+
 QVector<Asset> Library::assets() const {
     QSqlQuery q(db_);
     q.prepare("SELECT id,name,path FROM assets ORDER BY name,id");
     execute(q);
     QVector<Asset> result;
-    while (q.next()) result.push_back({q.value(0).toString(), q.value(1).toString(), q.value(2).toString()});
+    while (q.next()) {
+        const QString stored = q.value(2).toString();
+        Asset asset{q.value(0).toString(), q.value(1).toString(), QString(), stored};
+        // Relative paths resolve against the current root; a pre-relative-path
+        // library (stored absolute paths) keeps working unchanged.
+        asset.path = QFileInfo(stored).isAbsolute() ? stored : root_ + "/" + stored;
+        result.push_back(asset);
+    }
     return result;
 }
 
@@ -189,14 +219,17 @@ Asset Library::importFile(const QString &source) {
     const auto bytes = readFile(source);
     const QFileInfo info(source);
     const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    Asset asset{id, info.fileName(), root_ + "/working/" + id + "/" + info.fileName()};
+    // Persist a root-relative path so the library stays relocatable (P-202);
+    // the absolute working-file path is derived from the current root.
+    Asset asset{id, info.fileName(), QString(), QStringLiteral("working/%1/%2").arg(id, info.fileName())};
+    asset.path = root_ + "/" + asset.relative;
     if (!QDir().mkpath(QFileInfo(asset.path).absolutePath())) fail(Library::tr("无法创建工作目录"));
     writeFile(asset.path, bytes);
     if (!db_.transaction()) fail(db_.lastError().text());
     try {
         QSqlQuery q(db_);
         q.prepare("INSERT INTO assets VALUES(?,?,?)");
-        q.addBindValue(asset.id); q.addBindValue(asset.name); q.addBindValue(asset.path);
+        q.addBindValue(asset.id); q.addBindValue(asset.name); q.addBindValue(asset.relative);
         execute(q);
         append(asset, bytes, QStringLiteral("首次导入"));
         if (!db_.commit()) fail(db_.lastError().text());

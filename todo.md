@@ -37,7 +37,7 @@
 ## 素材库
 
 - [x] P-201 实现库创建与打开。验收：无效、锁定、不可达目录返回明确错误。 （已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）（完成 2026-11-01：六类验收全覆盖——新建创建 catalog/objects/working/library.lock 并落 meta 库身份；有效库重开保持同一 library_id；无效目录（非空无 catalog）拒绝且不静默重建；已锁定给出"另一进程使用"；权限不足/拔盘走"目录不可达或无法创建"；schema 版本不兼容拒绝。测试 libraryOpenCategoriesCoverSixCases，构造函数异常安全不泄漏连接）
-- [ ] P-202 实现最近素材库与重新定位。验收：路径失效可定位新位置且资源身份保持。 （BLOCKED复核 2026-11-01：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
+- [x] P-202 实现最近素材库与重新定位。验收：路径失效可定位新位置且资源身份保持。 （已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）（完成 2026-11-01：资产路径改为 root 相对并持久化（跨卷移动后按新 root 解析，绝对路径回退兼容旧库）；库身份 library_id 落 meta 表；peekLibraryId 免锁校验重定位路径是同一库；最近库列表 QSettings 持久化（去重/置顶/上限 10，main.cpp 启动时若无 --library 回退最近存在库并 remember）。测试 libraryRelocatesAcrossVolumesWithIdentityCheck + recentLibraryListPersistsDeduplicatesAndCaps）
 - [ ] P-203 实现复制导入。验收：导入后原文件字节与路径不变。 （BLOCKED复核 2026-11-01：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
 - [ ] P-204 实现外部目录索引。验收：索引模式不复制、不修改来源文件。 （BLOCKED复核 2026-11-01：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
 - [ ] P-205 实现递归目录导入与忽略规则。验收：符合排除规则的文件不进入导入任务。 （BLOCKED复核 2026-11-01：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)）
