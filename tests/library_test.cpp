@@ -1297,6 +1297,53 @@ private slots:
         QCOMPARE(again, second);
         QCOMPARE(lib.revisions(asset.id).size(), 2);
     }
+
+    void autoRecordStableChangeHandlesSampleClasses() {
+        QTemporaryDir dir;
+        put(dir.filePath("a.bin"), "AAAA");
+        Library lib(dir.filePath("lib"));
+        const auto asset = lib.importFile(dir.filePath("a.bin"));
+
+        // Same-size write (mtime changes, size stays): detected and recorded.
+        put(asset.path, "BBBB");
+        QVERIFY(lib.captureIfStable(asset));
+        auto history = lib.revisions(asset.id);
+        QCOMPARE(history.size(), 2);
+        QCOMPARE(get(lib.objectPath(history.first().hash)), QByteArray("BBBB"));
+
+        // Repeated save of identical content: no duplicate revision (dedup).
+        QVERIFY(!lib.captureIfStable(asset));
+        QCOMPARE(lib.revisions(asset.id).size(), 2);
+
+        // Temp-file replace (save = write temp + rename): the new content lands.
+        const QString tmp = dir.filePath("a.tmp");
+        put(tmp, "CCCCCC");
+        QFile::remove(asset.path);
+        QVERIFY(QFile::rename(tmp, asset.path));
+        QVERIFY(lib.captureIfStable(asset));
+        history = lib.revisions(asset.id);
+        QCOMPARE(history.size(), 3);
+        QCOMPARE(get(lib.objectPath(history.first().hash)), QByteArray("CCCCCC"));
+
+        // Continuous writes: what is on disk at read time is recorded whole —
+        // the read-verify means a mid-write snapshot is never taken.
+        put(asset.path, "DDDDDD");
+        put(asset.path, "EEEEEE");
+        QVERIFY(lib.captureIfStable(asset));
+        history = lib.revisions(asset.id);
+        QCOMPARE(history.size(), 4);
+        QCOMPARE(get(lib.objectPath(history.first().hash)), QByteArray("EEEEEE"));
+
+        // A removed working copy records nothing (nothing to read).
+        QFile::remove(asset.path);
+        QVERIFY(!lib.captureIfStable(asset));
+        QCOMPARE(lib.revisions(asset.id).size(), 4);
+
+        // Unchanged content that matches the last revision is a no-op.
+        put(asset.path, "EEEEEE");
+        QVERIFY(!lib.captureIfStable(asset));
+        QCOMPARE(lib.revisions(asset.id).size(), 4);
+    }
 };
 QTEST_GUILESS_MAIN(HistoryTest)
 #include "library_test.moc"

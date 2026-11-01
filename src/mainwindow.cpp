@@ -337,6 +337,11 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     });
     connect(restore_, &QPushButton::clicked, this, &MainWindow::restore);
     connect(export_, &QPushButton::clicked, this, &MainWindow::exportFile);
+    // P-304: the stable-change capture runs on a serial background worker so a
+    // large file never blocks the UI thread. The Library serializes its own
+    // access (one internal mutex), so the worker's captureIfStable is safe
+    // alongside the UI thread's own library calls.
+    captureQueue_ = std::make_unique<TaskQueue>(this);
     auto *timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, &MainWindow::scanChanges);
     timer->start(2000);
@@ -870,6 +875,24 @@ void MainWindow::exportFile() {
 }
 
 void MainWindow::scanChanges() {
+    // P-304: drain the background captures finished since the last tick (the
+    // worker wrote each result under the mutex). This runs on the UI thread.
+    QHash<QString, QPair<bool, QString>> results;
+    {
+        QMutexLocker lock(&captureResultsMutex_);
+        results = std::move(captureResults_);
+    }
+    for (auto it = results.begin(); it != results.end(); ++it) {
+        const QString &id = it.key();
+        pendingCapture_.remove(id);
+        const bool changed = it.value().first;
+        const QString error = it.value().second;
+        if (!error.isEmpty()) {
+            statusBar()->showMessage(tr("自动记录失败：%1").arg(error));
+        } else if (changed && selected().id == id) {
+            reloadHistory();
+        }
+    }
     for (const auto &asset : assets_) {
         const QFileInfo info(asset.path);
         if (!info.exists()) { observations_.remove(asset.id); continue; }
@@ -879,12 +902,24 @@ void MainWindow::scanChanges() {
             continue;
         }
         if (recorded_.contains(asset.id) && recorded_.value(asset.id) == signature) continue;
-        try {
-            if (library_.capture(asset, QStringLiteral("自动记录")) && selected().id == asset.id) reloadHistory();
-            recorded_[asset.id] = signature;
-        } catch (const std::exception &error) {
-            statusBar()->showMessage(tr("自动记录失败：%1").arg(QString::fromUtf8(error.what())));
-        }
+        if (pendingCapture_.contains(asset.id)) continue; // one capture in flight per asset
+        // Stable change: capture off the UI thread. The working copy is re-read
+        // and re-verified inside captureIfStable, so a mid-write snapshot is
+        // never recorded; the worker reports the outcome back for the next tick.
+        recorded_[asset.id] = signature; // capture once per signature
+        pendingCapture_.insert(asset.id);
+        captureQueue_->submit(QStringLiteral("自动记录"),
+            [this, asset, signature](TaskQueue::Progress &) {
+                bool changed = false;
+                QString error;
+                try {
+                    changed = library_.captureIfStable(asset, QStringLiteral("自动记录"));
+                } catch (const std::exception &e) {
+                    error = QString::fromUtf8(e.what());
+                }
+                QMutexLocker lock(&captureResultsMutex_);
+                captureResults_.insert(asset.id, {changed, error});
+            });
     }
 }
 

@@ -2,10 +2,13 @@
 #include "filter.h"
 #include "library.h"
 #include "sentinel.h"
+#include "taskqueue.h"
 #include "thumbnails.h"
 #include <QHash>
 #include <QMainWindow>
 #include <QMap>
+#include <QMutex>
+#include <QSet>
 #include <memory>
 
 class QCheckBox;
@@ -92,6 +95,16 @@ private:
     QPushButton *export_;
     QMap<QString, QPair<qint64, qint64>> observations_;
     QMap<QString, QPair<qint64, qint64>> recorded_;
+    // P-304: the stable-change capture runs on a background TaskQueue worker so
+    // a large file never blocks the UI thread. The worker writes its result
+    // under a mutex; the scan timer drains the results on the UI thread (at
+    // most one 2 s tick later). pendingCapture_ gates one capture per asset.
+    // Declaration order matters for teardown: captureQueue_ is declared last so
+    // it is destroyed first — its worker drains before the result buffers die.
+    QMutex captureResultsMutex_;
+    QHash<QString, QPair<bool, QString>> captureResults_;
+    QSet<QString> pendingCapture_;
+    std::unique_ptr<TaskQueue> captureQueue_;
     std::unique_ptr<Sentinel> sentinel_;
     ThumbnailCache thumbnails_;
     Asset selected() const;

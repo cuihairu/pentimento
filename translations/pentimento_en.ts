@@ -57,17 +57,17 @@
         <translation>Library schema version is incompatible (%1); open with a matching version</translation>
     </message>
     <message>
-        <location line="+27"/>
+        <location line="+29"/>
         <source>素材库缺少身份标识（library_id），库可能已损坏</source>
         <translation>Library is missing its identity (library_id); the library may be corrupt</translation>
     </message>
     <message>
-        <location line="+129"/>
+        <location line="+139"/>
         <source>无效的评分：%1</source>
         <translation>Invalid rating: %1</translation>
     </message>
     <message>
-        <location line="+116"/>
+        <location line="+123"/>
         <source>名称不能为空</source>
         <translation>Name cannot be empty</translation>
     </message>
@@ -78,12 +78,12 @@
     </message>
     <message>
         <location line="+5"/>
-        <location line="+50"/>
+        <location line="+51"/>
         <source>找不到素材</source>
         <translation>Asset not found</translation>
     </message>
     <message>
-        <location line="-40"/>
+        <location line="-41"/>
         <source>同文件夹已有同名素材：%1，不会覆盖</source>
         <translation>An asset with this name already exists in this folder: %1; will not overwrite</translation>
     </message>
@@ -93,7 +93,7 @@
         <translation>Cannot rename the working copy</translation>
     </message>
     <message>
-        <location line="+14"/>
+        <location line="+15"/>
         <source>文件夹必须是库内相对路径</source>
         <translation>The folder must be a library-relative path</translation>
     </message>
@@ -108,7 +108,7 @@
         <translation>An asset with this name already exists in the target folder: %1; will not merge</translation>
     </message>
     <message>
-        <location line="+33"/>
+        <location line="+35"/>
         <source>该路径不是有效的素材库（未找到可读的 catalog.sqlite）</source>
         <translation>This path is not a valid asset library (no readable catalog.sqlite found)</translation>
     </message>
@@ -118,13 +118,13 @@
         <translation>This asset library is missing its identity (library_id); the library may be corrupt</translation>
     </message>
     <message>
-        <location line="+32"/>
+        <location line="+35"/>
         <location line="+2"/>
         <source>无效的对象哈希</source>
         <translation>Invalid object hash</translation>
     </message>
     <message>
-        <location line="+6"/>
+        <location line="+7"/>
         <location line="+13"/>
         <location line="+18"/>
         <location line="+19"/>
@@ -133,19 +133,19 @@
         <translation>History object verification failed; operation stopped</translation>
     </message>
     <message>
-        <location line="-233"/>
+        <location line="-242"/>
         <source>历史对象内容不一致</source>
         <translation>History object content mismatch</translation>
     </message>
     <message>
-        <location line="-350"/>
+        <location line="-367"/>
         <location line="+7"/>
         <location line="+4"/>
         <source>无法写入暂存对象：%1</source>
         <translation>Cannot write the staged object: %1</translation>
     </message>
     <message>
-        <location line="+575"/>
+        <location line="+601"/>
         <source>无法发布历史对象</source>
         <translation>Cannot publish the history object</translation>
     </message>
@@ -155,12 +155,12 @@
         <translation>Cannot create the object staging directory</translation>
     </message>
     <message>
-        <location line="+42"/>
+        <location line="+43"/>
         <source>无法创建工作目录</source>
         <translation>Cannot create working directory</translation>
     </message>
     <message>
-        <location line="+63"/>
+        <location line="+87"/>
         <source>无法创建恢复目录</source>
         <translation>Cannot create restore directory</translation>
     </message>
@@ -170,8 +170,8 @@
         <translation>No revision found for this asset</translation>
     </message>
     <message>
-        <location line="-352"/>
-        <location line="+361"/>
+        <location line="-385"/>
+        <location line="+395"/>
         <source>请导出到素材库之外的现有目录</source>
         <translation>Export to an existing directory outside the library</translation>
     </message>
@@ -200,12 +200,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+792"/>
+        <location line="+797"/>
         <source>记录版本</source>
         <translation>Record version</translation>
     </message>
     <message>
-        <location line="-791"/>
+        <location line="-796"/>
         <source>编辑工作副本</source>
         <translation>Edit working copy</translation>
     </message>
@@ -241,13 +241,13 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+845"/>
+        <location line="+880"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>Restore to anchor</translation>
     </message>
     <message>
-        <location line="-847"/>
+        <location line="-882"/>
         <source>素材库</source>
         <translation>Library</translation>
     </message>
@@ -268,13 +268,13 @@
     </message>
     <message>
         <location line="+51"/>
-        <location line="+590"/>
+        <location line="+595"/>
         <location line="+16"/>
         <source>标签</source>
         <translation>Tags</translation>
     </message>
     <message>
-        <location line="-603"/>
+        <location line="-608"/>
         <source>标签列表</source>
         <translation>Tag list</translation>
     </message>
@@ -431,12 +431,12 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+3"/>
-        <location line="+525"/>
+        <location line="+530"/>
         <source>历史版本</source>
         <translation>Historical version</translation>
     </message>
     <message>
-        <location line="-522"/>
+        <location line="-527"/>
         <source>恢复此版本</source>
         <translation>Restore this version</translation>
     </message>
@@ -477,12 +477,12 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location line="+314"/>
+        <location line="+319"/>
         <source>未附加证据</source>
         <translation>No evidence attached</translation>
     </message>
     <message>
-        <location line="-309"/>
+        <location line="-314"/>
         <source>记录（旧记录可回看）</source>
         <translation>Records (old entries stay viewable)</translation>
     </message>
@@ -502,7 +502,7 @@ Restoring appends a new version; existing history is always kept.</translation>
         <translation>Move to folder…</translation>
     </message>
     <message>
-        <location line="+34"/>
+        <location line="+39"/>
         <source>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</source>
         <translation>Local library: %1 · stable changes to working copies are recorded automatically</translation>
     </message>
@@ -819,7 +819,7 @@ Unrecorded current content is saved first. Close the file in external editors.</
         <translation>Auto-record failed: %1</translation>
     </message>
     <message>
-        <location line="+14"/>
+        <location line="+44"/>
         <source>紧急快照失败：%1</source>
         <translation>Emergency snapshot failed: %1</translation>
     </message>

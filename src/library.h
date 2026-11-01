@@ -3,10 +3,12 @@
 #include "backend.h"
 
 #include <QCoreApplication>
+#include <QRecursiveMutex>
 #include <QSqlDatabase>
 #include <QString>
 #include <QVector>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
 
 class QLockFile;
@@ -78,6 +80,11 @@ public:
     // written. `created` reports which happened; a caller can surface the id to
     // give the user an explicit "content unchanged" answer instead of silence.
     qint64 captureRevision(const Asset &asset, const QString &note = QString(), bool *created = nullptr);
+    // P-304 auto-record: like captureRevision, but first re-checks (size, mtime)
+    // after reading the working copy — if the file changed during the read the
+    // snapshot would be torn, so nothing is recorded and the caller retries on a
+    // later scan. Returns true only when a new revision was recorded.
+    bool captureIfStable(const Asset &asset, const QString &note = QString());
     void restore(const Asset &asset, qint64 revisionId);
     void exportRevision(const QString &assetId, qint64 revisionId, const QString &destination) const;
     QString objectPath(const QString &hash) const;
@@ -158,6 +165,11 @@ private:
     QString connection_;
     QSqlDatabase db_;
     std::unique_ptr<QLockFile> lock_;
+    // P-304: every public method serializes on this, so the auto-record capture
+    // can run on the background TaskQueue worker without racing the UI thread's
+    // own library calls. Recursive because public methods call other public
+    // methods (capture -> captureRevision -> revisions, restore -> append).
+    mutable QRecursiveMutex mutex_;
     // Exception-safe construction helper (P-201): open the catalog, stamp the
     // schema/identity metadata, and validate the schema version.
     void openAndInitialize(const QString &catalog);

@@ -175,12 +175,14 @@ Library::~Library() {
 }
 
 BackendInfo Library::backendInfo() const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     // V1 only ever hosts the self-built backend. Git/SVN (read-only) and Time
     // Machine are deferred to V1.x; they must not be assumed writable here.
     return selfBackendInfo();
 }
 
 QString Library::libraryId() const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     QSqlQuery q(db_);
     q.prepare("SELECT value FROM meta WHERE key='library_id'");
     execute(q);
@@ -193,6 +195,7 @@ QString Library::libraryId() const {
 // report how many rows actually changed so the caller can show real results.
 
 QStringList Library::tags(const QString &assetId) const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     QSqlQuery q(db_);
     q.prepare("SELECT tag FROM tags WHERE asset_id=? ORDER BY tag");
     q.addBindValue(assetId);
@@ -203,6 +206,7 @@ QStringList Library::tags(const QString &assetId) const {
 }
 
 QStringList Library::assetsWithTag(const QString &tag) const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     QSqlQuery q(db_);
     q.prepare("SELECT asset_id FROM tags WHERE tag=? ORDER BY asset_id");
     q.addBindValue(tag.trimmed());
@@ -213,6 +217,7 @@ QStringList Library::assetsWithTag(const QString &tag) const {
 }
 
 int Library::addTag(const QString &assetId, const QString &tag) {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     const QString value = tag.trimmed();
     if (value.isEmpty()) return 0;
     QSqlQuery q(db_);
@@ -224,6 +229,7 @@ int Library::addTag(const QString &assetId, const QString &tag) {
 }
 
 int Library::removeTag(const QString &assetId, const QString &tag) {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     const QString value = tag.trimmed();
     if (value.isEmpty()) return 0;
     QSqlQuery q(db_);
@@ -235,6 +241,7 @@ int Library::removeTag(const QString &assetId, const QString &tag) {
 }
 
 int Library::addTagToAssets(const QStringList &assetIds, const QString &tag) {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     const QString value = tag.trimmed();
     if (value.isEmpty() || assetIds.isEmpty()) return 0;
     int changed = 0;
@@ -252,6 +259,7 @@ int Library::addTagToAssets(const QStringList &assetIds, const QString &tag) {
 }
 
 int Library::removeTagFromAssets(const QStringList &assetIds, const QString &tag) {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     const QString value = tag.trimmed();
     if (value.isEmpty() || assetIds.isEmpty()) return 0;
     int changed = 0;
@@ -269,6 +277,7 @@ int Library::removeTagFromAssets(const QStringList &assetIds, const QString &tag
 }
 
 int Library::countAssetsWithoutTag(const QStringList &assetIds, const QString &tag) const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     const QString value = tag.trimmed();
     if (value.isEmpty()) return 0;
     int count = 0;
@@ -284,6 +293,7 @@ int Library::countAssetsWithoutTag(const QStringList &assetIds, const QString &t
 }
 
 int Library::countAssetsWithTag(const QStringList &assetIds, const QString &tag) const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     const QString value = tag.trimmed();
     if (value.isEmpty()) return 0;
     int count = 0;
@@ -304,6 +314,7 @@ int Library::countAssetsWithTag(const QStringList &assetIds, const QString &tag)
 // typed; it is never trimmed or auto-filled, so an honest empty note stays empty.
 
 int Library::rating(const QString &assetId) const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     QSqlQuery q(db_);
     q.prepare("SELECT rating FROM asset_meta WHERE asset_id=?");
     q.addBindValue(assetId);
@@ -313,6 +324,7 @@ int Library::rating(const QString &assetId) const {
 }
 
 void Library::setRating(const QString &assetId, int rating) {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     if (rating < -1 || rating > 5)
         fail(Library::tr("无效的评分：%1").arg(rating));
     QSqlQuery q(db_);
@@ -330,6 +342,7 @@ void Library::setRating(const QString &assetId, int rating) {
 }
 
 QString Library::note(const QString &assetId) const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     QSqlQuery q(db_);
     q.prepare("SELECT note FROM asset_meta WHERE asset_id=?");
     q.addBindValue(assetId);
@@ -338,6 +351,7 @@ QString Library::note(const QString &assetId) const {
 }
 
 void Library::setNote(const QString &assetId, const QString &note) {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     QSqlQuery q(db_);
     // Upsert preserves an existing rating; a fresh row starts with no rating.
     // A null QString binds as SQL NULL, which the NOT NULL note column rejects;
@@ -358,6 +372,7 @@ void Library::setNote(const QString &assetId, const QString &note) {
 // is recorded as user input only — never as a license assertion.
 
 QVector<Provenance> Library::provenance(const QString &assetId) const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     QSqlQuery q(db_);
     q.prepare("SELECT id,source,author,license,evidence,evidence_name,recorded "
               "FROM provenance WHERE asset_id=? ORDER BY id DESC");
@@ -379,6 +394,7 @@ QVector<Provenance> Library::provenance(const QString &assetId) const {
 }
 
 void Library::addProvenance(const QString &assetId, const Provenance &entry) {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     if (!entry.evidence.isEmpty()) objectPath(entry.evidence); // validates hash format
     // A null QString binds as SQL NULL and the NOT NULL columns reject it;
     // "unknown" is stored as an empty string, never NULL.
@@ -399,6 +415,7 @@ void Library::addProvenance(const QString &assetId, const Provenance &entry) {
 }
 
 QString Library::storeEvidence(const QString &filePath) {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     const auto bytes = readFile(filePath);
     const QString hash = digest(bytes);
     const QString path = objectPath(hash);
@@ -412,6 +429,7 @@ QString Library::storeEvidence(const QString &filePath) {
 }
 
 void Library::exportEvidence(const QString &hash, const QString &destination) const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     // Never export into the managed library (would permit overwriting immutable objects).
     const QString dest = QFileInfo(destination).absoluteFilePath();
     const QString parent = QFileInfo(dest).dir().canonicalPath();
@@ -429,6 +447,7 @@ void Library::exportEvidence(const QString &hash, const QString &destination) co
 // automatic merge of two distinct assets.
 
 void Library::renameAsset(const QString &assetId, const QString &newName) {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     const QString name = newName.trimmed();
     if (name.isEmpty()) fail(Library::tr("名称不能为空"));
     if (name.contains('/') || name.contains('\\'))
@@ -470,6 +489,7 @@ void Library::renameAsset(const QString &assetId, const QString &newName) {
 }
 
 void Library::moveAsset(const QString &assetId, const QString &newFolder) {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     // A folder is always library-relative; an absolute target is refused rather
     // than silently relativized (the user's intent would be misread).
     if (newFolder.startsWith('/') || newFolder.startsWith('\\'))
@@ -511,6 +531,7 @@ void Library::moveAsset(const QString &assetId, const QString &newFolder) {
 // 0x0 size, never a guessed value.
 
 QString Library::assetFormat(const QString &assetId) const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     QSqlQuery q(db_);
     q.prepare("SELECT format FROM assets WHERE id=?");
     q.addBindValue(assetId);
@@ -519,6 +540,7 @@ QString Library::assetFormat(const QString &assetId) const {
 }
 
 QSize Library::assetSize(const QString &assetId) const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     QSqlQuery q(db_);
     q.prepare("SELECT width,height FROM assets WHERE id=?");
     q.addBindValue(assetId);
@@ -551,6 +573,7 @@ QString Library::peekLibraryId(const QString &root) {
 }
 
 QVector<Asset> Library::assets() const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     QSqlQuery q(db_);
     q.prepare("SELECT id,name,path,folder FROM assets ORDER BY name,id");
     execute(q);
@@ -567,6 +590,7 @@ QVector<Asset> Library::assets() const {
 }
 
 QVector<Revision> Library::revisions(const QString &assetId) const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     QSqlQuery q(db_);
     q.prepare("SELECT id,hash,created,note,size FROM revisions WHERE asset_id=? ORDER BY id DESC");
     q.addBindValue(assetId);
@@ -578,6 +602,7 @@ QVector<Revision> Library::revisions(const QString &assetId) const {
 }
 
 QString Library::objectPath(const QString &hash) const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     if (hash.size() != 64) fail(Library::tr("无效的对象哈希"));
     for (const auto c : hash)
         if (!QStringLiteral("0123456789abcdef").contains(c)) fail(Library::tr("无效的对象哈希"));
@@ -585,6 +610,7 @@ QString Library::objectPath(const QString &hash) const {
 }
 
 QByteArray Library::readObject(const QString &hash) const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     const auto bytes = readFile(objectPath(hash));
     if (digest(bytes) != hash) fail(Library::tr("历史对象校验失败；已停止操作"));
     return bytes;
@@ -684,6 +710,7 @@ qint64 Library::recordRevision(const Asset &asset, const QString &hash, qint64 s
 }
 
 Asset Library::importFile(const QString &source) {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     const auto bytes = readFile(source);
     const QFileInfo info(source);
     const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
@@ -719,12 +746,14 @@ Asset Library::importFile(const QString &source) {
 }
 
 bool Library::capture(const Asset &asset, const QString &note) {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     bool created = false;
     captureRevision(asset, note, &created);
     return created;
 }
 
 qint64 Library::captureRevision(const Asset &asset, const QString &note, bool *created) {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     // P-302: stream the working copy straight into the object store so a large
     // file never sits whole in memory; the content hash is computed once and
     // reused for the dedup check and the staged-object verification.
@@ -742,7 +771,29 @@ qint64 Library::captureRevision(const Asset &asset, const QString &note, bool *c
     return revisionId;
 }
 
+bool Library::captureIfStable(const Asset &asset, const QString &note) {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
+    // P-304: the heuristic already required the (size, mtime) signature to be
+    // stable across two scans; this adds the read-time re-check so a save that
+    // straddles the read is never recorded as a torn snapshot. The file is
+    // re-statted after the read; if it moved, the caller retries next scan.
+    const QFileInfo before(asset.path);
+    if (!before.exists()) return false;
+    const auto sig = [](const QFileInfo &info) {
+        return qMakePair(info.size(), info.lastModified().toMSecsSinceEpoch());
+    };
+    const auto beforeSig = sig(before);
+    const QString hash = digestFile(asset.path);
+    if (sig(QFileInfo(asset.path)) != beforeSig) return false; // unstable: retry later
+    const auto history = revisions(asset.id);
+    if (!history.isEmpty() && history.first().hash == hash) return false; // unchanged
+    storeObjectFromFile(asset.path, hash);
+    recordRevision(asset, hash, QFileInfo(asset.path).size(), note);
+    return true;
+}
+
 void Library::restore(const Asset &asset, qint64 revisionId) {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     const auto history = revisions(asset.id);
     for (const auto &revision : history) {
         if (revision.id != revisionId) continue;
@@ -773,6 +824,7 @@ void Library::restore(const Asset &asset, qint64 revisionId) {
 }
 
 void Library::exportRevision(const QString &assetId, qint64 revisionId, const QString &destination) const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     // Never export into the managed library (would permit overwriting immutable objects).
     const QString dest = QFileInfo(destination).absoluteFilePath();
     const QString parent = QFileInfo(dest).dir().canonicalPath();
@@ -786,6 +838,7 @@ void Library::exportRevision(const QString &assetId, qint64 revisionId, const QS
 }
 
 int Library::hardenObjects() {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     const QDir dir(root_ + "/objects");
     int hardened = 0;
     const auto entries = dir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot, QDir::Name);
@@ -797,6 +850,7 @@ int Library::hardenObjects() {
 }
 
 qint64 Library::snapshotAll(const QString &note) {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     if (!db_.transaction()) fail(db_.lastError().text());
     qint64 snapshotId = 0;
     try {
@@ -849,6 +903,7 @@ qint64 Library::snapshotAll(const QString &note) {
 }
 
 QVector<Snapshot> Library::snapshots() const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     QSqlQuery q(db_);
     q.prepare("SELECT s.id,s.created,s.note,COUNT(sa.asset_id) FROM snapshots s "
               "LEFT JOIN snapshot_assets sa ON sa.snapshot_id=s.id GROUP BY s.id ORDER BY s.id DESC");
@@ -862,6 +917,7 @@ QVector<Snapshot> Library::snapshots() const {
 }
 
 int Library::rollbackAll(qint64 snapshotId) {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     QHash<QString, Asset> byId;
     for (const auto &asset : assets()) byId.insert(asset.id, asset);
     QSqlQuery q(db_);
