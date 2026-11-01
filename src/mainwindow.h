@@ -1,6 +1,7 @@
 #pragma once
 #include "library.h"
 #include "sentinel.h"
+#include "thumbnails.h"
 #include <QMainWindow>
 #include <QMap>
 #include <memory>
@@ -29,10 +30,15 @@ private:
     QMap<QString, QPair<qint64, qint64>> observations_;
     QMap<QString, QPair<qint64, qint64>> recorded_;
     std::unique_ptr<Sentinel> sentinel_;
+    ThumbnailCache thumbnails_;
     Asset selected() const;
     void pollSentinel();
     void reloadAssets(const QString &selectId = QString());
     void reloadHistory();
+    // P-208: one shared model, two render modes (grid/list); selection is held by
+    // stable asset id so a filter/sort/view change never selects another asset.
+    void setAssetViewMode(bool grid);
+    void keepSelectionVisible();
     void showRevision();
     void importFiles();
     void capture();

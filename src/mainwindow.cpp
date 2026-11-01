@@ -1,5 +1,7 @@
 #include "mainwindow.h"
 #include "sentinel.h"
+#include <QAction>
+#include <QActionGroup>
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QFileDialog>
@@ -10,6 +12,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QListView>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QScrollArea>
@@ -20,7 +23,7 @@
 #include <QToolBar>
 #include <QUrl>
 
-MainWindow::MainWindow(Library &library) : library_(library) {
+MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(library.root()) {
     setWindowTitle(tr("pentimento · 画迹"));
     resize(1240, 790);
     setMinimumSize(860, 540);
@@ -40,6 +43,19 @@ MainWindow::MainWindow(Library &library) : library_(library) {
     toolbar->addAction(tr("打开素材库"), this, [this] {
         QDesktopServices::openUrl(QUrl::fromLocalFile(library_.root()));
     });
+    // P-208: grid/list are two render modes of one shared model; switching keeps
+    // the stable-id selection and scroll position.
+    auto *viewGroup = new QActionGroup(this);
+    auto *gridAction = new QAction(tr("网格视图"), this);
+    gridAction->setCheckable(true); gridAction->setChecked(true);
+    auto *listAction = new QAction(tr("列表视图"), this);
+    listAction->setCheckable(true);
+    viewGroup->addAction(gridAction); viewGroup->addAction(listAction);
+    toolbar->addSeparator();
+    toolbar->addAction(gridAction);
+    toolbar->addAction(listAction);
+    connect(gridAction, &QAction::triggered, this, [this] { setAssetViewMode(true); });
+    connect(listAction, &QAction::triggered, this, [this] { setAssetViewMode(false); });
     // Anti-ransomware Layer 3: one-click rollback to a pre-infection anchor.
     toolbar->addAction(tr("恢复到锚点"), this, &MainWindow::rollbackToSnapshot);
     auto *splitter = new QSplitter;
@@ -54,6 +70,7 @@ MainWindow::MainWindow(Library &library) : library_(library) {
     assetsList_->setAccessibleName(tr("素材列表"));
     assetsList_->setIconSize(QSize(48, 48));
     assetsList_->setSpacing(5);
+    setAssetViewMode(true); // default: grid (one shared model, two render modes)
     leftLayout->addWidget(libraryTitle);
     leftLayout->addWidget(search_);
     leftLayout->addWidget(assetsList_);
@@ -90,8 +107,19 @@ MainWindow::MainWindow(Library &library) : library_(library) {
     splitter->setSizes({260, 660, 300});
     setCentralWidget(splitter);
     connect(search_, &QLineEdit::textChanged, this, [this] {
+        const QString selectedId = selected().id;
         for (int i = 0; i < assetsList_->count(); ++i)
             assetsList_->item(i)->setHidden(!assetsList_->item(i)->text().contains(search_->text(), Qt::CaseInsensitive));
+        // P-208: keep selection by stable id; if the current item was filtered
+        // out, focus moves to the nearest visible item instead of nowhere.
+        if (!selectedId.isEmpty()) {
+            bool found = false;
+            for (int i = 0; i < assetsList_->count(); ++i)
+                if (!assetsList_->item(i)->isHidden() && assets_.value(i).id == selectedId) {
+                    assetsList_->setCurrentRow(i); found = true; break;
+                }
+            if (!found) keepSelectionVisible();
+        } else keepSelectionVisible();
     });
     connect(assetsList_, &QListWidget::currentRowChanged, this, &MainWindow::reloadHistory);
     connect(historyList_, &QListWidget::currentRowChanged, this, &MainWindow::showRevision);
@@ -123,20 +151,77 @@ void MainWindow::reloadAssets(const QString &selectId) {
     assets_ = library_.assets();
     assetsList_->blockSignals(true);
     assetsList_->clear();
+    // Selection is restored by stable asset id (P-208), never by row or filename.
     int selection = -1;
-    for (const auto &asset : assets_) {
+    for (int i = 0; i < assets_.size(); ++i) {
+        const auto &asset = assets_.at(i);
         auto *item = new QListWidgetItem(asset.name, assetsList_);
         item->setToolTip(asset.path);
-        QImageReader reader(asset.path);
-        reader.setAutoTransform(true);
-        reader.setScaledSize(QSize(80, 80));
-        item->setIcon(QPixmap::fromImage(reader.read()));
+        item->setData(Qt::UserRole, asset.id);
+        QIcon icon;
+        try {
+            const auto revisions = library_.revisions(asset.id);
+            if (!revisions.isEmpty()) {
+                const auto bytes = library_.readObject(revisions.first().hash);
+                const QImage thumb = thumbnailFor(thumbnails_, bytes, revisions.first().hash, QSize(80, 80));
+                if (!thumb.isNull()) icon = QPixmap::fromImage(thumb);
+            }
+        } catch (const std::exception &) { /* corrupt object: keep placeholder */ }
+        if (!icon.isNull()) item->setIcon(icon);
         item->setHidden(!asset.name.contains(search_->text(), Qt::CaseInsensitive));
-        if (asset.id == selectId) selection = assetsList_->count() - 1;
+        if (!asset.id.isEmpty() && asset.id == selectId) selection = i;
     }
-    assetsList_->setCurrentRow(selection >= 0 ? selection : (assets_.isEmpty() ? -1 : 0));
+    // If the requested id (or any item) is filtered out, focus the nearest visible item.
+    if (selection >= 0 && !assetsList_->item(selection)->isHidden())
+        assetsList_->setCurrentRow(selection);
+    else keepSelectionVisible();
     assetsList_->blockSignals(false);
     reloadHistory();
+}
+
+void MainWindow::keepSelectionVisible() {
+    if (assets_.isEmpty()) { assetsList_->setCurrentRow(-1); return; }
+    // Fall back to the nearest visible item below, then above, so the current
+    // asset never silently disappears from focus after filtering (P-208).
+    const int current = assetsList_->currentRow();
+    int target = -1;
+    for (int i = qMax(0, current); i < assetsList_->count(); ++i)
+        if (!assetsList_->item(i)->isHidden()) { target = i; break; }
+    if (target < 0)
+        for (int i = qMin(qMax(0, current), assetsList_->count() - 1); i >= 0; --i)
+            if (!assetsList_->item(i)->isHidden()) { target = i; break; }
+    assetsList_->setCurrentRow(target);
+    // The focused item must stay visible; never let focus rest off-viewport (P-208).
+    if (target >= 0) assetsList_->scrollToItem(assetsList_->item(target));
+}
+
+void MainWindow::setAssetViewMode(bool grid) {
+    // One shared model; only the rendering differs. The stable-id selection and
+    // scroll position are preserved by QListWidget itself (P-208).
+    QListWidgetItem *anchor = assetsList_->currentItem();
+    if (grid) {
+        assetsList_->setViewMode(QListView::IconMode);
+        assetsList_->setIconSize(QSize(72, 72));
+        assetsList_->setGridSize(QSize(104, 110));
+        assetsList_->setResizeMode(QListView::Adjust);
+        assetsList_->setWrapping(true);
+        assetsList_->setWordWrap(true);
+        assetsList_->setUniformItemSizes(true);
+        assetsList_->setSpacing(8);
+    } else {
+        assetsList_->setViewMode(QListView::ListMode);
+        assetsList_->setIconSize(QSize(48, 48));
+        assetsList_->setGridSize(QSize());
+        assetsList_->setResizeMode(QListView::Fixed);
+        assetsList_->setWrapping(false);
+        assetsList_->setWordWrap(false);
+        assetsList_->setUniformItemSizes(true);
+        assetsList_->setSpacing(5);
+    }
+    // Keep the selected asset on screen after the layout change so a view switch
+    // never loses the item being inspected (P-208: selection, order, position).
+    if (anchor) assetsList_->scrollToItem(anchor);
+    assetsList_->viewport()->update();
 }
 
 void MainWindow::reloadHistory() {
@@ -152,11 +237,9 @@ void MainWindow::reloadHistory() {
                  QStringLiteral("%1 KiB").arg(revision.size / 1024.0, 0, 'f', 1)), historyList_);
         QIcon icon;
         try {
-            library_.readObject(revision.hash);
-            QImageReader reader(library_.objectPath(revision.hash));
-            reader.setDecideFormatFromContent(true);
-            reader.setScaledSize(QSize(80, 80));
-            icon = QPixmap::fromImage(reader.read());
+            const auto bytes = library_.readObject(revision.hash);
+            const QImage thumb = thumbnailFor(thumbnails_, bytes, revision.hash, QSize(80, 80));
+            if (!thumb.isNull()) icon = QPixmap::fromImage(thumb);
         } catch (const std::exception &) {
             icon = style()->standardIcon(QStyle::SP_MessageBoxWarning);
         }
