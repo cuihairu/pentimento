@@ -52,7 +52,7 @@
         <translation>素材库损坏或索引无法打开：%1</translation>
     </message>
     <message>
-        <location line="+64"/>
+        <location line="+79"/>
         <source>素材库 schema 版本不兼容（%1），请使用匹配版本打开</source>
         <translation>素材库 schema 版本不兼容（%1），请使用匹配版本打开</translation>
     </message>
@@ -83,6 +83,16 @@
     </message>
     <message>
         <location line="+40"/>
+        <source>版本不存在</source>
+        <translation>版本不存在</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>手动固定</source>
+        <translation>手动固定</translation>
+    </message>
+    <message>
+        <location line="+23"/>
         <source>名称不能为空</source>
         <translation>名称不能为空</translation>
     </message>
@@ -133,7 +143,7 @@
         <translation>该素材库缺少身份标识（library_id），库可能已损坏</translation>
     </message>
     <message>
-        <location line="+35"/>
+        <location line="+36"/>
         <location line="+2"/>
         <source>无效的对象哈希</source>
         <translation>无效的对象哈希</translation>
@@ -148,19 +158,19 @@
         <translation>历史对象校验失败；已停止操作</translation>
     </message>
     <message>
-        <location line="-287"/>
+        <location line="-314"/>
         <source>历史对象内容不一致</source>
         <translation>历史对象内容不一致</translation>
     </message>
     <message>
-        <location line="-385"/>
+        <location line="-400"/>
         <location line="+7"/>
         <location line="+4"/>
         <source>无法写入暂存对象：%1</source>
         <translation>无法写入暂存对象：%1</translation>
     </message>
     <message>
-        <location line="+664"/>
+        <location line="+706"/>
         <source>无法发布历史对象</source>
         <translation>无法发布历史对象</translation>
     </message>
@@ -185,8 +195,8 @@
         <translation>找不到属于当前素材的历史版本</translation>
     </message>
     <message>
-        <location line="-430"/>
-        <location line="+440"/>
+        <location line="-457"/>
+        <location line="+467"/>
         <source>请导出到素材库之外的现有目录</source>
         <translation>请导出到素材库之外的现有目录</translation>
     </message>
@@ -215,12 +225,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+847"/>
+        <location line="+886"/>
         <source>记录版本</source>
         <translation>记录版本</translation>
     </message>
     <message>
-        <location line="-846"/>
+        <location line="-885"/>
         <source>编辑工作副本</source>
         <translation>编辑工作副本</translation>
     </message>
@@ -256,13 +266,13 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+1088"/>
+        <location line="+1127"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>恢复到锚点</translation>
     </message>
     <message>
-        <location line="-1090"/>
+        <location line="-1129"/>
         <source>素材库</source>
         <translation>素材库</translation>
     </message>
@@ -283,13 +293,13 @@
     </message>
     <message>
         <location line="+51"/>
-        <location line="+645"/>
+        <location line="+684"/>
         <location line="+16"/>
         <source>标签</source>
         <translation>标签</translation>
     </message>
     <message>
-        <location line="-658"/>
+        <location line="-697"/>
         <source>标签列表</source>
         <translation>标签列表</translation>
     </message>
@@ -300,12 +310,12 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+939"/>
+        <location line="+978"/>
         <source>添加</source>
         <translation>添加</translation>
     </message>
     <message>
-        <location line="-938"/>
+        <location line="-977"/>
         <source>移除</source>
         <translation>移除</translation>
     </message>
@@ -447,12 +457,12 @@
     </message>
     <message>
         <location line="+3"/>
-        <location line="+580"/>
+        <location line="+619"/>
         <source>历史版本</source>
         <translation>历史版本</translation>
     </message>
     <message>
-        <location line="-577"/>
+        <location line="-616"/>
         <source>恢复此版本</source>
         <translation>恢复此版本</translation>
     </message>
@@ -493,12 +503,12 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+369"/>
+        <location line="+408"/>
         <source>未附加证据</source>
         <translation>未附加证据</translation>
     </message>
     <message>
-        <location line="-364"/>
+        <location line="-403"/>
         <source>记录（旧记录可回看）</source>
         <translation>记录（旧记录可回看）</translation>
     </message>
@@ -534,20 +544,20 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+700"/>
+        <location line="+739"/>
         <source>定时快照未启用</source>
         <translation>定时快照未启用</translation>
     </message>
     <message>
-        <location line="-697"/>
-        <location line="+73"/>
-        <location line="+599"/>
+        <location line="-736"/>
+        <location line="+105"/>
+        <location line="+606"/>
         <location line="+11"/>
         <source>暂停</source>
         <translation>暂停</translation>
     </message>
     <message>
-        <location line="-681"/>
+        <location line="-720"/>
         <source>仅应用运行时生效；退出应用期间不算持续备份。</source>
         <translation>仅应用运行时生效；退出应用期间不算持续备份。</translation>
     </message>
@@ -567,18 +577,48 @@
         <translation>移动到文件夹…</translation>
     </message>
     <message>
-        <location line="+35"/>
+        <location line="+14"/>
+        <source>取消固定</source>
+        <translation>取消固定</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>已取消固定版本 #%1（历史保留）</source>
+        <translation>已取消固定版本 #%1（历史保留）</translation>
+    </message>
+    <message>
+        <location line="+5"/>
+        <source>固定此版本…</source>
+        <translation>固定此版本…</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>固定关键版本</source>
+        <translation>固定关键版本</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>固定原因（固定版本不会被保留策略清理）</source>
+        <translation>固定原因（固定版本不会被保留策略清理）</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>已固定版本 #%1</source>
+        <translation>已固定版本 #%1</translation>
+    </message>
+    <message>
+        <location line="+38"/>
         <source>系统（应用退到后台）</source>
         <translation>系统（应用退到后台）</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location line="+622"/>
+        <location line="+629"/>
         <source>恢复</source>
         <translation>恢复</translation>
     </message>
     <message>
-        <location line="-598"/>
+        <location line="-605"/>
         <source>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</source>
         <translation>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</translation>
     </message>
@@ -623,12 +663,26 @@
         <translation>操作未完成</translation>
     </message>
     <message>
-        <location line="+109"/>
-        <source>当前 · </source>
-        <translation>当前 · </translation>
+        <location line="+110"/>
+        <source>当前</source>
+        <translation>当前</translation>
     </message>
     <message>
-        <location line="+55"/>
+        <location line="+1"/>
+        <source>已固定</source>
+        <translation>已固定</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>固定原因：%1</source>
+        <translation>固定原因：%1</translation>
+    </message>
+    <message>
+        <source>当前 · </source>
+        <translation type="vanished">当前 · </translation>
+    </message>
+    <message>
+        <location line="+54"/>
         <source>已清除评分</source>
         <translation>已清除评分</translation>
     </message>

@@ -346,6 +346,38 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
         menu.exec(assetsList_->viewport()->mapToGlobal(pos));
     });
     connect(historyList_, &QListWidget::currentRowChanged, this, &MainWindow::showRevision);
+    // P-307: pin a key version (with a reason) or unpin it from the timeline's
+    // context menu. A pin persists across restarts and exempts the version from
+    // any future retention cleanup; unpinning never deletes history.
+    historyList_->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(historyList_, &QListWidget::customContextMenuRequested, this, [this](const QPoint &pos) {
+        const int row = historyList_->currentRow();
+        if (row < 0 || row >= revisions_.size()) return;
+        const auto revision = revisions_.at(row);
+        QMenu menu;
+        if (revision.pinned) {
+            menu.addAction(tr("取消固定"), this, [this, revision] {
+                try {
+                    library_.unpinRevision(revision.id);
+                    statusBar()->showMessage(tr("已取消固定版本 #%1（历史保留）").arg(revision.id));
+                    reloadHistory();
+                } catch (const std::exception &e) { report(e); }
+            });
+        } else {
+            menu.addAction(tr("固定此版本…"), this, [this, revision] {
+                bool ok = false;
+                const QString reason = QInputDialog::getText(this, tr("固定关键版本"),
+                    tr("固定原因（固定版本不会被保留策略清理）"), QLineEdit::Normal, QString(), &ok);
+                if (!ok) return;
+                try {
+                    library_.pinRevision(revision.id, reason);
+                    statusBar()->showMessage(tr("已固定版本 #%1").arg(revision.id));
+                    reloadHistory();
+                } catch (const std::exception &e) { report(e); }
+            });
+        }
+        menu.exec(historyList_->viewport()->mapToGlobal(pos));
+    });
     connect(tagAddBtn_, &QPushButton::clicked, this, &MainWindow::addTagToSelected);
     connect(tagInput_, &QLineEdit::returnPressed, this, &MainWindow::addTagToSelected);
     connect(tagRemoveBtn_, &QPushButton::clicked, this, &MainWindow::removeSelectedTag);
@@ -576,9 +608,16 @@ void MainWindow::reloadHistory() {
     for (int i = 0; i < revisions_.size(); ++i) {
         const auto &revision = revisions_.at(i);
         const auto date = QDateTime::fromString(revision.created, Qt::ISODateWithMs).toLocalTime();
+        // P-307: the timeline marks pinned versions; the reason is in the tooltip.
+        QStringList markers;
+        if (i == 0) markers << tr("当前");
+        if (revision.pinned) markers << tr("已固定");
+        const QString prefix = markers.isEmpty() ? QString()
+            : markers.join(QStringLiteral(" · ")) + QStringLiteral(" · ");
         auto *item = new QListWidgetItem(QStringLiteral("%1%2\n%3\n%4")
-            .arg(i == 0 ? tr("当前 · ") : QString(), date.toString("MM-dd HH:mm:ss"), revision.note,
+            .arg(prefix, date.toString("MM-dd HH:mm:ss"), revision.note,
                  QStringLiteral("%1 KiB").arg(revision.size / 1024.0, 0, 'f', 1)), historyList_);
+        if (revision.pinned) item->setToolTip(tr("固定原因：%1").arg(revision.pinReason));
         QIcon icon;
         try {
             const auto bytes = library_.readObject(revision.hash);

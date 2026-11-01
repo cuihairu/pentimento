@@ -1307,6 +1307,62 @@ private slots:
         QCOMPARE(snaps.first().excluded, 0);
     }
 
+    void pinnedVersionsSurviveRestartAndRetainObjects() {
+        QTemporaryDir dir;
+        put(dir.filePath("a.png"), "png-a");
+        QString firstHash;
+        qint64 firstId = 0;
+        QString assetId;
+        {
+            Library lib(dir.filePath("lib"));
+            const auto asset = lib.importFile(dir.filePath("a.png"));
+            assetId = asset.id;
+            firstId = lib.revisions(asset.id).first().id;
+            lib.pinRevision(firstId, QStringLiteral("送审版本"));
+            auto history = lib.revisions(asset.id);
+            QVERIFY(history.first().pinned);
+            QCOMPARE(history.first().pinReason, QStringLiteral("送审版本"));
+            firstHash = history.first().hash;
+            // A later change and a restore keep the pinned revision and its object.
+            put(dir.filePath("b.png"), "png-b");
+            QFile::remove(asset.path);
+            QFile::copy(dir.filePath("b.png"), asset.path);
+            QVERIFY(lib.capture(asset));
+            lib.restore(asset, firstId);
+            history = lib.revisions(asset.id);
+            QCOMPARE(history.size(), 3); // import, changed, restored
+            bool found = false;
+            for (const auto &rev : history)
+                if (rev.id == firstId) { found = true; QVERIFY(rev.pinned); }
+            QVERIFY(found);
+            QVERIFY(QFileInfo::exists(lib.objectPath(firstHash)));
+        }
+        // The pin persists across a restart (same library root reopened).
+        {
+            Library reopened(dir.filePath("lib"));
+            QVERIFY(reopened.revisions(assetId).size() == 3);
+            bool found = false;
+            for (const auto &rev : reopened.revisions(assetId))
+                if (rev.id == firstId) {
+                    found = true;
+                    QVERIFY(rev.pinned);
+                    QCOMPARE(rev.pinReason, QStringLiteral("送审版本"));
+                }
+            QVERIFY(found);
+            // Unpin only clears the flag; history and the object remain.
+            reopened.unpinRevision(firstId);
+            auto history = reopened.revisions(assetId);
+            QCOMPARE(history.size(), 3);
+            for (const auto &rev : history)
+                if (rev.id == firstId) { QVERIFY(!rev.pinned); QVERIFY(rev.pinReason.isEmpty()); }
+            QVERIFY(QFileInfo::exists(reopened.objectPath(firstHash)));
+            // An unknown revision id is refused.
+            bool threw = false;
+            try { reopened.pinRevision(999999, QString()); } catch (...) { threw = true; }
+            QVERIFY(threw);
+        }
+    }
+
     void contentObjectStorageStreamsAndDeduplicates() {
         QTemporaryDir dir;
         // 64 MiB + a tail: comfortably past the P-302 "large file" sample so

@@ -170,6 +170,21 @@ void Library::openAndInitialize(const QString &catalog) {
     };
     ensureSnapshotColumn(QStringLiteral("state"), QStringLiteral("state TEXT NOT NULL DEFAULT 'present'"));
     ensureSnapshotColumn(QStringLiteral("reason"), QStringLiteral("reason TEXT NOT NULL DEFAULT ''"));
+    // P-307: a revision can be pinned (with a reason) so a future retention
+    // policy never cleans or overwrites its object. Old libraries lack the
+    // columns; every existing revision is simply unpinned by default.
+    const auto ensureRevisionColumn = [&](const QString &name, const QString &ddl) {
+        QSqlQuery check(db_);
+        check.prepare("SELECT COUNT(*) FROM pragma_table_info('revisions') WHERE name=?");
+        check.addBindValue(name);
+        execute(check);
+        if (check.next() && check.value(0).toInt() == 0) {
+            if (!q.exec("ALTER TABLE revisions ADD COLUMN " + ddl))
+                fail(q.lastError().text());
+        }
+    };
+    ensureRevisionColumn(QStringLiteral("pinned"), QStringLiteral("pinned INTEGER NOT NULL DEFAULT 0"));
+    ensureRevisionColumn(QStringLiteral("pin_reason"), QStringLiteral("pin_reason TEXT NOT NULL DEFAULT ''"));
     // Schema/identity metadata. A library predating the meta table, or with an
     // unknown schema version, must not be silently treated as current (P-201).
     QSqlQuery meta(db_);
@@ -503,6 +518,32 @@ QVector<Exclusion> Library::exclusions() const {
     return result;
 }
 
+// --- Key-version pinning (P-307) ------------------------------------------------
+// A pin marks a version as untouchable by any future retention policy and is
+// persisted (survives a restart). Unpinning never deletes history.
+
+void Library::pinRevision(qint64 revisionId, const QString &reason) {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
+    QSqlQuery find(db_);
+    find.prepare("SELECT COUNT(*) FROM revisions WHERE id=?");
+    find.addBindValue(revisionId);
+    execute(find);
+    if (find.next() && find.value(0).toInt() == 0) fail(Library::tr("版本不存在"));
+    QSqlQuery upd(db_);
+    upd.prepare("UPDATE revisions SET pinned=1,pin_reason=? WHERE id=?");
+    upd.addBindValue(reason.trimmed().isEmpty() ? Library::tr("手动固定") : reason.trimmed());
+    upd.addBindValue(revisionId);
+    execute(upd);
+}
+
+void Library::unpinRevision(qint64 revisionId) {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
+    QSqlQuery upd(db_);
+    upd.prepare("UPDATE revisions SET pinned=0,pin_reason='' WHERE id=?");
+    upd.addBindValue(revisionId);
+    execute(upd);
+}
+
 // --- Folder organization and asset identity (P-216) ----------------------------
 // Identity is the asset id: rename and move only update the catalog row (and,
 // for a rename, the working-copy file name), so every revision, tag, rating and
@@ -656,12 +697,13 @@ QVector<Asset> Library::assets() const {
 QVector<Revision> Library::revisions(const QString &assetId) const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
     QSqlQuery q(db_);
-    q.prepare("SELECT id,hash,created,note,size FROM revisions WHERE asset_id=? ORDER BY id DESC");
+    q.prepare("SELECT id,hash,created,note,size,pinned,pin_reason FROM revisions WHERE asset_id=? ORDER BY id DESC");
     q.addBindValue(assetId);
     execute(q);
     QVector<Revision> result;
     while (q.next()) result.push_back({q.value(0).toLongLong(), q.value(1).toString(),
-        q.value(2).toString(), q.value(3).toString(), q.value(4).toLongLong()});
+        q.value(2).toString(), q.value(3).toString(), q.value(4).toLongLong(),
+        q.value(5).toInt() != 0, q.value(6).toString()});
     return result;
 }
 

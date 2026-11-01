@@ -38,6 +38,11 @@ struct Revision {
     QString created;
     QString note;
     qint64 size = 0;
+    // P-307: a pinned revision carries a reason and is excluded from any future
+    // retention cleanup — its object is never cleaned or overwritten. Unpinning
+    // only clears the flag; history is never deleted by unpinning.
+    bool pinned = false;
+    QString pinReason;
 };
 
 // One whole-tree emergency anchor: each asset pinned to the revision that
@@ -116,6 +121,12 @@ public:
     void addExclusion(const QString &kind, const QString &pattern);
     void removeExclusion(const QString &kind, const QString &pattern);
     QVector<Exclusion> exclusions() const;
+    // P-307: pin a revision (with a recorded reason) so a future retention
+    // policy never cleans or overwrites its object; the pin persists across
+    // restarts. Unpinning only clears the flag — it never deletes history.
+    // Throws when the revision does not exist.
+    void pinRevision(qint64 revisionId, const QString &reason);
+    void unpinRevision(qint64 revisionId);
     // Version-backend capability report (P-103): the self-built backend.
     BackendInfo backendInfo() const;
     QString root() const { return root_; }
