@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "compare_canvas.h"
 #include "preview.h"
 #include "preview_canvas.h"
 #include "sentinel.h"
@@ -258,11 +259,16 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     historyList_->setSpacing(5);
     restore_ = new QPushButton(tr("恢复此版本"));
     export_ = new QPushButton(tr("导出此版本…"));
+    // P-313: side-by-side comparison of the selected history revision against
+    // the newest (current) version, under one shared zoom/pan transform.
+    compareBtn_ = new QPushButton(tr("对比版本…"));
+    connect(compareBtn_, &QPushButton::clicked, this, &MainWindow::compareVersions);
     rightLayout->addWidget(historyTitle);
     rightLayout->addWidget(hint);
     rightLayout->addWidget(historyList_, 1);
     rightLayout->addWidget(restore_);
     rightLayout->addWidget(export_);
+    rightLayout->addWidget(compareBtn_);
     // P-215: manual source/author/license records. Entries are appended (never
     // overwritten) and each keeps its recorded time; old entries stay viewable.
     // The license is recorded exactly as typed — the app never asserts that a
@@ -932,7 +938,7 @@ void MainWindow::batchRemoveTag() {
 void MainWindow::showRevision() {
     const int row = historyList_->currentRow();
     const bool valid = row >= 0 && row < revisions_.size();
-    restore_->setEnabled(valid); export_->setEnabled(valid);
+    restore_->setEnabled(valid); export_->setEnabled(valid); compareBtn_->setEnabled(valid);
     if (!valid) return;
     const auto &revision = revisions_.at(row);
     // P-212: technical metadata (format/size/fileSize/channels) from the header;
@@ -1055,6 +1061,67 @@ void MainWindow::exportFile() {
     if (path.isEmpty()) return;
     try { library_.exportRevision(selected().id, revisions_.at(row).id, path); }
     catch (const std::exception &error) { report(error); }
+}
+
+void MainWindow::compareVersions() {
+    const int row = historyList_->currentRow();
+    if (row < 0 || row >= revisions_.size() || revisions_.isEmpty()) return;
+    const auto &current = revisions_.constFirst();   // newest = current content
+    const auto &selected = revisions_.at(row);
+    const QString suffix = QFileInfo(this->selected().name).suffix().toLower();
+
+    // P-313: one shared image-coordinate transform (same zoom scale, same
+    // origin) for both panes. Default is top-left aligned, never stretched;
+    // "fit window" applies a single unified scale. Pan and zoom move both
+    // panes together, and differing sizes read as explicit empty regions.
+    auto decodeRevision = [this, suffix](qint64 revisionId) {
+        for (const auto &rev : revisions_)
+            if (rev.id == revisionId)
+                return preview::decode(library_.objectPath(rev.hash), suffix).image;
+        return QImage();
+    };
+    const QImage leftImage = decodeRevision(current.id);
+    const QImage rightImage = decodeRevision(selected.id);
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("双版对比"));
+    dialog.resize(860, 560);
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *canvas = new CompareCanvas(&dialog);
+    canvas->setImages(leftImage, rightImage);
+    auto *bar = new QWidget(&dialog);
+    auto *barLayout = new QHBoxLayout(bar);
+    barLayout->setContentsMargins(0, 0, 0, 0);
+    auto *leftLabel = new QLabel(tr("左：当前版本 #%1").arg(current.id), bar);
+    auto *rightLabel = new QLabel(tr("右：所选版本 #%1").arg(selected.id), bar);
+    auto *zoomLabel = new QLabel(bar);
+    auto *fitCheck = new QCheckBox(tr("适配窗口（统一比例）"), bar);
+    fitCheck->setChecked(true);
+    connect(fitCheck, &QCheckBox::toggled, canvas, &CompareCanvas::setFit);
+    connect(canvas, &CompareCanvas::zoomChanged, bar, [zoomLabel](qreal factor) {
+        zoomLabel->setText(QStringLiteral("%1%").arg(qRound(factor * 100)));
+    });
+    zoomLabel->setText(QStringLiteral("%1%").arg(qRound(canvas->zoom() * 100)));
+    barLayout->addWidget(leftLabel);
+    barLayout->addStretch(1);
+    barLayout->addWidget(zoomLabel);
+    barLayout->addWidget(fitCheck);
+    barLayout->addStretch(1);
+    barLayout->addWidget(rightLabel);
+    // P-313: differing sizes are stated explicitly — never auto-stretched.
+    if (leftImage.size() != rightImage.size()) {
+        auto *sizeNote = new QLabel(tr("两版尺寸不同：%1×%2 与 %3×%4（左上对齐，不拉伸；空白为无内容区域）")
+            .arg(leftImage.width()).arg(leftImage.height())
+            .arg(rightImage.width()).arg(rightImage.height()), &dialog);
+        sizeNote->setStyleSheet("color:#b26a00;");
+        layout->addWidget(sizeNote);
+    }
+    layout->addWidget(canvas, 1);
+    layout->addWidget(bar);
+    auto *closeBtn = new QPushButton(tr("关闭"), &dialog);
+    connect(closeBtn, &QPushButton::clicked, &dialog, &QDialog::accept);
+    layout->addWidget(closeBtn);
+    dialog.exec();
 }
 
 void MainWindow::scanChanges() {

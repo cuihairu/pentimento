@@ -1,5 +1,6 @@
 #include "library.h"
 #include "backend.h"
+#include "compare_canvas.h"
 #include "exclusion.h"
 #include "filter.h"
 #include "i18n.h"
@@ -11,6 +12,8 @@
 #include "storage.h"
 #include "taskqueue.h"
 #include "thumbnails.h"
+#include <QWheelEvent>
+#include <QApplication>
 #include <QTranslator>
 #include <QBuffer>
 #include <QDataStream>
@@ -1839,6 +1842,63 @@ private slots:
         // view and the current index are never mixed.
         QVERIFY(lib.assets().isEmpty());
     }
+    void compareCanvasSharesOneTransform() {
+        CompareCanvas canvas;
+        canvas.resize(400, 300);
+        QImage left(100, 50, QImage::Format_RGB32);
+        QImage right(40, 80, QImage::Format_RGB32);
+        left.fill(Qt::red);
+        right.fill(Qt::blue);
+        canvas.setImages(left, right);
+        canvas.show();
+
+        // Fit mode: ONE unified scale so both panes fit — the smaller image
+        // keeps explicit empty space instead of being stretched. With panes of
+        // 199x300 and 200x300: left fits at min(1.99, 6.0)=1.99, right at
+        // min(5.0, 3.75)=3.75; the unified scale is the smaller one.
+        QCOMPARE(canvas.zoom(), 1.99);
+        QCOMPARE(canvas.origin(), QPoint(0, 0));
+
+        // Manual zoom disables fit, is bounded, and keeps the shared origin.
+        canvas.setZoom(0.5);
+        QVERIFY(!canvas.isFit());
+        QCOMPARE(canvas.zoom(), 0.5);
+
+        // Wheel zoom anchors the image point under the cursor; both panes share
+        // the one origin, so the same coordinate moves in each pane.
+        const QPointF pos(100, 100);
+        QWheelEvent wheel(pos, canvas.mapToGlobal(pos.toPoint()), QPoint(),
+                          QPoint(0, 120), Qt::NoButton, Qt::NoModifier,
+                          Qt::NoScrollPhase, false);
+        QCoreApplication::sendEvent(&canvas, &wheel);
+        QVERIFY(canvas.zoom() > 0.5);
+        QVERIFY(!canvas.isFit());
+
+        // Drag pans the single shared origin (the panes cannot desynchronize).
+        const QPoint before = canvas.origin();
+        QTest::mousePress(&canvas, Qt::LeftButton, Qt::NoModifier, QPoint(200, 150));
+        QTest::mouseMove(&canvas, QPoint(180, 140));
+        QTest::mouseRelease(&canvas, Qt::LeftButton, Qt::NoModifier, QPoint(180, 140));
+        QVERIFY(canvas.origin() != before);
+
+        // No images: interactions are inert (no crash, no transform change).
+        CompareCanvas empty;
+        empty.resize(300, 200);
+        empty.show();
+        const QPoint originBefore = empty.origin();
+        QTest::mousePress(&empty, Qt::LeftButton, Qt::NoModifier, QPoint(150, 100));
+        QTest::mouseMove(&empty, QPoint(120, 90));
+        QTest::mouseRelease(&empty, Qt::LeftButton, Qt::NoModifier, QPoint(120, 90));
+        QCOMPARE(empty.origin(), originBefore);
+    }
 };
-QTEST_GUILESS_MAIN(HistoryTest)
+
+// A QApplication is required: P-313's CompareCanvas is a widget and cannot be
+// created under a QCoreApplication. Everything else stays core-only.
+int main(int argc, char **argv) {
+    QApplication app(argc, argv);
+    HistoryTest tc;
+    QTEST_SET_MAIN_SOURCE_PATH
+    return QTest::qExec(&tc, argc, argv);
+}
 #include "library_test.moc"

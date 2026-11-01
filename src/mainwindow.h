@@ -114,6 +114,7 @@ private:
     QPushButton *fieldHistoryBtn_;
     QPushButton *restore_;
     QPushButton *export_;
+    QPushButton *compareBtn_; // P-313: side-by-side version comparison
     QMap<QString, QPair<qint64, qint64>> observations_;
     QMap<QString, QPair<qint64, qint64>> recorded_;
     // P-304: the stable-change capture runs on a background TaskQueue worker so
@@ -163,6 +164,7 @@ private:
     void capture();
     void restore();
     void exportFile();
+    void compareVersions();
     void scanChanges();
     // P-305: scheduled-snapshot state machine (period, pause, next run).
     void setSnapshotPeriod(int index);

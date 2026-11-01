@@ -2,6 +2,14 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="zh_CN">
 <context>
+    <name>CompareCanvas</name>
+    <message>
+        <location filename="../src/compare_canvas.cpp" line="+85"/>
+        <source>此版本不可预览</source>
+        <translation>This version cannot be previewed</translation>
+    </message>
+</context>
+<context>
     <name>Library</name>
     <message>
         <location filename="../src/library.cpp" line="+28"/>
@@ -239,7 +247,7 @@
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../src/mainwindow.cpp" line="+38"/>
+        <location filename="../src/mainwindow.cpp" line="+39"/>
         <source>pentimento · 画迹</source>
         <translation>pentimento</translation>
     </message>
@@ -255,12 +263,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+979"/>
+        <location line="+984"/>
         <source>记录版本</source>
         <translation>Record version</translation>
     </message>
     <message>
-        <location line="-978"/>
+        <location line="-983"/>
         <source>编辑工作副本</source>
         <translation>Edit working copy</translation>
     </message>
@@ -296,13 +304,13 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+1317"/>
+        <location line="+1383"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>Restore to anchor</translation>
     </message>
     <message>
-        <location line="-1317"/>
+        <location line="-1383"/>
         <source>素材库</source>
         <translation>Library</translation>
     </message>
@@ -323,13 +331,13 @@
     </message>
     <message>
         <location line="+51"/>
-        <location line="+764"/>
+        <location line="+769"/>
         <location line="+16"/>
         <source>标签</source>
         <translation>Tags</translation>
     </message>
     <message>
-        <location line="-777"/>
+        <location line="-782"/>
         <source>标签列表</source>
         <translation>Tag list</translation>
     </message>
@@ -340,12 +348,12 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+1069"/>
+        <location line="+1135"/>
         <source>添加</source>
         <translation>Add</translation>
     </message>
     <message>
-        <location line="-1068"/>
+        <location line="-1134"/>
         <source>移除</source>
         <translation>Remove</translation>
     </message>
@@ -492,12 +500,12 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+3"/>
-        <location line="+709"/>
+        <location line="+714"/>
         <source>历史版本</source>
         <translation>Historical version</translation>
     </message>
     <message>
-        <location line="-706"/>
+        <location line="-711"/>
         <source>恢复此版本</source>
         <translation>Restore this version</translation>
     </message>
@@ -507,7 +515,12 @@ Restoring appends a new version; existing history is always kept.</translation>
         <translation>Export this version...</translation>
     </message>
     <message>
-        <location line="+10"/>
+        <location line="+3"/>
+        <source>对比版本…</source>
+        <translation>Compare versions…</translation>
+    </message>
+    <message>
+        <location line="+12"/>
         <source>来源与授权</source>
         <translation>Source &amp; license</translation>
     </message>
@@ -559,13 +572,14 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+3"/>
-        <location line="+968"/>
+        <location line="+806"/>
+        <location line="+223"/>
         <location line="+91"/>
         <source>关闭</source>
         <translation>Off</translation>
     </message>
     <message>
-        <location line="-1058"/>
+        <location line="-1119"/>
         <source>每 15 分钟</source>
         <translation>Every 15 minutes</translation>
     </message>
@@ -581,20 +595,20 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location line="+830"/>
+        <location line="+891"/>
         <source>定时快照未启用</source>
         <translation>Scheduled snapshots off</translation>
     </message>
     <message>
-        <location line="-827"/>
+        <location line="-888"/>
         <location line="+114"/>
-        <location line="+688"/>
+        <location line="+749"/>
         <location line="+11"/>
         <source>暂停</source>
         <translation>Pause</translation>
     </message>
     <message>
-        <location line="-811"/>
+        <location line="-872"/>
         <source>仅应用运行时生效；退出应用期间不算持续备份。</source>
         <translation>Active only while the app runs; exiting is never counted as continuous backup.</translation>
     </message>
@@ -661,12 +675,12 @@ Restoring appends a new version; existing history is always kept.</translation>
     <message>
         <location line="+1"/>
         <location line="+238"/>
-        <location line="+473"/>
+        <location line="+534"/>
         <source>恢复</source>
         <translation>Resume</translation>
     </message>
     <message>
-        <location line="-687"/>
+        <location line="-748"/>
         <source>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</source>
         <translation>Local library: %1 · stable changes to working copies are recorded automatically</translation>
     </message>
@@ -1050,7 +1064,32 @@ The original file and history are fully preserved and can be exported.</translat
         <translation>Content unchanged (current version #%1); nothing to save again</translation>
     </message>
     <message>
-        <location line="+232"/>
+        <location line="+45"/>
+        <source>双版对比</source>
+        <translation>Compare two versions</translation>
+    </message>
+    <message>
+        <location line="+8"/>
+        <source>左：当前版本 #%1</source>
+        <translation>Left: current version #%1</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>右：所选版本 #%1</source>
+        <translation>Right: selected version #%1</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>适配窗口（统一比例）</source>
+        <translation>Fit window (unified scale)</translation>
+    </message>
+    <message>
+        <location line="+15"/>
+        <source>两版尺寸不同：%1×%2 与 %3×%4（左上对齐，不拉伸；空白为无内容区域）</source>
+        <translation>Sizes differ: %1x%2 vs %3x%4 (top-left aligned, never stretched; empty area means no content on that side)</translation>
+    </message>
+    <message>
+        <location line="+222"/>
         <source>字段历史</source>
         <translation>Field history</translation>
     </message>
@@ -1095,7 +1134,7 @@ The original file and history are fully preserved and can be exported.</translat
         <translation type="vanished">Content unchanged; nothing to save</translation>
     </message>
     <message>
-        <location line="-341"/>
+        <location line="-402"/>
         <source>恢复历史版本</source>
         <translation>Restore revision</translation>
     </message>
@@ -1112,7 +1151,7 @@ Unrecorded current content is saved first. Close the file in external editors.</
         <translation>Export revision</translation>
     </message>
     <message>
-        <location line="+24"/>
+        <location line="+85"/>
         <source>自动记录失败：%1</source>
         <translation>Auto-record failed: %1</translation>
     </message>

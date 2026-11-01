@@ -2,6 +2,14 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="zh_CN">
 <context>
+    <name>CompareCanvas</name>
+    <message>
+        <location filename="../src/compare_canvas.cpp" line="+85"/>
+        <source>此版本不可预览</source>
+        <translation>此版本不可预览</translation>
+    </message>
+</context>
+<context>
     <name>Library</name>
     <message>
         <location filename="../src/library.cpp" line="+28"/>
@@ -239,7 +247,7 @@
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../src/mainwindow.cpp" line="+38"/>
+        <location filename="../src/mainwindow.cpp" line="+39"/>
         <source>pentimento · 画迹</source>
         <translation>pentimento · 画迹</translation>
     </message>
@@ -255,12 +263,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+979"/>
+        <location line="+984"/>
         <source>记录版本</source>
         <translation>记录版本</translation>
     </message>
     <message>
-        <location line="-978"/>
+        <location line="-983"/>
         <source>编辑工作副本</source>
         <translation>编辑工作副本</translation>
     </message>
@@ -296,13 +304,13 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+1317"/>
+        <location line="+1383"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>恢复到锚点</translation>
     </message>
     <message>
-        <location line="-1317"/>
+        <location line="-1383"/>
         <source>素材库</source>
         <translation>素材库</translation>
     </message>
@@ -323,13 +331,13 @@
     </message>
     <message>
         <location line="+51"/>
-        <location line="+764"/>
+        <location line="+769"/>
         <location line="+16"/>
         <source>标签</source>
         <translation>标签</translation>
     </message>
     <message>
-        <location line="-777"/>
+        <location line="-782"/>
         <source>标签列表</source>
         <translation>标签列表</translation>
     </message>
@@ -340,12 +348,12 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+1069"/>
+        <location line="+1135"/>
         <source>添加</source>
         <translation>添加</translation>
     </message>
     <message>
-        <location line="-1068"/>
+        <location line="-1134"/>
         <source>移除</source>
         <translation>移除</translation>
     </message>
@@ -492,12 +500,12 @@
     </message>
     <message>
         <location line="+3"/>
-        <location line="+709"/>
+        <location line="+714"/>
         <source>历史版本</source>
         <translation>历史版本</translation>
     </message>
     <message>
-        <location line="-706"/>
+        <location line="-711"/>
         <source>恢复此版本</source>
         <translation>恢复此版本</translation>
     </message>
@@ -507,7 +515,12 @@
         <translation>导出此版本…</translation>
     </message>
     <message>
-        <location line="+10"/>
+        <location line="+3"/>
+        <source>对比版本…</source>
+        <translation>对比版本…</translation>
+    </message>
+    <message>
+        <location line="+12"/>
         <source>来源与授权</source>
         <translation>来源与授权</translation>
     </message>
@@ -559,13 +572,14 @@
     </message>
     <message>
         <location line="+3"/>
-        <location line="+968"/>
+        <location line="+806"/>
+        <location line="+223"/>
         <location line="+91"/>
         <source>关闭</source>
         <translation>关闭</translation>
     </message>
     <message>
-        <location line="-1058"/>
+        <location line="-1119"/>
         <source>每 15 分钟</source>
         <translation>每 15 分钟</translation>
     </message>
@@ -581,20 +595,20 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+830"/>
+        <location line="+891"/>
         <source>定时快照未启用</source>
         <translation>定时快照未启用</translation>
     </message>
     <message>
-        <location line="-827"/>
+        <location line="-888"/>
         <location line="+114"/>
-        <location line="+688"/>
+        <location line="+749"/>
         <location line="+11"/>
         <source>暂停</source>
         <translation>暂停</translation>
     </message>
     <message>
-        <location line="-811"/>
+        <location line="-872"/>
         <source>仅应用运行时生效；退出应用期间不算持续备份。</source>
         <translation>仅应用运行时生效；退出应用期间不算持续备份。</translation>
     </message>
@@ -661,12 +675,12 @@
     <message>
         <location line="+1"/>
         <location line="+238"/>
-        <location line="+473"/>
+        <location line="+534"/>
         <source>恢复</source>
         <translation>恢复</translation>
     </message>
     <message>
-        <location line="-687"/>
+        <location line="-748"/>
         <source>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</source>
         <translation>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</translation>
     </message>
@@ -1050,7 +1064,32 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation>内容未变化（当前版本 #%1），无需重复保存</translation>
     </message>
     <message>
-        <location line="+232"/>
+        <location line="+45"/>
+        <source>双版对比</source>
+        <translation>双版对比</translation>
+    </message>
+    <message>
+        <location line="+8"/>
+        <source>左：当前版本 #%1</source>
+        <translation>左：当前版本 #%1</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>右：所选版本 #%1</source>
+        <translation>右：所选版本 #%1</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>适配窗口（统一比例）</source>
+        <translation>适配窗口（统一比例）</translation>
+    </message>
+    <message>
+        <location line="+15"/>
+        <source>两版尺寸不同：%1×%2 与 %3×%4（左上对齐，不拉伸；空白为无内容区域）</source>
+        <translation>两版尺寸不同：%1×%2 与 %3×%4（左上对齐，不拉伸；空白为无内容区域）</translation>
+    </message>
+    <message>
+        <location line="+222"/>
         <source>字段历史</source>
         <translation>字段历史</translation>
     </message>
@@ -1095,7 +1134,7 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation type="vanished">内容未变化，无需重复保存</translation>
     </message>
     <message>
-        <location line="-341"/>
+        <location line="-402"/>
         <source>恢复历史版本</source>
         <translation>恢复历史版本</translation>
     </message>
@@ -1112,7 +1151,7 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation>导出历史版本</translation>
     </message>
     <message>
-        <location line="+24"/>
+        <location line="+85"/>
         <source>自动记录失败：%1</source>
         <translation>自动记录失败：%1</translation>
     </message>
