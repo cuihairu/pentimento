@@ -22,3 +22,18 @@ BackendInfo selfBackendInfo() {
     info.capabilities.insert(Capability::RemoteFetch, false);
     return info;
 }
+
+HistoryActions historyActionsFor(const BackendInfo &info, bool selectionValid) {
+    HistoryActions actions;
+    // Restore writes a historical version back as a new version — only offered
+    // when the backend supports it. A read-only backend must never show the
+    // write-back button (P-409); the reason is surfaced instead.
+    actions.restore = selectionValid && info.supports(Capability::Restore);
+    if (selectionValid && !info.supports(Capability::Restore))
+        actions.restoreReason = info.unsupportedReason(Capability::Restore);
+    // Extract reads a historical copy out of the library — gated by History.
+    actions.extract = selectionValid && info.supports(Capability::History);
+    if (selectionValid && !info.supports(Capability::History))
+        actions.extractReason = info.unsupportedReason(Capability::History);
+    return actions;
+}

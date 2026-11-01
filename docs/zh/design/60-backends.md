@@ -38,6 +38,13 @@
 
 能力驱动的历史操作显示；先覆盖自建和明确未支持态。**映射**：能力 → 界面操作 → 核心校验；未来只读后端仅导出/提取（不显示写回恢复按钮）。**V1 不做**：为未实现后端显示可用标记；入口跳转当历史支持。
 
+**实现（2026-11-01）**
+- 设计：`historyActionsFor(info, selectionValid)` 纯映射（backend.h）——restore 动作仅当 `Restore` 能力且选中；extract/导出/对比仅当 `History` 能力且选中；不满足时置空并给出 `unsupportedReason`（工具提示展示）。
+- 接线：`showRevision()` 用该映射设置恢复/导出/对比按钮启用与工具提示；核心侧校验（restore/exportRevision 已按版本归属+能力契约校验）不变。
+- 只读后端（Git/SVN，V1.x）不显示写回恢复按钮，仅导出——映射已在核心路径强制，未来后端接入即生效。
+- 测试：`historyActionsFollowBackendCapabilities`（self 全可用；只读后端 restore 关+原因、extract 开；无 History 关 extract；无选中全关无原因）。
+- 验证：ctest 2/2 绿；离线烟雾运行无崩溃。
+
 ## P-410 macOS 时光机系统适配边界
 
 只评估官方系统入口与权限边界，不解析备份内容。当前**保持未验证**（无 macOS 环境证据）。**V1 不做**：读取 Time Machine 快照；修改系统备份配置；承诺已备份。

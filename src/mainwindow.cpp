@@ -938,7 +938,16 @@ void MainWindow::batchRemoveTag() {
 void MainWindow::showRevision() {
     const int row = historyList_->currentRow();
     const bool valid = row >= 0 && row < revisions_.size();
-    restore_->setEnabled(valid); export_->setEnabled(valid); compareBtn_->setEnabled(valid);
+    // P-409: capability-driven history actions. A read-only backend (Git/SVN,
+    // V1.x) must not offer a write-back restore button — the capability→action
+    // mapping is enforced here and the unsupported reason is surfaced.
+    const auto actions = historyActionsFor(library_.backendInfo(), valid);
+    restore_->setEnabled(actions.restore);
+    export_->setEnabled(actions.extract);
+    compareBtn_->setEnabled(actions.extract); // comparison reads historical content
+    restore_->setToolTip(actions.restoreReason);
+    export_->setToolTip(actions.extractReason);
+    compareBtn_->setToolTip(actions.extractReason);
     if (!valid) return;
     const auto &revision = revisions_.at(row);
     // P-212: technical metadata (format/size/fileSize/channels) from the header;

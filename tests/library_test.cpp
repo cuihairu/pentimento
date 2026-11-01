@@ -588,6 +588,43 @@ private slots:
         // self backend; the UI hides an action only when the capability is absent.
         QVERIFY(info.unsupportedReason(Capability::History).contains(QStringLiteral("此后端")));
     }
+    // P-409: the history actions are capability-driven — a read-only backend
+    // exposes extract/export but never a write-back restore button, and the
+    // reason is surfaced; no selection disables everything with no reason.
+    void historyActionsFollowBackendCapabilities() {
+        // Self backend (writable, all capabilities): both actions offered.
+        const auto self = historyActionsFor(selfBackendInfo(), /*selectionValid=*/true);
+        QVERIFY(self.restore);
+        QVERIFY(self.extract);
+        QVERIFY(self.restoreReason.isEmpty());
+        QVERIFY(self.extractReason.isEmpty());
+
+        // Read-only backend: history yes, restore no.
+        BackendInfo readOnly;
+        readOnly.name = QStringLiteral("git");
+        readOnly.writable = false;
+        readOnly.capabilities.insert(Capability::History, true);
+        readOnly.capabilities.insert(Capability::SnapshotTree, false);
+        readOnly.capabilities.insert(Capability::Restore, false);
+        const auto ro = historyActionsFor(readOnly, true);
+        QVERIFY(!ro.restore);                 // no write-back restore button
+        QVERIFY(ro.extract);                  // export/extract still available
+        QVERIFY(!ro.restoreReason.isEmpty()); // reason surfaced instead
+
+        // No history capability: extraction is off too.
+        BackendInfo noHistory = selfBackendInfo();
+        noHistory.capabilities.insert(Capability::History, false);
+        const auto nh = historyActionsFor(noHistory, true);
+        QVERIFY(!nh.extract);
+        QVERIFY(!nh.extractReason.isEmpty());
+
+        // No selection: nothing is offered, and no reason is attached.
+        const auto none = historyActionsFor(selfBackendInfo(), /*selectionValid=*/false);
+        QVERIFY(!none.restore);
+        QVERIFY(!none.extract);
+        QVERIFY(none.restoreReason.isEmpty());
+        QVERIFY(none.extractReason.isEmpty());
+    }
     void storageInterfaceReportsConsistentLocalInfo() {
         QTemporaryDir dir;
         put(dir.filePath("a.png"), "image-bytes");

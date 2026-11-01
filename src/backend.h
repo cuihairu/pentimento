@@ -25,3 +25,17 @@ struct BackendInfo {
 // exposes history, whole-tree snapshots, restore, and a single-process write
 // lock; it has no remote objects to fetch.
 BackendInfo selfBackendInfo();
+
+// P-409: capability-driven history-action availability (capability → UI action).
+// A read-only backend (Git/SVN, deferred to V1.x) exposes extract/export but
+// never a write-back restore button — the restore action is hidden and its
+// unsupported reason is surfaced instead. `selectionValid` is whether a history
+// revision is currently selected; a capability is only "available" when both the
+// selection exists and the backend supports it.
+struct HistoryActions {
+    bool restore = false;  // backend can write a historical version back (Restore)
+    bool extract = false;  // backend can read a historical copy out (History)
+    QString restoreReason; // unsupportedReason(Restore) when restore is off
+    QString extractReason; // unsupportedReason(History) when extract is off
+};
+HistoryActions historyActionsFor(const BackendInfo &info, bool selectionValid);
