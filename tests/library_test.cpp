@@ -878,6 +878,58 @@ private slots:
         // and the batch removed exactly the one tag, never a replace-all.
         QVERIFY(lib.tags(a.id).isEmpty());
     }
+
+    void ratingAndNotePersistAcrossReopen() {
+        QTemporaryDir dir;
+        QString assetId;
+        {
+            Library lib(dir.filePath("lib"));
+            put(dir.filePath("a.png"), "asset-a");
+            put(dir.filePath("b.png"), "asset-b");
+            const auto a = lib.importFile(dir.filePath("a.png"));
+            const auto b = lib.importFile(dir.filePath("b.png"));
+            assetId = a.id;
+
+            // Unknown asset: no rating, empty note (no fabricated values).
+            QCOMPARE(lib.rating(b.id), -1);
+            QVERIFY(lib.note(b.id).isEmpty());
+
+            // No-rating (-1) is distinct from 0 (explicit zero star).
+            QCOMPARE(lib.rating(assetId), -1);
+            lib.setRating(assetId, 0);
+            QCOMPARE(lib.rating(assetId), 0);
+            lib.setRating(assetId, 3);
+            QCOMPARE(lib.rating(assetId), 3);
+            lib.setRating(assetId, 5);
+            QCOMPARE(lib.rating(assetId), 5);
+            // Clearing returns to no-rating, not to 0.
+            lib.setRating(assetId, -1);
+            QCOMPARE(lib.rating(assetId), -1);
+
+            // Note is stored verbatim; an honest empty note stays empty.
+            lib.setNote(assetId, "  立绘，需去背  ");
+            QCOMPARE(lib.note(assetId), QStringLiteral("  立绘，需去背  "));
+            lib.setNote(assetId, QString());
+            QVERIFY(lib.note(assetId).isEmpty());
+            lib.setNote(assetId, "首版参考图");
+            QCOMPARE(lib.note(assetId), QStringLiteral("首版参考图"));
+
+            // Setting the note must not clobber the rating and vice versa.
+            lib.setRating(assetId, 4);
+            QCOMPARE(lib.note(assetId), QStringLiteral("首版参考图"));
+            lib.setNote(assetId, "更新后沿用");
+            QCOMPARE(lib.rating(assetId), 4);
+
+            // Out-of-range ratings are rejected, never clamped.
+            QVERIFY_EXCEPTION_THROWN(lib.setRating(assetId, 6), std::runtime_error);
+            QVERIFY_EXCEPTION_THROWN(lib.setRating(assetId, -2), std::runtime_error);
+            QCOMPARE(lib.rating(assetId), 4); // unchanged after the throws
+        }
+        // Reopen: values survive a fresh Library on the same root.
+        Library reopened(dir.filePath("lib"));
+        QCOMPARE(reopened.rating(assetId), 4);
+        QCOMPARE(reopened.note(assetId), QStringLiteral("更新后沿用"));
+    }
 };
 QTEST_GUILESS_MAIN(HistoryTest)
 #include "library_test.moc"

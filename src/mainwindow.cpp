@@ -4,7 +4,9 @@
 #include "sentinel.h"
 #include <QAction>
 #include <QActionGroup>
+#include <QApplication>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QFileDialog>
@@ -17,6 +19,7 @@
 #include <QListWidget>
 #include <QListView>
 #include <QMessageBox>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSplitter>
@@ -102,6 +105,31 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     leftLayout->addWidget(tagsTitle);
     leftLayout->addWidget(tagsList_);
     leftLayout->addLayout(tagRow);
+    // P-214: rating (0-5 stars with a distinct "no rating") and a free-form
+    // note. The note saves on an explicit button or on focus loss; every save
+    // shows a clear "saved" message so it is never assumed silently kept.
+    auto *ratingTitle = new QLabel(tr("评分"));
+    ratingTitle->setStyleSheet("font-size:14px;font-weight:600;");
+    ratingCombo_ = new QComboBox;
+    ratingCombo_->setAccessibleName(tr("评分"));
+    ratingCombo_->addItem(tr("无评分"), -1);
+    for (int stars = 0; stars <= 5; ++stars)
+        ratingCombo_->addItem(tr("%1 星").arg(stars), stars);
+    auto *noteTitle = new QLabel(tr("备注"));
+    noteTitle->setStyleSheet("font-size:14px;font-weight:600;");
+    noteEdit_ = new QPlainTextEdit;
+    noteEdit_->setAccessibleName(tr("备注"));
+    noteEdit_->setPlaceholderText(tr("备注将在失焦或点击保存时写入"));
+    noteEdit_->setMaximumHeight(72);
+    noteSaveBtn_ = new QPushButton(tr("保存备注"));
+    auto *noteRow = new QHBoxLayout;
+    noteRow->addStretch(1);
+    noteRow->addWidget(noteSaveBtn_);
+    leftLayout->addWidget(ratingTitle);
+    leftLayout->addWidget(ratingCombo_);
+    leftLayout->addWidget(noteTitle);
+    leftLayout->addWidget(noteEdit_);
+    leftLayout->addLayout(noteRow);
     auto *center = new QWidget;
     auto *centerLayout = new QVBoxLayout(center);
     details_ = new QLabel(tr("导入第一份素材，开始保留创作历史。"));
@@ -211,6 +239,13 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     connect(tagAddBtn_, &QPushButton::clicked, this, &MainWindow::addTagToSelected);
     connect(tagInput_, &QLineEdit::returnPressed, this, &MainWindow::addTagToSelected);
     connect(tagRemoveBtn_, &QPushButton::clicked, this, &MainWindow::removeSelectedTag);
+    // P-214: rating saves on change; the note saves on the button or on focus
+    // loss (the editor leaving focus flushes pending edits).
+    connect(ratingCombo_, &QComboBox::currentIndexChanged, this, &MainWindow::applyRating);
+    connect(noteSaveBtn_, &QPushButton::clicked, this, &MainWindow::saveNote);
+    connect(qApp, &QApplication::focusChanged, this, [this](QWidget *oldFocus, QWidget *) {
+        if (oldFocus == noteEdit_) saveNote();
+    });
     connect(restore_, &QPushButton::clicked, this, &MainWindow::restore);
     connect(export_, &QPushButton::clicked, this, &MainWindow::exportFile);
     auto *timer = new QTimer(this);
@@ -339,6 +374,7 @@ void MainWindow::reloadHistory() {
     historyList_->blockSignals(false);
     showRevision();
     reloadTags();
+    reloadRatingNote();
 }
 
 void MainWindow::reloadTags() {
@@ -347,6 +383,46 @@ void MainWindow::reloadTags() {
     for (const QString &tag : library_.tags(selected().id))
         tagsList_->addItem(tag);
     tagsList_->blockSignals(false);
+}
+
+// P-214: rating/note block reflects the selected asset. The rating combo maps
+// -1 (no rating) to index 0, then 0..5 stars; the note editor holds the stored
+// note verbatim. Loading blocks signals so a reload never triggers a save.
+void MainWindow::reloadRatingNote() {
+    const auto asset = selected();
+    ratingCombo_->blockSignals(true);
+    if (asset.id.isEmpty()) {
+        ratingCombo_->setCurrentIndex(0);
+    } else {
+        const int value = library_.rating(asset.id);
+        const int index = ratingCombo_->findData(value);
+        ratingCombo_->setCurrentIndex(index >= 0 ? index : 0);
+    }
+    ratingCombo_->blockSignals(false);
+    noteEdit_->blockSignals(true);
+    noteEdit_->setPlainText(asset.id.isEmpty() ? QString() : library_.note(asset.id));
+    noteEdit_->blockSignals(false);
+    noteAssetId_ = asset.id;
+}
+
+void MainWindow::applyRating(int index) {
+    const auto asset = selected();
+    if (asset.id.isEmpty()) return;
+    const int value = ratingCombo_->itemData(index).toInt();
+    try {
+        library_.setRating(asset.id, value);
+        statusBar()->showMessage(value < 0 ? tr("已清除评分") : tr("已保存评分：%1 星").arg(value));
+    } catch (const std::exception &error) { report(error); }
+}
+
+void MainWindow::saveNote() {
+    // Save to the asset the editor represents, not to selected(): switching
+    // assets while the editor is focused must not carry the old note over.
+    if (noteAssetId_.isEmpty()) return;
+    try {
+        library_.setNote(noteAssetId_, noteEdit_->toPlainText());
+        statusBar()->showMessage(tr("备注已保存"));
+    } catch (const std::exception &error) { report(error); }
 }
 
 QStringList MainWindow::visibleAssetIds() const {

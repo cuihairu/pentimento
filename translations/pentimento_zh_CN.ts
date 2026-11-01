@@ -48,7 +48,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+21"/>
+        <location line="+24"/>
         <source>素材库 schema 版本不兼容（%1），请使用匹配版本打开</source>
         <translation type="unfinished"></translation>
     </message>
@@ -58,7 +58,12 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+116"/>
+        <location line="+129"/>
+        <source>无效的评分：%1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+39"/>
         <source>该路径不是有效的素材库（未找到可读的 catalog.sqlite）</source>
         <translation type="unfinished"></translation>
     </message>
@@ -112,7 +117,7 @@
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../src/mainwindow.cpp" line="+32"/>
+        <location filename="../src/mainwindow.cpp" line="+35"/>
         <source>pentimento · 画迹</source>
         <translation>pentimento · 画迹</translation>
     </message>
@@ -128,12 +133,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+460"/>
+        <location line="+533"/>
         <source>记录版本</source>
         <translation>记录版本</translation>
     </message>
     <message>
-        <location line="-459"/>
+        <location line="-532"/>
         <source>编辑工作副本</source>
         <translation>编辑工作副本</translation>
     </message>
@@ -169,13 +174,13 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+508"/>
+        <location line="+581"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>恢复到锚点</translation>
     </message>
     <message>
-        <location line="-510"/>
+        <location line="-583"/>
         <source>素材库</source>
         <translation>素材库</translation>
     </message>
@@ -196,13 +201,13 @@
     </message>
     <message>
         <location line="+9"/>
-        <location line="+300"/>
+        <location line="+373"/>
         <location line="+16"/>
         <source>标签</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="-313"/>
+        <location line="-386"/>
         <source>标签列表</source>
         <translation type="unfinished"></translation>
     </message>
@@ -222,7 +227,39 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+9"/>
+        <location line="+10"/>
+        <location line="+3"/>
+        <source>评分</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>无评分</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>%1 星</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <location line="+3"/>
+        <source>备注</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>备注将在失焦或点击保存时写入</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>保存备注</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+11"/>
         <source>导入第一份素材，开始保留创作历史。</source>
         <translation>导入第一份素材，开始保留创作历史。</translation>
     </message>
@@ -266,12 +303,12 @@
     </message>
     <message>
         <location line="+3"/>
-        <location line="+260"/>
+        <location line="+308"/>
         <source>历史版本</source>
         <translation>历史版本</translation>
     </message>
     <message>
-        <location line="-257"/>
+        <location line="-305"/>
         <source>恢复此版本</source>
         <translation>恢复此版本</translation>
     </message>
@@ -281,7 +318,7 @@
         <translation>导出此版本…</translation>
     </message>
     <message>
-        <location line="+41"/>
+        <location line="+48"/>
         <source>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</source>
         <translation>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</translation>
     </message>
@@ -296,7 +333,22 @@
         <translation>当前 · </translation>
     </message>
     <message>
-        <location line="+39"/>
+        <location line="+54"/>
+        <source>已清除评分</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>已保存评分：%1 星</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <source>备注已保存</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+16"/>
         <source>标签不能为空</source>
         <translation type="unfinished"></translation>
     </message>
@@ -510,6 +562,24 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <location line="+6"/>
         <source>已恢复到锚点 #%1（%2 个素材回滚）</source>
         <translation>已恢复到锚点 #%1（%2 个素材回滚）</translation>
+    </message>
+</context>
+<context>
+    <name>QObject</name>
+    <message>
+        <location filename="../src/importer.cpp" line="+50"/>
+        <source>忽略规则 %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+9"/>
+        <source>根目录不可读：%1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+14"/>
+        <source>不可读（跳过，可重试）：%1</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 </TS>

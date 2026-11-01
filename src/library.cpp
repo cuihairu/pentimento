@@ -90,6 +90,9 @@ void Library::openAndInitialize(const QString &catalog) {
              QStringLiteral("CREATE TABLE IF NOT EXISTS revisions(id INTEGER PRIMARY KEY AUTOINCREMENT,asset_id TEXT NOT NULL REFERENCES assets(id),hash TEXT NOT NULL,created TEXT NOT NULL,note TEXT NOT NULL,size INTEGER NOT NULL)"),
              QStringLiteral("CREATE INDEX IF NOT EXISTS revisions_asset ON revisions(asset_id,id)"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS tags(asset_id TEXT NOT NULL REFERENCES assets(id),tag TEXT NOT NULL,PRIMARY KEY(asset_id,tag))"),
+             // P-214: one optional row per asset. rating is NULL for "no rating"
+             // (distinct from the explicit 0 star); note defaults to empty.
+             QStringLiteral("CREATE TABLE IF NOT EXISTS asset_meta(asset_id TEXT PRIMARY KEY REFERENCES assets(id),rating INTEGER,note TEXT NOT NULL DEFAULT '')"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS snapshots(id INTEGER PRIMARY KEY AUTOINCREMENT,created TEXT NOT NULL,note TEXT NOT NULL)"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS snapshot_assets(snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),asset_id TEXT NOT NULL REFERENCES assets(id),revision_id INTEGER NOT NULL,PRIMARY KEY(snapshot_id,asset_id))")}) {
         if (!q.exec(sql)) fail(q.lastError().text());
@@ -239,6 +242,58 @@ int Library::countAssetsWithTag(const QStringList &assetIds, const QString &tag)
         if (q.next()) ++count;
     }
     return count;
+}
+
+// --- Rating and note (P-214) ---------------------------------------------------
+// One optional asset_meta row per asset. "No rating" is NULL (-1 to callers) and
+// is deliberately separate from 0 (explicit zero star). The note is stored as
+// typed; it is never trimmed or auto-filled, so an honest empty note stays empty.
+
+int Library::rating(const QString &assetId) const {
+    QSqlQuery q(db_);
+    q.prepare("SELECT rating FROM asset_meta WHERE asset_id=?");
+    q.addBindValue(assetId);
+    execute(q);
+    if (!q.next() || q.value(0).isNull()) return -1;
+    return q.value(0).toInt();
+}
+
+void Library::setRating(const QString &assetId, int rating) {
+    if (rating < -1 || rating > 5)
+        fail(Library::tr("无效的评分：%1").arg(rating));
+    QSqlQuery q(db_);
+    // Upsert preserves an existing note; a fresh row starts with an empty note.
+    if (rating < 0) {
+        q.prepare("INSERT INTO asset_meta(asset_id,rating,note) VALUES(?,NULL,'') "
+                  "ON CONFLICT(asset_id) DO UPDATE SET rating=NULL");
+    } else {
+        q.prepare("INSERT INTO asset_meta(asset_id,rating,note) VALUES(?,?, '') "
+                  "ON CONFLICT(asset_id) DO UPDATE SET rating=excluded.rating");
+    }
+    q.addBindValue(assetId);
+    if (rating >= 0) q.addBindValue(rating);
+    execute(q);
+}
+
+QString Library::note(const QString &assetId) const {
+    QSqlQuery q(db_);
+    q.prepare("SELECT note FROM asset_meta WHERE asset_id=?");
+    q.addBindValue(assetId);
+    execute(q);
+    return q.next() ? q.value(0).toString() : QString();
+}
+
+void Library::setNote(const QString &assetId, const QString &note) {
+    QSqlQuery q(db_);
+    // Upsert preserves an existing rating; a fresh row starts with no rating.
+    // A null QString binds as SQL NULL, which the NOT NULL note column rejects;
+    // an "empty" note is stored as '' (readers see empty either way).
+    const QString value = note.isNull() ? QStringLiteral("") : note;
+    q.prepare("INSERT INTO asset_meta(asset_id,rating,note) VALUES(?,NULL,?) "
+              "ON CONFLICT(asset_id) DO UPDATE SET note=excluded.note");
+    q.addBindValue(assetId);
+    q.addBindValue(value);
+    execute(q);
 }
 
 QString Library::peekLibraryId(const QString &root) {

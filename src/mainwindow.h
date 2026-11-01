@@ -7,9 +7,11 @@
 #include <memory>
 
 class QCheckBox;
+class QComboBox;
 class QLabel;
 class QLineEdit;
 class QListWidget;
+class QPlainTextEdit;
 class QPushButton;
 class QScrollArea;
 class QStackedWidget;
@@ -49,6 +51,16 @@ private:
     QLineEdit *tagInput_;
     QPushButton *tagAddBtn_;
     QPushButton *tagRemoveBtn_;
+    // P-214: per-asset rating (0-5 stars plus a distinct "no rating") and a
+    // free-form note. The note saves on an explicit button or on focus loss,
+    // always with a clear "saved" message so it never looks silently kept.
+    QComboBox *ratingCombo_;
+    QPlainTextEdit *noteEdit_;
+    QPushButton *noteSaveBtn_;
+    // Asset whose note/rating the editor currently represents. Focus-loss saves
+    // go here (not to selected()) so switching assets mid-edit never writes the
+    // old note into the newly selected asset.
+    QString noteAssetId_;
     QPushButton *restore_;
     QPushButton *export_;
     QMap<QString, QPair<qint64, qint64>> observations_;
@@ -64,6 +76,9 @@ private:
     void removeSelectedTag();
     void batchAddTag();
     void batchRemoveTag();
+    void reloadRatingNote();
+    void applyRating(int index);
+    void saveNote();
     QStringList visibleAssetIds() const;
     // P-208: one shared model, two render modes (grid/list); selection is held by
     // stable asset id so a filter/sort/view change never selects another asset.

@@ -48,7 +48,7 @@
         <translation>Library is corrupt or the index cannot be opened: %1</translation>
     </message>
     <message>
-        <location line="+21"/>
+        <location line="+24"/>
         <source>素材库 schema 版本不兼容（%1），请使用匹配版本打开</source>
         <translation>Library schema version is incompatible (%1); open with a matching version</translation>
     </message>
@@ -58,7 +58,12 @@
         <translation>Library is missing its identity (library_id); the library may be corrupt</translation>
     </message>
     <message>
-        <location line="+116"/>
+        <location line="+129"/>
+        <source>无效的评分：%1</source>
+        <translation>Invalid rating: %1</translation>
+    </message>
+    <message>
+        <location line="+39"/>
         <source>该路径不是有效的素材库（未找到可读的 catalog.sqlite）</source>
         <translation>This path is not a valid asset library (no readable catalog.sqlite found)</translation>
     </message>
@@ -112,7 +117,7 @@
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../src/mainwindow.cpp" line="+32"/>
+        <location filename="../src/mainwindow.cpp" line="+35"/>
         <source>pentimento · 画迹</source>
         <translation>pentimento</translation>
     </message>
@@ -128,12 +133,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+460"/>
+        <location line="+533"/>
         <source>记录版本</source>
         <translation>Record version</translation>
     </message>
     <message>
-        <location line="-459"/>
+        <location line="-532"/>
         <source>编辑工作副本</source>
         <translation>Edit working copy</translation>
     </message>
@@ -169,13 +174,13 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+508"/>
+        <location line="+581"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>Restore to anchor</translation>
     </message>
     <message>
-        <location line="-510"/>
+        <location line="-583"/>
         <source>素材库</source>
         <translation>Library</translation>
     </message>
@@ -196,13 +201,13 @@
     </message>
     <message>
         <location line="+9"/>
-        <location line="+300"/>
+        <location line="+373"/>
         <location line="+16"/>
         <source>标签</source>
         <translation>Tags</translation>
     </message>
     <message>
-        <location line="-313"/>
+        <location line="-386"/>
         <source>标签列表</source>
         <translation>Tag list</translation>
     </message>
@@ -222,7 +227,39 @@
         <translation>Remove</translation>
     </message>
     <message>
-        <location line="+9"/>
+        <location line="+10"/>
+        <location line="+3"/>
+        <source>评分</source>
+        <translation>Rating</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>无评分</source>
+        <translation>No rating</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>%1 星</source>
+        <translation>%1 star(s)</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <location line="+3"/>
+        <source>备注</source>
+        <translation>Note</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>备注将在失焦或点击保存时写入</source>
+        <translation>The note is saved on focus loss or when you click Save</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>保存备注</source>
+        <translation>Save note</translation>
+    </message>
+    <message>
+        <location line="+11"/>
         <source>导入第一份素材，开始保留创作历史。</source>
         <translation>Import the first asset to start keeping creative history.</translation>
     </message>
@@ -266,12 +303,12 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+3"/>
-        <location line="+260"/>
+        <location line="+308"/>
         <source>历史版本</source>
         <translation>Historical version</translation>
     </message>
     <message>
-        <location line="-257"/>
+        <location line="-305"/>
         <source>恢复此版本</source>
         <translation>Restore this version</translation>
     </message>
@@ -281,7 +318,7 @@ Restoring appends a new version; existing history is always kept.</translation>
         <translation>Export this version...</translation>
     </message>
     <message>
-        <location line="+41"/>
+        <location line="+48"/>
         <source>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</source>
         <translation>Local library: %1 · stable changes to working copies are recorded automatically</translation>
     </message>
@@ -296,7 +333,22 @@ Restoring appends a new version; existing history is always kept.</translation>
         <translation>Current · </translation>
     </message>
     <message>
-        <location line="+39"/>
+        <location line="+54"/>
+        <source>已清除评分</source>
+        <translation>Rating cleared</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>已保存评分：%1 星</source>
+        <translation>Rating saved: %1 star(s)</translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <source>备注已保存</source>
+        <translation>Note saved</translation>
+    </message>
+    <message>
+        <location line="+16"/>
         <source>标签不能为空</source>
         <translation>Tag cannot be empty</translation>
     </message>
@@ -339,7 +391,7 @@ Restoring appends a new version; existing history is always kept.</translation>
         <location line="+1"/>
         <source>将给 %1 个素材添加标签「%2」（已有该标签的不变）。
 不会覆盖其他标签。</source>
-        <translation>Will add tag "%2" to %1 assets (those already having it are unchanged).
+        <translation>Will add tag &quot;%2&quot; to %1 assets (those already having it are unchanged).
 Other tags are not affected.</translation>
     </message>
     <message>
@@ -366,7 +418,7 @@ Other tags are not affected.</translation>
         <location line="+1"/>
         <source>将从 %1 个素材移除标签「%2」。
 只移除这一个标签，不影响其他标签。</source>
-        <translation>Will remove tag "%2" from %1 assets.
+        <translation>Will remove tag &quot;%2&quot; from %1 assets.
 Only this tag is removed; other tags are not affected.</translation>
     </message>
     <message>
@@ -515,6 +567,24 @@ Close all external editors first.</translation>
         <location line="+6"/>
         <source>已恢复到锚点 #%1（%2 个素材回滚）</source>
         <translation>Restored to anchor #%1 (%2 assets rolled back)</translation>
+    </message>
+</context>
+<context>
+    <name>QObject</name>
+    <message>
+        <location filename="../src/importer.cpp" line="+50"/>
+        <source>忽略规则 %1</source>
+        <translation>Ignore rule %1</translation>
+    </message>
+    <message>
+        <location line="+9"/>
+        <source>根目录不可读：%1</source>
+        <translation>Root directory is unreadable: %1</translation>
+    </message>
+    <message>
+        <location line="+14"/>
+        <source>不可读（跳过，可重试）：%1</source>
+        <translation>Unreadable (skipped, can retry): %1</translation>
     </message>
 </context>
 </TS>

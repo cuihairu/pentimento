@@ -85,6 +85,16 @@ public:
     // Batch previews (P-213): how many of the given assets would actually change.
     int countAssetsWithoutTag(const QStringList &assetIds, const QString &tag) const;
     int countAssetsWithTag(const QStringList &assetIds, const QString &tag) const;
+    // --- Rating and note (P-214) -------------------------------------------------
+    // Per-asset rating and free-form note, persisted in asset_meta so they
+    // survive a reopen. Rating is -1 for "no rating", which is distinct from 0
+    // (the explicit zero-star state); setRating(id, -1) clears it back to no
+    // rating. setRating with any other out-of-range value throws. The note is
+    // stored verbatim (never trimmed or inferred).
+    int rating(const QString &assetId) const;
+    void setRating(const QString &assetId, int rating);
+    QString note(const QString &assetId) const;
+    void setNote(const QString &assetId, const QString &note);
     // Read a library's identity from its catalog WITHOUT taking the write lock.
     // Used when re-locating a missing library: verify this is the same library
     // (same id) before opening it at the new path. Throws when the directory is
