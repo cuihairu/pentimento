@@ -39,6 +39,19 @@ struct Snapshot {
     int assets = 0;
 };
 
+// One manual source/author/license entry, exactly as the user typed it (P-215).
+// Empty fields mean unknown; nothing is inferred. Evidence is an attached file
+// kept as an immutable content-addressed object inside the library.
+struct Provenance {
+    qint64 id = 0;
+    QString source;      // where the asset came from (URL, store), empty = unknown
+    QString author;      // who made it, empty = unknown
+    QString license;     // license terms as typed by the user, empty = unknown
+    QString evidence;    // object hash of the attached evidence file, empty = none
+    QString evidenceName; // original file name of the evidence attachment
+    QString recorded;    // UTC ISO timestamp stamped by the library on append
+};
+
 // One library, one writer. Original imports are never modified.
 class Library {
     Q_DECLARE_TR_FUNCTIONS(Library)
@@ -95,6 +108,17 @@ public:
     void setRating(const QString &assetId, int rating);
     QString note(const QString &assetId) const;
     void setNote(const QString &assetId, const QString &note);
+    // --- Source/author/license records (P-215) ----------------------------------
+    // Append-only: every manual entry keeps its own library-stamped timestamp,
+    // so old records stay viewable with when they were recorded. Fields may be
+    // empty (unknown); the app never infers or asserts a license — a URL or an
+    // attached evidence file is input the user provided, not validation.
+    // Evidence files land in objects/ (immutable, deduped, inside the backup
+    // boundary); storeEvidence returns their content hash.
+    QVector<Provenance> provenance(const QString &assetId) const; // newest first
+    void addProvenance(const QString &assetId, const Provenance &entry);
+    QString storeEvidence(const QString &filePath);
+    void exportEvidence(const QString &hash, const QString &destination) const;
     // Read a library's identity from its catalog WITHOUT taking the write lock.
     // Used when re-locating a missing library: verify this is the same library
     // (same id) before opening it at the new path. Throws when the directory is

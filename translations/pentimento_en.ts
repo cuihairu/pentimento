@@ -48,7 +48,7 @@
         <translation>Library is corrupt or the index cannot be opened: %1</translation>
     </message>
     <message>
-        <location line="+24"/>
+        <location line="+28"/>
         <source>素材库 schema 版本不兼容（%1），请使用匹配版本打开</source>
         <translation>Library schema version is incompatible (%1); open with a matching version</translation>
     </message>
@@ -63,7 +63,7 @@
         <translation>Invalid rating: %1</translation>
     </message>
     <message>
-        <location line="+39"/>
+        <location line="+110"/>
         <source>该路径不是有效的素材库（未找到可读的 catalog.sqlite）</source>
         <translation>This path is not a valid asset library (no readable catalog.sqlite found)</translation>
     </message>
@@ -84,7 +84,8 @@
         <translation>History object verification failed; operation stopped</translation>
     </message>
     <message>
-        <location line="+10"/>
+        <location line="-74"/>
+        <location line="+84"/>
         <source>历史对象内容不一致</source>
         <translation>History object content mismatch</translation>
     </message>
@@ -104,7 +105,8 @@
         <translation>No revision found for this asset</translation>
     </message>
     <message>
-        <location line="+9"/>
+        <location line="-155"/>
+        <location line="+164"/>
         <source>请导出到素材库之外的现有目录</source>
         <translation>Export to an existing directory outside the library</translation>
     </message>
@@ -133,12 +135,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+533"/>
+        <location line="+643"/>
         <source>记录版本</source>
         <translation>Record version</translation>
     </message>
     <message>
-        <location line="-532"/>
+        <location line="-642"/>
         <source>编辑工作副本</source>
         <translation>Edit working copy</translation>
     </message>
@@ -174,13 +176,13 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+581"/>
+        <location line="+691"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>Restore to anchor</translation>
     </message>
     <message>
-        <location line="-583"/>
+        <location line="-693"/>
         <source>素材库</source>
         <translation>Library</translation>
     </message>
@@ -201,13 +203,13 @@
     </message>
     <message>
         <location line="+9"/>
-        <location line="+373"/>
+        <location line="+483"/>
         <location line="+16"/>
         <source>标签</source>
         <translation>Tags</translation>
     </message>
     <message>
-        <location line="-386"/>
+        <location line="-496"/>
         <source>标签列表</source>
         <translation>Tag list</translation>
     </message>
@@ -303,12 +305,12 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+3"/>
-        <location line="+308"/>
+        <location line="+418"/>
         <source>历史版本</source>
         <translation>Historical version</translation>
     </message>
     <message>
-        <location line="-305"/>
+        <location line="-415"/>
         <source>恢复此版本</source>
         <translation>Restore this version</translation>
     </message>
@@ -318,7 +320,53 @@ Restoring appends a new version; existing history is always kept.</translation>
         <translation>Export this version...</translation>
     </message>
     <message>
-        <location line="+48"/>
+        <location line="+10"/>
+        <source>来源与授权</source>
+        <translation>Source &amp; license</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>来源（网址或出处，可留空）</source>
+        <translation>Source (URL or origin, can be empty)</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>作者（可留空）</source>
+        <translation>Author (can be empty)</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>许可（如实填写；应用不代为判断）</source>
+        <translation>License (enter truthfully; the app does not decide it for you)</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>附加授权证据…</source>
+        <translation>Attach license evidence…</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>记录</source>
+        <translation>Record</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <location line="+236"/>
+        <source>未附加证据</source>
+        <translation>No evidence attached</translation>
+    </message>
+    <message>
+        <location line="-231"/>
+        <source>记录（旧记录可回看）</source>
+        <translation>Records (old entries stay viewable)</translation>
+    </message>
+    <message>
+        <location line="+5"/>
+        <source>导出证据…</source>
+        <translation>Export evidence…</translation>
+    </message>
+    <message>
+        <location line="+61"/>
         <source>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</source>
         <translation>Local library: %1 · stable changes to working copies are recorded automatically</translation>
     </message>
@@ -333,7 +381,7 @@ Restoring appends a new version; existing history is always kept.</translation>
         <translation>Current · </translation>
     </message>
     <message>
-        <location line="+54"/>
+        <location line="+55"/>
         <source>已清除评分</source>
         <translation>Rating cleared</translation>
     </message>
@@ -341,6 +389,46 @@ Restoring appends a new version; existing history is always kept.</translation>
         <location line="+0"/>
         <source>已保存评分：%1 星</source>
         <translation>Rating saved: %1 star(s)</translation>
+    </message>
+    <message>
+        <location line="+18"/>
+        <source>作者：%1</source>
+        <translation>Author: %1</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>许可：%1</source>
+        <translation>License: %1</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>证据：%1</source>
+        <translation>Evidence: %1</translation>
+    </message>
+    <message>
+        <location line="+8"/>
+        <source>选择授权证据文件</source>
+        <translation>Choose evidence file</translation>
+    </message>
+    <message>
+        <location line="+5"/>
+        <source>待记录证据：%1</source>
+        <translation>Evidence to record: %1</translation>
+    </message>
+    <message>
+        <location line="+19"/>
+        <source>已记录来源与授权</source>
+        <translation>Source &amp; license recorded</translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <source>导出授权证据</source>
+        <translation>Export license evidence</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>授权证据已导出：%1</source>
+        <translation>License evidence exported: %1</translation>
     </message>
     <message>
         <location line="+10"/>

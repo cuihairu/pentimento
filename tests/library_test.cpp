@@ -930,6 +930,77 @@ private slots:
         QCOMPARE(reopened.rating(assetId), 4);
         QCOMPARE(reopened.note(assetId), QStringLiteral("更新后沿用"));
     }
+
+    void provenanceRecordsAppendAndViewablyPersist() {
+        QTemporaryDir dir;
+        put(dir.filePath("evidence.txt"), "license email printout");
+        put(dir.filePath("a.png"), "asset-a");
+        QString assetId;
+        {
+            Library lib(dir.filePath("lib"));
+            const auto a = lib.importFile(dir.filePath("a.png"));
+            assetId = a.id;
+            QVERIFY(lib.provenance(assetId).isEmpty()); // nothing inferred up front
+
+            // Evidence is stored as a content-addressed object: hash round-trips,
+            // the object bytes verify, and the file stays inside the library
+            // (objects/ is within the backup boundary).
+            const QString hash = lib.storeEvidence(dir.filePath("evidence.txt"));
+            QCOMPARE(hash.size(), 64);
+            QCOMPARE(lib.readObject(hash), QByteArray("license email printout"));
+            QVERIFY(QFileInfo::exists(lib.objectPath(hash)));
+
+            // First record: fields stored verbatim, recorded time stamped here.
+            Provenance first;
+            first.source = QStringLiteral("https://example.com/pack");
+            first.author = QStringLiteral("某人");
+            first.license = QStringLiteral("CC BY 4.0");
+            first.evidence = hash;
+            first.evidenceName = QStringLiteral("evidence.txt");
+            lib.addProvenance(assetId, first);
+            const auto rows = lib.provenance(assetId);
+            QCOMPARE(rows.size(), 1);
+            QCOMPARE(rows.first().source, first.source);
+            QCOMPARE(rows.first().author, first.author);
+            QCOMPARE(rows.first().license, first.license);
+            QCOMPARE(rows.first().evidence, hash);
+            QCOMPARE(rows.first().evidenceName, first.evidenceName);
+            QVERIFY(!rows.first().recorded.isEmpty());
+
+            // Second record with unknown fields left empty: nothing invented.
+            Provenance second;
+            second.license = QStringLiteral("待确认");
+            lib.addProvenance(assetId, second);
+            const auto rows2 = lib.provenance(assetId);
+            QCOMPARE(rows2.size(), 2);
+            QVERIFY(rows2.first().source.isEmpty()); // newest first
+            QVERIFY(rows2.first().author.isEmpty());
+            QCOMPARE(rows2.first().license, QStringLiteral("待确认"));
+            QVERIFY(rows2.first().evidence.isEmpty());
+            // Old records stay viewable with their own recorded time.
+            QCOMPARE(rows2.last().license, QStringLiteral("CC BY 4.0"));
+            QCOMPARE(rows2.last().source, first.source);
+            QVERIFY(rows2.last().recorded <= rows2.first().recorded);
+
+            // Evidence export: exact bytes out, and never into the library itself.
+            const QString out = dir.filePath("out/evidence-back.txt");
+            QDir().mkpath(dir.filePath("out"));
+            lib.exportEvidence(hash, out);
+            QCOMPARE(get(out), QByteArray("license email printout"));
+            QVERIFY_EXCEPTION_THROWN(lib.exportEvidence(hash, dir.filePath("lib/inside.txt")),
+                                     std::runtime_error);
+            // A malformed evidence hash is rejected at record time, not stored.
+            Provenance bad;
+            bad.evidence = QStringLiteral("not-a-hash");
+            QVERIFY_EXCEPTION_THROWN(lib.addProvenance(assetId, bad), std::runtime_error);
+        }
+        // Reopen: records persist verbatim.
+        Library reopened(dir.filePath("lib"));
+        const auto rows = reopened.provenance(assetId);
+        QCOMPARE(rows.size(), 2);
+        QCOMPARE(rows.last().license, QStringLiteral("CC BY 4.0"));
+        QCOMPARE(reopened.readObject(rows.last().evidence), QByteArray("license email printout"));
+    }
 };
 QTEST_GUILESS_MAIN(HistoryTest)
 #include "library_test.moc"

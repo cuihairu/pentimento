@@ -61,6 +61,19 @@ private:
     // go here (not to selected()) so switching assets mid-edit never writes the
     // old note into the newly selected asset.
     QString noteAssetId_;
+    // P-215: manual source/author/license records (append-only, old entries
+    // stay viewable). Evidence files are stored as library objects; a pending
+    // attachment is held until the entry is recorded.
+    QLineEdit *sourceInput_;
+    QLineEdit *authorInput_;
+    QLineEdit *licenseInput_;
+    QPushButton *attachEvidenceBtn_;
+    QPushButton *recordProvBtn_;
+    QPushButton *exportEvidenceBtn_;
+    QLabel *evidenceLabel_;
+    QListWidget *provenanceList_;
+    QString pendingEvidenceHash_;
+    QString pendingEvidenceName_;
     QPushButton *restore_;
     QPushButton *export_;
     QMap<QString, QPair<qint64, qint64>> observations_;
@@ -79,6 +92,10 @@ private:
     void reloadRatingNote();
     void applyRating(int index);
     void saveNote();
+    void reloadProvenance();
+    void attachEvidence();
+    void recordProvenance();
+    void exportEvidenceFile();
     QStringList visibleAssetIds() const;
     // P-208: one shared model, two render modes (grid/list); selection is held by
     // stable asset id so a filter/sort/view change never selects another asset.

@@ -93,6 +93,10 @@ void Library::openAndInitialize(const QString &catalog) {
              // P-214: one optional row per asset. rating is NULL for "no rating"
              // (distinct from the explicit 0 star); note defaults to empty.
              QStringLiteral("CREATE TABLE IF NOT EXISTS asset_meta(asset_id TEXT PRIMARY KEY REFERENCES assets(id),rating INTEGER,note TEXT NOT NULL DEFAULT '')"),
+             // P-215: append-only manual source/author/license records. Each
+             // entry keeps its own recorded timestamp, so old entries stay
+             // viewable. evidence is an objects/ content hash (empty = none).
+             QStringLiteral("CREATE TABLE IF NOT EXISTS provenance(id INTEGER PRIMARY KEY AUTOINCREMENT,asset_id TEXT NOT NULL REFERENCES assets(id),source TEXT NOT NULL,author TEXT NOT NULL,license TEXT NOT NULL,evidence TEXT NOT NULL,evidence_name TEXT NOT NULL,recorded TEXT NOT NULL)"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS snapshots(id INTEGER PRIMARY KEY AUTOINCREMENT,created TEXT NOT NULL,note TEXT NOT NULL)"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS snapshot_assets(snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),asset_id TEXT NOT NULL REFERENCES assets(id),revision_id INTEGER NOT NULL,PRIMARY KEY(snapshot_id,asset_id))")}) {
         if (!q.exec(sql)) fail(q.lastError().text());
@@ -294,6 +298,77 @@ void Library::setNote(const QString &assetId, const QString &note) {
     q.addBindValue(assetId);
     q.addBindValue(value);
     execute(q);
+}
+
+// --- Source/author/license records (P-215) -------------------------------------
+// Append-only manual records: addProvenance never updates an existing row, so
+// every entry keeps the exact text the user typed plus the time it was entered.
+// The recorded timestamp is stamped here, not taken from the caller. Nothing is
+// inferred: an empty field stays empty (unknown), and attaching a file or URL
+// is recorded as user input only — never as a license assertion.
+
+QVector<Provenance> Library::provenance(const QString &assetId) const {
+    QSqlQuery q(db_);
+    q.prepare("SELECT id,source,author,license,evidence,evidence_name,recorded "
+              "FROM provenance WHERE asset_id=? ORDER BY id DESC");
+    q.addBindValue(assetId);
+    execute(q);
+    QVector<Provenance> result;
+    while (q.next()) {
+        Provenance entry;
+        entry.id = q.value(0).toLongLong();
+        entry.source = q.value(1).toString();
+        entry.author = q.value(2).toString();
+        entry.license = q.value(3).toString();
+        entry.evidence = q.value(4).toString();
+        entry.evidenceName = q.value(5).toString();
+        entry.recorded = q.value(6).toString();
+        result.push_back(entry);
+    }
+    return result;
+}
+
+void Library::addProvenance(const QString &assetId, const Provenance &entry) {
+    if (!entry.evidence.isEmpty()) objectPath(entry.evidence); // validates hash format
+    // A null QString binds as SQL NULL and the NOT NULL columns reject it;
+    // "unknown" is stored as an empty string, never NULL.
+    const auto text = [](const QString &value) {
+        return value.isNull() ? QStringLiteral("") : value;
+    };
+    QSqlQuery q(db_);
+    q.prepare("INSERT INTO provenance(asset_id,source,author,license,evidence,evidence_name,recorded) "
+              "VALUES(?,?,?,?,?,?,?)");
+    q.addBindValue(assetId);
+    q.addBindValue(text(entry.source));
+    q.addBindValue(text(entry.author));
+    q.addBindValue(text(entry.license));
+    q.addBindValue(text(entry.evidence));
+    q.addBindValue(text(entry.evidenceName));
+    q.addBindValue(QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
+    execute(q);
+}
+
+QString Library::storeEvidence(const QString &filePath) {
+    const auto bytes = readFile(filePath);
+    const QString hash = digest(bytes);
+    const QString path = objectPath(hash);
+    if (!QFileInfo::exists(path)) {
+        writeFile(path, bytes);
+        platform::makeImmutable(path);
+    } else if (readObject(hash) != bytes) {
+        fail(Library::tr("历史对象内容不一致"));
+    }
+    return hash;
+}
+
+void Library::exportEvidence(const QString &hash, const QString &destination) const {
+    // Never export into the managed library (would permit overwriting immutable objects).
+    const QString dest = QFileInfo(destination).absoluteFilePath();
+    const QString parent = QFileInfo(dest).dir().canonicalPath();
+    const QString canonicalRoot = QDir(root_).canonicalPath();
+    if (parent.isEmpty() || parent == canonicalRoot || parent.startsWith(canonicalRoot + '/'))
+        fail(Library::tr("请导出到素材库之外的现有目录"));
+    writeFile(dest, readObject(hash));
 }
 
 QString Library::peekLibraryId(const QString &root) {

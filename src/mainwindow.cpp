@@ -216,6 +216,41 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     rightLayout->addWidget(historyList_, 1);
     rightLayout->addWidget(restore_);
     rightLayout->addWidget(export_);
+    // P-215: manual source/author/license records. Entries are appended (never
+    // overwritten) and each keeps its recorded time; old entries stay viewable.
+    // The license is recorded exactly as typed — the app never asserts that a
+    // URL or an attached file means a license was granted.
+    auto *provTitle = new QLabel(tr("来源与授权"));
+    provTitle->setStyleSheet("font-size:14px;font-weight:600;");
+    sourceInput_ = new QLineEdit;
+    sourceInput_->setPlaceholderText(tr("来源（网址或出处，可留空）"));
+    authorInput_ = new QLineEdit;
+    authorInput_->setPlaceholderText(tr("作者（可留空）"));
+    licenseInput_ = new QLineEdit;
+    licenseInput_->setPlaceholderText(tr("许可（如实填写；应用不代为判断）"));
+    attachEvidenceBtn_ = new QPushButton(tr("附加授权证据…"));
+    recordProvBtn_ = new QPushButton(tr("记录"));
+    evidenceLabel_ = new QLabel(tr("未附加证据"));
+    evidenceLabel_->setStyleSheet("color:#888;");
+    auto *provBtnRow = new QHBoxLayout;
+    provBtnRow->addWidget(attachEvidenceBtn_, 1);
+    provBtnRow->addWidget(recordProvBtn_);
+    auto *provListTitle = new QLabel(tr("记录（旧记录可回看）"));
+    provListTitle->setStyleSheet("color:#888;");
+    provenanceList_ = new QListWidget;
+    provenanceList_->setMaximumHeight(96);
+    provenanceList_->setWordWrap(true); // a record line stays fully readable
+    exportEvidenceBtn_ = new QPushButton(tr("导出证据…"));
+    exportEvidenceBtn_->setEnabled(false);
+    rightLayout->addWidget(provTitle);
+    rightLayout->addWidget(sourceInput_);
+    rightLayout->addWidget(authorInput_);
+    rightLayout->addWidget(licenseInput_);
+    rightLayout->addLayout(provBtnRow);
+    rightLayout->addWidget(evidenceLabel_);
+    rightLayout->addWidget(provListTitle);
+    rightLayout->addWidget(provenanceList_);
+    rightLayout->addWidget(exportEvidenceBtn_);
     splitter->addWidget(left); splitter->addWidget(center); splitter->addWidget(right);
     splitter->setSizes({260, 660, 300});
     setCentralWidget(splitter);
@@ -245,6 +280,14 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     connect(noteSaveBtn_, &QPushButton::clicked, this, &MainWindow::saveNote);
     connect(qApp, &QApplication::focusChanged, this, [this](QWidget *oldFocus, QWidget *) {
         if (oldFocus == noteEdit_) saveNote();
+    });
+    // P-215: record the manual entry, attach an evidence file, or export the
+    // evidence of the selected record.
+    connect(recordProvBtn_, &QPushButton::clicked, this, &MainWindow::recordProvenance);
+    connect(attachEvidenceBtn_, &QPushButton::clicked, this, &MainWindow::attachEvidence);
+    connect(exportEvidenceBtn_, &QPushButton::clicked, this, &MainWindow::exportEvidenceFile);
+    connect(provenanceList_, &QListWidget::currentRowChanged, this, [this](int row) {
+        exportEvidenceBtn_->setEnabled(row >= 0 && !provenanceList_->item(row)->data(Qt::UserRole).toString().isEmpty());
     });
     connect(restore_, &QPushButton::clicked, this, &MainWindow::restore);
     connect(export_, &QPushButton::clicked, this, &MainWindow::exportFile);
@@ -375,6 +418,7 @@ void MainWindow::reloadHistory() {
     showRevision();
     reloadTags();
     reloadRatingNote();
+    reloadProvenance();
 }
 
 void MainWindow::reloadTags() {
@@ -412,6 +456,72 @@ void MainWindow::applyRating(int index) {
     try {
         library_.setRating(asset.id, value);
         statusBar()->showMessage(value < 0 ? tr("已清除评分") : tr("已保存评分：%1 星").arg(value));
+    } catch (const std::exception &error) { report(error); }
+}
+
+// P-215: list the provenance records of the selected asset (newest first) and
+// clear any pending (unrecorded) attachment. A record line omits empty fields,
+// so "unknown" never renders as a value that was never entered.
+void MainWindow::reloadProvenance() {
+    const auto asset = selected();
+    pendingEvidenceHash_.clear();
+    pendingEvidenceName_.clear();
+    evidenceLabel_->setText(tr("未附加证据"));
+    provenanceList_->clear();
+    for (const auto &entry : library_.provenance(asset.id)) {
+        const auto date = QDateTime::fromString(entry.recorded, Qt::ISODateWithMs).toLocalTime();
+        QStringList parts;
+        parts << date.toString("MM-dd HH:mm:ss");
+        if (!entry.source.isEmpty()) parts << entry.source;
+        if (!entry.author.isEmpty()) parts << tr("作者：%1").arg(entry.author);
+        if (!entry.license.isEmpty()) parts << tr("许可：%1").arg(entry.license);
+        if (!entry.evidenceName.isEmpty()) parts << tr("证据：%1").arg(entry.evidenceName);
+        auto *item = new QListWidgetItem(parts.join(" · "), provenanceList_);
+        item->setData(Qt::UserRole, entry.evidence);
+    }
+    exportEvidenceBtn_->setEnabled(false);
+}
+
+void MainWindow::attachEvidence() {
+    const QString path = QFileDialog::getOpenFileName(this, tr("选择授权证据文件"));
+    if (path.isEmpty()) return;
+    try {
+        pendingEvidenceHash_ = library_.storeEvidence(path);
+        pendingEvidenceName_ = QFileInfo(path).fileName();
+        evidenceLabel_->setText(tr("待记录证据：%1").arg(pendingEvidenceName_));
+        evidenceLabel_->setStyleSheet(QString());
+    } catch (const std::exception &error) { report(error); }
+}
+
+void MainWindow::recordProvenance() {
+    const auto asset = selected();
+    if (asset.id.isEmpty()) return;
+    try {
+        Provenance entry;
+        entry.source = sourceInput_->text().trimmed();
+        entry.author = authorInput_->text().trimmed();
+        entry.license = licenseInput_->text().trimmed();
+        entry.evidence = pendingEvidenceHash_;
+        entry.evidenceName = pendingEvidenceName_;
+        library_.addProvenance(asset.id, entry);
+        sourceInput_->clear();
+        authorInput_->clear();
+        licenseInput_->clear();
+        statusBar()->showMessage(tr("已记录来源与授权"));
+        reloadProvenance();
+    } catch (const std::exception &error) { report(error); }
+}
+
+void MainWindow::exportEvidenceFile() {
+    const int row = provenanceList_->currentRow();
+    if (row < 0) return;
+    const QString hash = provenanceList_->item(row)->data(Qt::UserRole).toString();
+    if (hash.isEmpty()) return;
+    const QString dest = QFileDialog::getSaveFileName(this, tr("导出授权证据"));
+    if (dest.isEmpty()) return;
+    try {
+        library_.exportEvidence(hash, dest);
+        statusBar()->showMessage(tr("授权证据已导出：%1").arg(QFileInfo(dest).fileName()));
     } catch (const std::exception &error) { report(error); }
 }
 
