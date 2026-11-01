@@ -7,6 +7,7 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QCryptographicHash>
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QFileDialog>
@@ -602,32 +603,64 @@ void MainWindow::setAssetViewMode(bool grid) {
 
 void MainWindow::reloadHistory() {
     const auto asset = selected();
+    // P-308: the timeline is ordered by the database's monotonic revision id
+    // (revisions() returns newest id first) — local time is display-only, so a
+    // clock change or timezone shift never reorders or mixes history.
     revisions_ = asset.id.isEmpty() ? QVector<Revision>{} : library_.revisions(asset.id);
+    // Working-copy content markers: which revision matches the current content
+    // ("当前内容"), and whether newer unrecorded changes sit in the working copy.
+    QString currentHash;
+    {
+        QFile file(asset.path);
+        if (file.exists() && file.open(QIODevice::ReadOnly)) {
+            QCryptographicHash hash(QCryptographicHash::Sha256);
+            constexpr qint64 kChunk = 1 << 20;
+            while (!file.atEnd()) hash.addData(file.read(kChunk));
+            currentHash = QString::fromLatin1(hash.result().toHex());
+        }
+    }
+    qint64 currentId = 0; // newest revision whose content equals the working copy
+    for (const auto &revision : revisions_) {
+        if (!currentHash.isEmpty() && revision.hash == currentHash) { currentId = revision.id; break; }
+    }
+    const bool unrecorded = !currentHash.isEmpty()
+        && (revisions_.isEmpty() || revisions_.constFirst().hash != currentHash);
     historyList_->blockSignals(true);
     historyList_->clear();
     for (int i = 0; i < revisions_.size(); ++i) {
         const auto &revision = revisions_.at(i);
         const auto date = QDateTime::fromString(revision.created, Qt::ISODateWithMs).toLocalTime();
-        // P-307: the timeline marks pinned versions; the reason is in the tooltip.
+        QByteArray bytes;
+        bool corrupt = false;
+        try {
+            bytes = library_.readObject(revision.hash);
+        } catch (const std::exception &) {
+            corrupt = true; // object missing or hash mismatch: never hidden
+        }
+        // P-307/P-308: per-row markers. A restore-formed record and a restore's
+        // automatic safety save are marked by their system-written notes; every
+        // older revision is plainly "历史".
         QStringList markers;
-        if (i == 0) markers << tr("当前");
+        if (i == 0 && unrecorded) markers << tr("未记录修改");
         if (revision.pinned) markers << tr("已固定");
+        if (!corrupt && revision.id == currentId) markers << tr("当前内容");
+        else if (revision.note.startsWith(QStringLiteral("恢复历史版本 #"))) markers << tr("恢复");
+        else if (revision.note == QStringLiteral("恢复前自动保存")) markers << tr("自动保存");
+        else if (i != 0) markers << tr("历史");
+        if (corrupt) markers << tr("损坏对象");
         const QString prefix = markers.isEmpty() ? QString()
             : markers.join(QStringLiteral(" · ")) + QStringLiteral(" · ");
         auto *item = new QListWidgetItem(QStringLiteral("%1%2\n%3\n%4")
             .arg(prefix, date.toString("MM-dd HH:mm:ss"), revision.note,
                  QStringLiteral("%1 KiB").arg(revision.size / 1024.0, 0, 'f', 1)), historyList_);
         if (revision.pinned) item->setToolTip(tr("固定原因：%1").arg(revision.pinReason));
-        QIcon icon;
-        try {
-            const auto bytes = library_.readObject(revision.hash);
+        if (corrupt) {
+            item->setIcon(style()->standardIcon(QStyle::SP_MessageBoxWarning));
+        } else {
             const QImage thumb = thumbnailFor(thumbnails_, bytes, revision.hash, QSize(80, 80),
                                               QFileInfo(selected().name).suffix().toLower());
-            if (!thumb.isNull()) icon = QPixmap::fromImage(thumb);
-        } catch (const std::exception &) {
-            icon = style()->standardIcon(QStyle::SP_MessageBoxWarning);
+            if (!thumb.isNull()) item->setIcon(QPixmap::fromImage(thumb));
         }
-        if (!icon.isNull()) item->setIcon(icon);
     }
     historyList_->setCurrentRow(revisions_.isEmpty() ? -1 : 0);
     historyList_->blockSignals(false);

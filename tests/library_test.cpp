@@ -1363,6 +1363,40 @@ private slots:
         }
     }
 
+    void timelineOrdersByRevisionIdAndListsDamagedObject() {
+        QTemporaryDir dir;
+        put(dir.filePath("a.png"), "v1");
+        Library lib(dir.filePath("lib"));
+        const auto asset = lib.importFile(dir.filePath("a.png"));
+        // Several revisions captured within the same second: the timeline order
+        // must follow the monotonic revision id, never the (identical) timestamps.
+        put(dir.filePath("b.png"), "v2");
+        QFile::remove(asset.path); QFile::copy(dir.filePath("b.png"), asset.path);
+        QVERIFY(lib.capture(asset));
+        put(dir.filePath("c.png"), "v3");
+        QFile::remove(asset.path); QFile::copy(dir.filePath("c.png"), asset.path);
+        QVERIFY(lib.capture(asset));
+        auto history = lib.revisions(asset.id);
+        QCOMPARE(history.size(), 3);
+        // Newest first, strictly by id (identical timestamps never reorder).
+        for (int i = 0; i + 1 < history.size(); ++i)
+            QVERIFY(history.at(i).id > history.at(i + 1).id);
+        // The newest revision matches the current working content.
+        const QString newestHash = history.first().hash;
+        // A damaged object is still listed (the timeline marks it, never hides it).
+        const QString damagedHash = history.at(2).hash; // oldest
+        QFile::remove(lib.objectPath(damagedHash));
+        put(lib.objectPath(damagedHash), "corrupted-not-the-hash");
+        bool threw = false;
+        try { lib.readObject(damagedHash); } catch (const std::exception &) { threw = true; }
+        QVERIFY(threw);
+        history = lib.revisions(asset.id);
+        QCOMPARE(history.size(), 3); // still listed, just unreadable
+        QCOMPARE(history.first().hash, newestHash); // order unchanged
+        // The healthy objects still verify; the timeline data is intact.
+        QCOMPARE(lib.readObject(history.first().hash), QByteArray("v3"));
+    }
+
     void contentObjectStorageStreamsAndDeduplicates() {
         QTemporaryDir dir;
         // 64 MiB + a tail: comfortably past the P-302 "large file" sample so

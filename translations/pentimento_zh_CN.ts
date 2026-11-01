@@ -209,7 +209,7 @@
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../src/mainwindow.cpp" line="+37"/>
+        <location filename="../src/mainwindow.cpp" line="+38"/>
         <source>pentimento · 画迹</source>
         <translation>pentimento · 画迹</translation>
     </message>
@@ -225,12 +225,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+886"/>
+        <location line="+918"/>
         <source>记录版本</source>
         <translation>记录版本</translation>
     </message>
     <message>
-        <location line="-885"/>
+        <location line="-917"/>
         <source>编辑工作副本</source>
         <translation>编辑工作副本</translation>
     </message>
@@ -266,13 +266,13 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+1127"/>
+        <location line="+1159"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>恢复到锚点</translation>
     </message>
     <message>
-        <location line="-1129"/>
+        <location line="-1161"/>
         <source>素材库</source>
         <translation>素材库</translation>
     </message>
@@ -293,13 +293,13 @@
     </message>
     <message>
         <location line="+51"/>
-        <location line="+684"/>
+        <location line="+716"/>
         <location line="+16"/>
         <source>标签</source>
         <translation>标签</translation>
     </message>
     <message>
-        <location line="-697"/>
+        <location line="-729"/>
         <source>标签列表</source>
         <translation>标签列表</translation>
     </message>
@@ -310,12 +310,12 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+978"/>
+        <location line="+1010"/>
         <source>添加</source>
         <translation>添加</translation>
     </message>
     <message>
-        <location line="-977"/>
+        <location line="-1009"/>
         <source>移除</source>
         <translation>移除</translation>
     </message>
@@ -457,12 +457,12 @@
     </message>
     <message>
         <location line="+3"/>
-        <location line="+619"/>
+        <location line="+651"/>
         <source>历史版本</source>
         <translation>历史版本</translation>
     </message>
     <message>
-        <location line="-616"/>
+        <location line="-648"/>
         <source>恢复此版本</source>
         <translation>恢复此版本</translation>
     </message>
@@ -503,12 +503,12 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+408"/>
+        <location line="+440"/>
         <source>未附加证据</source>
         <translation>未附加证据</translation>
     </message>
     <message>
-        <location line="-403"/>
+        <location line="-435"/>
         <source>记录（旧记录可回看）</source>
         <translation>记录（旧记录可回看）</translation>
     </message>
@@ -544,20 +544,20 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+739"/>
+        <location line="+771"/>
         <source>定时快照未启用</source>
         <translation>定时快照未启用</translation>
     </message>
     <message>
-        <location line="-736"/>
+        <location line="-768"/>
         <location line="+105"/>
-        <location line="+606"/>
+        <location line="+638"/>
         <location line="+11"/>
         <source>暂停</source>
         <translation>暂停</translation>
     </message>
     <message>
-        <location line="-720"/>
+        <location line="-752"/>
         <source>仅应用运行时生效；退出应用期间不算持续备份。</source>
         <translation>仅应用运行时生效；退出应用期间不算持续备份。</translation>
     </message>
@@ -613,12 +613,13 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+629"/>
+        <location line="+233"/>
+        <location line="+428"/>
         <source>恢复</source>
         <translation>恢复</translation>
     </message>
     <message>
-        <location line="-605"/>
+        <location line="-637"/>
         <source>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</source>
         <translation>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</translation>
     </message>
@@ -663,14 +664,38 @@
         <translation>操作未完成</translation>
     </message>
     <message>
-        <location line="+110"/>
+        <location line="+140"/>
+        <source>未记录修改</source>
+        <translation>未记录修改</translation>
+    </message>
+    <message>
         <source>当前</source>
-        <translation>当前</translation>
+        <translation type="vanished">当前</translation>
     </message>
     <message>
         <location line="+1"/>
         <source>已固定</source>
         <translation>已固定</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>当前内容</source>
+        <translation>当前内容</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>自动保存</source>
+        <translation>自动保存</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>历史</source>
+        <translation>历史</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>损坏对象</source>
+        <translation>损坏对象</translation>
     </message>
     <message>
         <location line="+6"/>
@@ -682,7 +707,7 @@
         <translation type="vanished">当前 · </translation>
     </message>
     <message>
-        <location line="+54"/>
+        <location line="+51"/>
         <source>已清除评分</source>
         <translation>已清除评分</translation>
     </message>
