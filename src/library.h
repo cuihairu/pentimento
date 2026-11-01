@@ -76,6 +76,21 @@ struct Exclusion {
     QString created;    // UTC ISO timestamp stamped by the library on add
 };
 
+// P-309: one field-level metadata change (name/folder/tag/rating/note/
+// source/author/license), kept for read-only review — V1 has no per-field
+// revert and never invents old values. The change also joins the revision
+// sequence as a metadata-only revision (same content hash), so field history
+// and the content timeline stay aligned.
+struct FieldChange {
+    qint64 id = 0;
+    QString assetId;
+    qint64 revisionId = 0; // the metadata-only revision this change created
+    QString field;         // human-readable field name, e.g. 标签
+    QString oldValue;      // "" means the field was empty/absent
+    QString newValue;      // "" means the field became empty/absent
+    QString changed;       // UTC ISO timestamp
+};
+
 // One library, one writer. Original imports are never modified.
 class Library {
     Q_DECLARE_TR_FUNCTIONS(Library)
@@ -127,6 +142,14 @@ public:
     // Throws when the revision does not exist.
     void pinRevision(qint64 revisionId, const QString &reason);
     void unpinRevision(qint64 revisionId);
+    // P-309: record a field change (no-op when old == new). The change is also
+    // appended as a metadata-only revision (same content hash and size as the
+    // current content), so field history aligns with the revision sequence.
+    // Called by the metadata mutators; exposed for tests and review.
+    void recordFieldChange(const QString &assetId, const QString &field,
+                           const QString &oldValue, const QString &newValue);
+    // P-309: read-only per-field history for one asset, newest first.
+    QVector<FieldChange> fieldHistory(const QString &assetId) const;
     // Version-backend capability report (P-103): the self-built backend.
     BackendInfo backendInfo() const;
     QString root() const { return root_; }

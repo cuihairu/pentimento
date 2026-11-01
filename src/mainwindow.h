@@ -109,6 +109,9 @@ private:
     // main panel to avoid crowding); they only affect snapshots taken after
     // they exist and never remove history.
     QPushButton *exclusionBtn_;
+    // P-309: read-only per-field metadata history (name/tag/rating/note/
+    // source...), opened in a dialog; V1 has no per-field revert.
+    QPushButton *fieldHistoryBtn_;
     QPushButton *restore_;
     QPushButton *export_;
     QMap<QString, QPair<qint64, qint64>> observations_;
@@ -168,6 +171,7 @@ private:
     void drainSnapshotResult();
     void submitScheduledSnapshot();
     void manageExclusions();
+    void showFieldHistory();
     void rollbackToSnapshot();
     void report(const std::exception &error);
 };

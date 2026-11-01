@@ -1023,7 +1023,10 @@ private slots:
             Provenance prov; prov.source = QStringLiteral("某处"); prov.license = QStringLiteral("CC0");
             lib.addProvenance(aId, prov);
             const auto before = lib.revisions(aId);
-            QCOMPARE(before.size(), 1);
+            // P-309: each field change also appends a metadata-only revision, so
+            // the count is the import plus one per recorded change (tag, rating,
+            // note, source, license — 5 changes here).
+            QCOMPARE(before.size(), 6);
 
             // Rename: identity (id) unchanged, name and working file updated.
             lib.renameAsset(aId, "hero.png");
@@ -1037,8 +1040,9 @@ private slots:
             QCOMPARE(renamed.logicalPath(), QStringLiteral("hero.png"));
             QVERIFY(QFileInfo::exists(renamed.path));
             QVERIFY(!QFileInfo::exists(dir.filePath("lib/working/" + aId + "/a.png")));
-            // History, tags, rating and note all still belong to the same asset.
-            QCOMPARE(lib.revisions(aId).size(), before.size());
+            // History, tags, rating and note all still belong to the same asset
+            // (the rename added one metadata-only revision, P-309).
+            QCOMPARE(lib.revisions(aId).size(), before.size() + 1);
             QCOMPARE(lib.revisions(aId).first().hash, before.first().hash);
             QCOMPARE(lib.tags(aId), QStringList({"立绘"}));
             QCOMPARE(lib.rating(aId), 4);
@@ -1060,7 +1064,8 @@ private slots:
             QCOMPARE(moved.name, QStringLiteral("hero.png"));
             QCOMPARE(moved.folder, QStringLiteral("characters/hero"));
             QCOMPARE(moved.logicalPath(), QStringLiteral("characters/hero/hero.png"));
-            QCOMPARE(lib.revisions(aId).size(), before.size()); // history intact
+            // History intact (plus the rename and the move metadata-only revisions).
+            QCOMPARE(lib.revisions(aId).size(), before.size() + 2);
             // Move to the same folder is a no-op, not an error.
             lib.moveAsset(aId, "characters/hero");
             QCOMPARE(byId(aId).folder, QStringLiteral("characters/hero"));
@@ -1080,7 +1085,9 @@ private slots:
         for (const auto &asset : reopened.assets()) byId.insert(asset.id, asset.logicalPath());
         QCOMPARE(byId.value(aId), QStringLiteral("characters/hero/hero.png"));
         QCOMPARE(byId.value(bId), QStringLiteral("b.png"));
-        QCOMPARE(reopened.revisions(aId).size(), 1);
+        // Import + 5 metadata-only field changes + rename + move (P-309); the
+        // persisted count is unchanged by the restart.
+        QCOMPARE(reopened.revisions(aId).size(), 8);
         QCOMPARE(reopened.tags(aId), QStringList({"立绘"}));
     }
 
@@ -1395,6 +1402,64 @@ private slots:
         QCOMPARE(history.first().hash, newestHash); // order unchanged
         // The healthy objects still verify; the timeline data is intact.
         QCOMPARE(lib.readObject(history.first().hash), QByteArray("v3"));
+    }
+
+    void fieldHistoryRecordsOldValuesAlignedWithRevisions() {
+        QTemporaryDir dir;
+        put(dir.filePath("a.png"), "png-a");
+        Library lib(dir.filePath("lib"));
+        const auto asset = lib.importFile(dir.filePath("a.png"));
+        const QString contentHash = lib.revisions(asset.id).first().hash;
+        // Tag / rating / note changes each create a metadata-only revision
+        // (content hash unchanged, no new object) plus a field-history row.
+        lib.addTag(asset.id, QStringLiteral("角色"));
+        lib.setRating(asset.id, 4);
+        lib.setNote(asset.id, QStringLiteral("需去背"));
+        auto history = lib.revisions(asset.id);
+        QCOMPARE(history.size(), 4); // import + 3 metadata-only revisions
+        for (const auto &rev : history) QCOMPARE(rev.hash, contentHash);
+        // Only the one content object exists (dedup: no object per metadata change).
+        QStringList objects;
+        for (const auto &f : QDir(lib.root() + "/objects").entryList(QDir::Files)) objects << f;
+        QCOMPARE(objects.size(), 1);
+        // Field history, newest first, with the real old → new values.
+        auto fields = lib.fieldHistory(asset.id);
+        QCOMPARE(fields.size(), 3);
+        QCOMPARE(fields.at(0).field, QStringLiteral("备注"));
+        QCOMPARE(fields.at(0).oldValue, QString());
+        QCOMPARE(fields.at(0).newValue, QStringLiteral("需去背"));
+        QCOMPARE(fields.at(1).field, QStringLiteral("评分"));
+        QCOMPARE(fields.at(1).oldValue, QString());
+        QCOMPARE(fields.at(1).newValue, QStringLiteral("4"));
+        QCOMPARE(fields.at(2).field, QStringLiteral("标签"));
+        QCOMPARE(fields.at(2).newValue, QStringLiteral("角色"));
+        // Every field change references a real metadata-only revision, and the
+        // newest revision's note names the change (timeline is self-describing).
+        for (const auto &field : fields) {
+            bool found = false;
+            for (const auto &rev : history) if (rev.id == field.revisionId) found = true;
+            QVERIFY(found);
+        }
+        QVERIFY(history.at(0).note.startsWith(QStringLiteral("元数据变更")));
+        // A no-op change records nothing (no new revision, no new row).
+        lib.setRating(asset.id, 4);
+        lib.addTag(asset.id, QStringLiteral("角色"));
+        QCOMPARE(lib.revisions(asset.id).size(), 4);
+        QCOMPARE(lib.fieldHistory(asset.id).size(), 3);
+        // A rename records the actual old → new name.
+        lib.renameAsset(asset.id, QStringLiteral("hero.png"));
+        auto after = lib.fieldHistory(asset.id);
+        QCOMPARE(after.size(), 4);
+        QCOMPARE(after.first().field, QStringLiteral("名称"));
+        QCOMPARE(after.first().oldValue, QStringLiteral("a.png"));
+        QCOMPARE(after.first().newValue, QStringLiteral("hero.png"));
+        // Content is untouched by metadata changes: the timeline still shows the
+        // same content hash, and the (renamed) working file keeps its content.
+        QCOMPARE(lib.revisions(asset.id).first().hash, contentHash);
+        const Asset renamed = lib.assets().first();
+        QCOMPARE(renamed.name, QStringLiteral("hero.png"));
+        QCOMPARE(QFileInfo(renamed.path).size(), qint64(5));
+        QCOMPARE(lib.readObject(contentHash), QByteArray("png-a"));
     }
 
     void contentObjectStorageStreamsAndDeduplicates() {

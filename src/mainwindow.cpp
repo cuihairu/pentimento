@@ -319,12 +319,15 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     // P-306: exclusion rules keep matching assets out of snapshots taken after
     // the rule exists; history is kept and an exclusion is never a deletion.
     exclusionBtn_ = new QPushButton(tr("排除规则…"));
+    // P-309: read-only per-field metadata history (old values, read-only).
+    fieldHistoryBtn_ = new QPushButton(tr("字段历史…"));
     rightLayout->addWidget(snapTitle);
     rightLayout->addWidget(snapshotPeriodCombo_);
     rightLayout->addWidget(snapshotStatus_);
     rightLayout->addWidget(snapshotPauseBtn_);
     rightLayout->addWidget(snapNote);
     rightLayout->addWidget(exclusionBtn_);
+    rightLayout->addWidget(fieldHistoryBtn_);
     splitter->addWidget(left); splitter->addWidget(center); splitter->addWidget(right);
     splitter->setSizes({260, 660, 300});
     setCentralWidget(splitter);
@@ -406,6 +409,7 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
             this, &MainWindow::setSnapshotPeriod);
     connect(snapshotPauseBtn_, &QPushButton::clicked, this, &MainWindow::toggleSnapshotPause);
     connect(exclusionBtn_, &QPushButton::clicked, this, &MainWindow::manageExclusions);
+    connect(fieldHistoryBtn_, &QPushButton::clicked, this, &MainWindow::showFieldHistory);
     connect(qApp, &QApplication::applicationStateChanged, this, [this](Qt::ApplicationState state) {
         if (!snapshotSchedule_.enabled()) return;
         if (state != Qt::ApplicationActive) {
@@ -705,6 +709,8 @@ void MainWindow::applyRating(int index) {
     try {
         library_.setRating(asset.id, value);
         statusBar()->showMessage(value < 0 ? tr("已清除评分") : tr("已保存评分：%1 星").arg(value));
+        // P-309: the change appended a metadata-only revision; refresh the timeline.
+        reloadHistory();
     } catch (const std::exception &error) { report(error); }
 }
 
@@ -758,6 +764,7 @@ void MainWindow::recordProvenance() {
         licenseInput_->clear();
         statusBar()->showMessage(tr("已记录来源与授权"));
         reloadProvenance();
+        reloadHistory(); // P-309: the change appended metadata-only revisions
     } catch (const std::exception &error) { report(error); }
 }
 
@@ -810,6 +817,8 @@ void MainWindow::saveNote() {
     try {
         library_.setNote(noteAssetId_, noteEdit_->toPlainText());
         statusBar()->showMessage(tr("备注已保存"));
+        // P-309: the change appended a metadata-only revision; refresh the timeline.
+        reloadHistory();
     } catch (const std::exception &error) { report(error); }
 }
 
@@ -831,6 +840,7 @@ void MainWindow::addTagToSelected() {
         statusBar()->showMessage(changed ? tr("已添加标签：%1").arg(tag) : tr("标签已存在：%1").arg(tag));
         tagInput_->clear();
         reloadTags();
+        if (changed) reloadHistory(); // P-309: the change appended a metadata-only revision
     } catch (const std::exception &error) { report(error); }
 }
 
@@ -844,6 +854,7 @@ void MainWindow::removeSelectedTag() {
         library_.removeTag(asset.id, tag);
         statusBar()->showMessage(tr("已移除标签：%1").arg(tag));
         reloadTags();
+        reloadHistory(); // P-309: the change appended a metadata-only revision
     } catch (const std::exception &error) { report(error); }
 }
 
@@ -1195,6 +1206,41 @@ void MainWindow::manageExclusions() {
             QMessageBox::warning(&dialog, tr("无法删除排除规则"), QString::fromUtf8(e.what()));
         }
     });
+    dialog.exec();
+}
+
+// P-309: read-only per-field metadata history for the selected asset. Each
+// change shows field, old → new, and the metadata-only revision it created.
+// V1 is read-only: no per-field revert, no invented old values.
+void MainWindow::showFieldHistory() {
+    const auto asset = selected();
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("字段历史"));
+    dialog.resize(480, 380);
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *hint = new QLabel(tr("逐字段只读回看（名称/目录/标签/评分/备注/来源/作者/许可）；字段变更与版本序列一致，内容不变。"));
+    hint->setWordWrap(true);
+    layout->addWidget(hint);
+    auto *list = new QListWidget;
+    list->setWordWrap(true);
+    layout->addWidget(list, 1);
+    auto *closeBtn = new QPushButton(tr("关闭"));
+    layout->addWidget(closeBtn);
+    connect(closeBtn, &QPushButton::clicked, &dialog, &QDialog::accept);
+    const auto history = library_.fieldHistory(asset.id);
+    if (history.isEmpty()) {
+        auto *item = new QListWidgetItem(tr("（无字段变更记录）"));
+        item->setForeground(Qt::gray);
+        list->addItem(item);
+    }
+    for (const auto &change : history) {
+        const auto time = QDateTime::fromString(change.changed, Qt::ISODateWithMs).toLocalTime();
+        const auto value = [](const QString &text) { return text.isEmpty() ? tr("（空）") : text; };
+        list->addItem(QStringLiteral("%1\n%2：%3 → %4\n版本 #%5")
+                          .arg(time.toString("MM-dd HH:mm:ss"), change.field,
+                               value(change.oldValue), value(change.newValue))
+                          .arg(change.revisionId));
+    }
     dialog.exec();
 }
 

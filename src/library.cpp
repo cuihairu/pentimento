@@ -135,7 +135,11 @@ void Library::openAndInitialize(const QString &catalog) {
              // P-306: version-exclusion rules (kind extension|path|name). A rule
              // only affects snapshots taken after it exists; history is never
              // retroactively removed, and an exclusion is not a deletion.
-             QStringLiteral("CREATE TABLE IF NOT EXISTS exclusions(kind TEXT NOT NULL,pattern TEXT NOT NULL,created TEXT NOT NULL,PRIMARY KEY(kind,pattern))")}) {
+             QStringLiteral("CREATE TABLE IF NOT EXISTS exclusions(kind TEXT NOT NULL,pattern TEXT NOT NULL,created TEXT NOT NULL,PRIMARY KEY(kind,pattern))"),
+             // P-309: append-only per-field metadata history. Each change is
+             // linked to the metadata-only revision it created, keeping field
+             // history and the revision sequence aligned.
+             QStringLiteral("CREATE TABLE IF NOT EXISTS field_history(id INTEGER PRIMARY KEY AUTOINCREMENT,asset_id TEXT NOT NULL REFERENCES assets(id),revision_id INTEGER NOT NULL DEFAULT 0,field TEXT NOT NULL,old_value TEXT NOT NULL DEFAULT '',new_value TEXT NOT NULL DEFAULT '',changed TEXT NOT NULL)")}) {
         if (!q.exec(sql)) fail(q.lastError().text());
     }
     // P-216/P-217: assets gain a logical folder column plus filtering facts
@@ -259,6 +263,7 @@ int Library::addTag(const QString &assetId, const QString &tag) {
     q.addBindValue(assetId);
     q.addBindValue(value);
     if (!q.exec()) fail(q.lastError().text());
+    if (q.numRowsAffected() > 0) recordFieldChange(assetId, QStringLiteral("标签"), QString(), value);
     return q.numRowsAffected();
 }
 
@@ -271,6 +276,7 @@ int Library::removeTag(const QString &assetId, const QString &tag) {
     q.addBindValue(assetId);
     q.addBindValue(value);
     execute(q);
+    if (q.numRowsAffected() > 0) recordFieldChange(assetId, QStringLiteral("标签"), value, QString());
     return q.numRowsAffected();
 }
 
@@ -286,6 +292,7 @@ int Library::addTagToAssets(const QStringList &assetIds, const QString &tag) {
         q.addBindValue(id);
         q.addBindValue(value);
         if (!q.exec()) { db_.rollback(); fail(q.lastError().text()); }
+        if (q.numRowsAffected() > 0) recordFieldChange(id, QStringLiteral("标签"), QString(), value);
         changed += q.numRowsAffected();
     }
     db_.commit();
@@ -304,6 +311,7 @@ int Library::removeTagFromAssets(const QStringList &assetIds, const QString &tag
         q.addBindValue(id);
         q.addBindValue(value);
         if (!q.exec()) { db_.rollback(); fail(q.lastError().text()); }
+        if (q.numRowsAffected() > 0) recordFieldChange(id, QStringLiteral("标签"), value, QString());
         changed += q.numRowsAffected();
     }
     db_.commit();
@@ -361,6 +369,14 @@ void Library::setRating(const QString &assetId, int rating) {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
     if (rating < -1 || rating > 5)
         fail(Library::tr("无效的评分：%1").arg(rating));
+    // P-309: the old rating is read before the change so the field history can
+    // record exactly old → new ("" means no rating).
+    QSqlQuery old(db_);
+    old.prepare("SELECT rating FROM asset_meta WHERE asset_id=?");
+    old.addBindValue(assetId);
+    execute(old);
+    const QString oldValue = old.next() && !old.value(0).isNull()
+        ? QString::number(old.value(0).toInt()) : QString();
     QSqlQuery q(db_);
     // Upsert preserves an existing note; a fresh row starts with an empty note.
     if (rating < 0) {
@@ -373,6 +389,8 @@ void Library::setRating(const QString &assetId, int rating) {
     q.addBindValue(assetId);
     if (rating >= 0) q.addBindValue(rating);
     execute(q);
+    recordFieldChange(assetId, QStringLiteral("评分"), oldValue,
+                      rating < 0 ? QString() : QString::number(rating));
 }
 
 QString Library::note(const QString &assetId) const {
@@ -386,6 +404,13 @@ QString Library::note(const QString &assetId) const {
 
 void Library::setNote(const QString &assetId, const QString &note) {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
+    // P-309: the old note is read before the change (the field history records
+    // the actual old value, never an invented one).
+    QSqlQuery old(db_);
+    old.prepare("SELECT note FROM asset_meta WHERE asset_id=?");
+    old.addBindValue(assetId);
+    execute(old);
+    const QString oldValue = old.next() ? old.value(0).toString() : QString();
     QSqlQuery q(db_);
     // Upsert preserves an existing rating; a fresh row starts with no rating.
     // A null QString binds as SQL NULL, which the NOT NULL note column rejects;
@@ -396,6 +421,7 @@ void Library::setNote(const QString &assetId, const QString &note) {
     q.addBindValue(assetId);
     q.addBindValue(value);
     execute(q);
+    recordFieldChange(assetId, QStringLiteral("备注"), oldValue, value);
 }
 
 // --- Source/author/license records (P-215) -------------------------------------
@@ -435,6 +461,11 @@ void Library::addProvenance(const QString &assetId, const Provenance &entry) {
     const auto text = [](const QString &value) {
         return value.isNull() ? QStringLiteral("") : value;
     };
+    // P-309: the previous record's values are the "old" values of this change,
+    // so the field history reflects the actual progression (never an invented
+    // value). Append-only records stay viewable either way (P-215).
+    const auto previous = provenance(assetId);
+    const Provenance prior = previous.isEmpty() ? Provenance{} : previous.first();
     QSqlQuery q(db_);
     q.prepare("INSERT INTO provenance(asset_id,source,author,license,evidence,evidence_name,recorded) "
               "VALUES(?,?,?,?,?,?,?)");
@@ -446,6 +477,9 @@ void Library::addProvenance(const QString &assetId, const Provenance &entry) {
     q.addBindValue(text(entry.evidenceName));
     q.addBindValue(QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
     execute(q);
+    recordFieldChange(assetId, QStringLiteral("来源"), prior.source, text(entry.source));
+    recordFieldChange(assetId, QStringLiteral("作者"), prior.author, text(entry.author));
+    recordFieldChange(assetId, QStringLiteral("许可"), prior.license, text(entry.license));
 }
 
 QString Library::storeEvidence(const QString &filePath) {
@@ -544,6 +578,63 @@ void Library::unpinRevision(qint64 revisionId) {
     execute(upd);
 }
 
+// --- Per-field metadata history (P-309) -----------------------------------------
+// A metadata change is recorded read-only and appended as a metadata-only
+// revision (same content hash and size), so the timeline and the field history
+// agree on when each field changed. V1 never reverts a field and never invents
+// an old value.
+
+void Library::recordFieldChange(const QString &assetId, const QString &field,
+                                const QString &oldValue, const QString &newValue) {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
+    // A null QString binds as SQL NULL, which the NOT NULL columns reject;
+    // empty is stored as '' (readers see empty either way).
+    const QString oldText = oldValue.isNull() ? QStringLiteral("") : oldValue;
+    const QString newText = newValue.isNull() ? QStringLiteral("") : newValue;
+    if (oldText == newText) return; // no change: nothing to record
+    qint64 revisionId = 0;
+    const auto history = revisions(assetId);
+    if (!history.isEmpty()) {
+        // Metadata-only revision: the content hash and size are copied from the
+        // current content, so no new object is written and the content timeline
+        // is untouched; only the note carries the field change.
+        QSqlQuery ins(db_);
+        ins.prepare("INSERT INTO revisions(asset_id,hash,created,note,size,pinned,pin_reason) VALUES(?,?,?,?,?,0,'')");
+        ins.addBindValue(assetId);
+        ins.addBindValue(history.first().hash);
+        ins.addBindValue(QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
+        ins.addBindValue(QStringLiteral("元数据变更：%1").arg(field));
+        ins.addBindValue(history.first().size);
+        execute(ins);
+        revisionId = ins.lastInsertId().toLongLong();
+    }
+    QSqlQuery rec(db_);
+    rec.prepare("INSERT INTO field_history(asset_id,revision_id,field,old_value,new_value,changed) VALUES(?,?,?,?,?,?)");
+    rec.addBindValue(assetId);
+    rec.addBindValue(revisionId);
+    rec.addBindValue(field);
+    rec.addBindValue(oldText);
+    rec.addBindValue(newText);
+    rec.addBindValue(QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
+    execute(rec);
+}
+
+QVector<FieldChange> Library::fieldHistory(const QString &assetId) const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
+    QSqlQuery q(db_);
+    q.prepare("SELECT id,asset_id,revision_id,field,old_value,new_value,changed "
+              "FROM field_history WHERE asset_id=? ORDER BY id DESC");
+    q.addBindValue(assetId);
+    execute(q);
+    QVector<FieldChange> result;
+    while (q.next()) {
+        result.push_back({q.value(0).toLongLong(), q.value(1).toString(), q.value(2).toLongLong(),
+                          q.value(3).toString(), q.value(4).toString(), q.value(5).toString(),
+                          q.value(6).toString()});
+    }
+    return result;
+}
+
 // --- Folder organization and asset identity (P-216) ----------------------------
 // Identity is the asset id: rename and move only update the catalog row (and,
 // for a rename, the working-copy file name), so every revision, tag, rating and
@@ -591,6 +682,7 @@ void Library::renameAsset(const QString &assetId, const QString &newName) {
     update.addBindValue(newStored);
     update.addBindValue(assetId);
     execute(update);
+    recordFieldChange(assetId, QStringLiteral("名称"), find.value(0).toString(), name);
 }
 
 void Library::moveAsset(const QString &assetId, const QString &newFolder) {
@@ -628,6 +720,7 @@ void Library::moveAsset(const QString &assetId, const QString &newFolder) {
     update.addBindValue(folder);
     update.addBindValue(assetId);
     execute(update);
+    recordFieldChange(assetId, QStringLiteral("目录"), find.value(1).toString(), folder);
 }
 
 // --- Filtering facts (P-217) ----------------------------------------------------

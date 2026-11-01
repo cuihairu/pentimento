@@ -88,6 +88,7 @@
 - 统一字段历史与内容版本的时间关系：字段变更记录与修订序列一致（新修订含 metadata 变化，`contentHash` 不变）。
 - **明确取消 V1 承诺**：多人合并、单字段任意自动回退（不做）；整资源恢复另按预演处理（P-315/P-317）。
 - 不做：编造旧值。
+- 实现（2026-11-01）：field_history 表（id,asset_id,revision_id,field,old_value,new_value,changed，追加只读）+ FieldChange 结构；recordFieldChange(assetId,field,old,new)（old==new 时 no-op）——每次字段变更追加一个**仅元数据修订**（复用当前内容修订的 hash/size，不写新对象，note=「元数据变更：字段」，使字段历史与修订序列对齐）并插入 field_history 行（revision_id=该修订 id）；fieldHistory(assetId) 按 id 降序只读返回。接入所有字段变更点：renameAsset（名称）、moveAsset（目录）、addTag/removeTag 及批量（标签，仅实际变更）、setRating（评分，先读旧值）、setNote（备注，先读旧值）、addProvenance（来源/作者/许可，旧值=上一条记录）。UI：右侧「字段历史…」按钮 → 模态只读对话框（时间 · 字段：旧 → 新 · 版本 #N，空值显示（空），说明「字段变更与版本序列一致，内容不变」）；评分/备注/标签/来源保存后 reloadHistory 使新修订即时入时间轴。不做：无逐字段回退 API；不编造旧值。测试 fieldHistoryRecordsOldValuesAlignedWithRevisions：标签/评分/备注各生成一个仅元数据修订（hash 不变、对象数=1）、field_history 行 old→new 正确、revision_id 指向真实修订、note 以「元数据变更」开头、no-op 不记录、重命名记录真实旧名新名、内容未被元数据变更改动。既有 renameAndMoveKeepAssetIdentity 修订计数按新语义更新（import+字段变更修订数）。ctest 2/2 绿；offscreen 冒烟正常。
 
 ## P-310 删除墓碑（三状态）
 

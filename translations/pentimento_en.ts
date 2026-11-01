@@ -52,7 +52,7 @@
         <translation>Library is corrupt or the index cannot be opened: %1</translation>
     </message>
     <message>
-        <location line="+79"/>
+        <location line="+83"/>
         <source>素材库 schema 版本不兼容（%1），请使用匹配版本打开</source>
         <translation>Library schema version is incompatible (%1); open with a matching version</translation>
     </message>
@@ -62,12 +62,12 @@
         <translation>Library is missing its identity (library_id); the library may be corrupt</translation>
     </message>
     <message>
-        <location line="+139"/>
+        <location line="+143"/>
         <source>无效的评分：%1</source>
         <translation>Invalid rating: %1</translation>
     </message>
     <message>
-        <location line="+120"/>
+        <location line="+146"/>
         <source>排除规则不能为空</source>
         <translation>Exclusion rule must not be empty</translation>
     </message>
@@ -92,7 +92,7 @@
         <translation>Pinned manually</translation>
     </message>
     <message>
-        <location line="+23"/>
+        <location line="+80"/>
         <source>名称不能为空</source>
         <translation>Name cannot be empty</translation>
     </message>
@@ -103,12 +103,12 @@
     </message>
     <message>
         <location line="+5"/>
-        <location line="+51"/>
+        <location line="+52"/>
         <source>找不到素材</source>
         <translation>Asset not found</translation>
     </message>
     <message>
-        <location line="-41"/>
+        <location line="-42"/>
         <source>同文件夹已有同名素材：%1，不会覆盖</source>
         <translation>An asset with this name already exists in this folder: %1; will not overwrite</translation>
     </message>
@@ -118,7 +118,7 @@
         <translation>Cannot rename the working copy</translation>
     </message>
     <message>
-        <location line="+15"/>
+        <location line="+16"/>
         <source>文件夹必须是库内相对路径</source>
         <translation>The folder must be a library-relative path</translation>
     </message>
@@ -133,7 +133,7 @@
         <translation>An asset with this name already exists in the target folder: %1; will not merge</translation>
     </message>
     <message>
-        <location line="+35"/>
+        <location line="+36"/>
         <source>该路径不是有效的素材库（未找到可读的 catalog.sqlite）</source>
         <translation>This path is not a valid asset library (no readable catalog.sqlite found)</translation>
     </message>
@@ -158,19 +158,19 @@
         <translation>History object verification failed; operation stopped</translation>
     </message>
     <message>
-        <location line="-314"/>
+        <location line="-373"/>
         <source>历史对象内容不一致</source>
         <translation>History object content mismatch</translation>
     </message>
     <message>
-        <location line="-400"/>
+        <location line="-434"/>
         <location line="+7"/>
         <location line="+4"/>
         <source>无法写入暂存对象：%1</source>
         <translation>Cannot write the staged object: %1</translation>
     </message>
     <message>
-        <location line="+706"/>
+        <location line="+799"/>
         <source>无法发布历史对象</source>
         <translation>Cannot publish the history object</translation>
     </message>
@@ -195,8 +195,8 @@
         <translation>No revision found for this asset</translation>
     </message>
     <message>
-        <location line="-457"/>
-        <location line="+467"/>
+        <location line="-516"/>
+        <location line="+526"/>
         <source>请导出到素材库之外的现有目录</source>
         <translation>Export to an existing directory outside the library</translation>
     </message>
@@ -225,12 +225,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+918"/>
+        <location line="+929"/>
         <source>记录版本</source>
         <translation>Record version</translation>
     </message>
     <message>
-        <location line="-917"/>
+        <location line="-928"/>
         <source>编辑工作副本</source>
         <translation>Edit working copy</translation>
     </message>
@@ -266,13 +266,13 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+1159"/>
+        <location line="+1205"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>Restore to anchor</translation>
     </message>
     <message>
-        <location line="-1161"/>
+        <location line="-1207"/>
         <source>素材库</source>
         <translation>Library</translation>
     </message>
@@ -293,13 +293,13 @@
     </message>
     <message>
         <location line="+51"/>
-        <location line="+716"/>
+        <location line="+727"/>
         <location line="+16"/>
         <source>标签</source>
         <translation>Tags</translation>
     </message>
     <message>
-        <location line="-729"/>
+        <location line="-740"/>
         <source>标签列表</source>
         <translation>Tag list</translation>
     </message>
@@ -310,12 +310,12 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+1010"/>
+        <location line="+1021"/>
         <source>添加</source>
         <translation>Add</translation>
     </message>
     <message>
-        <location line="-1009"/>
+        <location line="-1020"/>
         <source>移除</source>
         <translation>Remove</translation>
     </message>
@@ -457,12 +457,12 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+3"/>
-        <location line="+651"/>
+        <location line="+662"/>
         <source>历史版本</source>
         <translation>Historical version</translation>
     </message>
     <message>
-        <location line="-648"/>
+        <location line="-659"/>
         <source>恢复此版本</source>
         <translation>Restore this version</translation>
     </message>
@@ -503,12 +503,12 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location line="+440"/>
+        <location line="+446"/>
         <source>未附加证据</source>
         <translation>No evidence attached</translation>
     </message>
     <message>
-        <location line="-435"/>
+        <location line="-441"/>
         <source>记录（旧记录可回看）</source>
         <translation>Records (old entries stay viewable)</translation>
     </message>
@@ -524,11 +524,12 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+3"/>
+        <location line="+920"/>
         <source>关闭</source>
         <translation>Off</translation>
     </message>
     <message>
-        <location line="+1"/>
+        <location line="-919"/>
         <source>每 15 分钟</source>
         <translation>Every 15 minutes</translation>
     </message>
@@ -544,20 +545,20 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location line="+771"/>
+        <location line="+782"/>
         <source>定时快照未启用</source>
         <translation>Scheduled snapshots off</translation>
     </message>
     <message>
-        <location line="-768"/>
-        <location line="+105"/>
-        <location line="+638"/>
+        <location line="-779"/>
+        <location line="+109"/>
+        <location line="+645"/>
         <location line="+11"/>
         <source>暂停</source>
         <translation>Pause</translation>
     </message>
     <message>
-        <location line="-752"/>
+        <location line="-763"/>
         <source>仅应用运行时生效；退出应用期间不算持续备份。</source>
         <translation>Active only while the app runs; exiting is never counted as continuous backup.</translation>
     </message>
@@ -567,7 +568,12 @@ Restoring appends a new version; existing history is always kept.</translation>
         <translation>Exclusion rules…</translation>
     </message>
     <message>
-        <location line="+24"/>
+        <location line="+2"/>
+        <source>字段历史…</source>
+        <translation>Field history…</translation>
+    </message>
+    <message>
+        <location line="+25"/>
         <source>重命名…</source>
         <translation>Rename…</translation>
     </message>
@@ -607,19 +613,19 @@ Restoring appends a new version; existing history is always kept.</translation>
         <translation>Pinned version #%1</translation>
     </message>
     <message>
-        <location line="+38"/>
+        <location line="+39"/>
         <source>系统（应用退到后台）</source>
         <translation>System (app in background)</translation>
     </message>
     <message>
         <location line="+1"/>
         <location line="+233"/>
-        <location line="+428"/>
+        <location line="+435"/>
         <source>恢复</source>
         <translation>Resume</translation>
     </message>
     <message>
-        <location line="-637"/>
+        <location line="-644"/>
         <source>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</source>
         <translation>Local library: %1 · stable changes to working copies are recorded automatically</translation>
     </message>
@@ -717,7 +723,7 @@ Restoring appends a new version; existing history is always kept.</translation>
         <translation>Rating saved: %1 star(s)</translation>
     </message>
     <message>
-        <location line="+18"/>
+        <location line="+20"/>
         <source>作者：%1</source>
         <translation>Author: %1</translation>
     </message>
@@ -747,7 +753,7 @@ Restoring appends a new version; existing history is always kept.</translation>
         <translation>Source &amp; license recorded</translation>
     </message>
     <message>
-        <location line="+9"/>
+        <location line="+10"/>
         <source>重命名</source>
         <translation>Rename</translation>
     </message>
@@ -797,7 +803,7 @@ Restoring appends a new version; existing history is always kept.</translation>
         <translation>Note saved</translation>
     </message>
     <message>
-        <location line="+16"/>
+        <location line="+18"/>
         <source>标签不能为空</source>
         <translation>Tag cannot be empty</translation>
     </message>
@@ -812,7 +818,7 @@ Restoring appends a new version; existing history is always kept.</translation>
         <translation>Tag already exists: %1</translation>
     </message>
     <message>
-        <location line="+10"/>
+        <location line="+11"/>
         <source>请先选择一个标签</source>
         <translation>Select a tag first</translation>
     </message>
@@ -822,7 +828,7 @@ Restoring appends a new version; existing history is always kept.</translation>
         <translation>Removed tag: %1</translation>
     </message>
     <message>
-        <location line="+7"/>
+        <location line="+8"/>
         <source>为筛选结果添加标签</source>
         <translation>Add tag to filtered results</translation>
     </message>
@@ -944,7 +950,27 @@ The original file and history are fully preserved and can be exported.</translat
         <translation>Content unchanged (current version #%1); nothing to save again</translation>
     </message>
     <message>
-        <location line="+251"/>
+        <location line="+232"/>
+        <source>字段历史</source>
+        <translation>Field history</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>逐字段只读回看（名称/目录/标签/评分/备注/来源/作者/许可）；字段变更与版本序列一致，内容不变。</source>
+        <translation>Read-only per-field review (name/folder/tags/rating/note/source/author/license); field changes align with the revision sequence, content unchanged.</translation>
+    </message>
+    <message>
+        <location line="+11"/>
+        <source>（无字段变更记录）</source>
+        <translation>(No field changes recorded)</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>（空）</source>
+        <translation>(empty)</translation>
+    </message>
+    <message>
+        <location line="+34"/>
         <source>（%1 个被排除）</source>
         <translation>(%1 excluded)</translation>
     </message>
@@ -962,7 +988,7 @@ The original file and history are fully preserved and can be exported.</translat
         <translation type="vanished">Content unchanged; nothing to save</translation>
     </message>
     <message>
-        <location line="-244"/>
+        <location line="-279"/>
         <source>恢复历史版本</source>
         <translation>Restore revision</translation>
     </message>
@@ -1068,7 +1094,7 @@ Unrecorded current content is saved first. Close the file in external editors.</
         <translation>Cannot remove exclusion rule</translation>
     </message>
     <message>
-        <location line="+15"/>
+        <location line="+50"/>
         <source>紧急快照失败：%1</source>
         <translation>Emergency snapshot failed: %1</translation>
     </message>
