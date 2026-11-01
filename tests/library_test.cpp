@@ -278,6 +278,34 @@ private slots:
         library.exportRevision(asset.id, preserved.id, dir.filePath("preserved.dat"));
         QCOMPARE(get(dir.filePath("preserved.dat")), QByteArray("unrecorded"));
     }
+    // P-317: a restore forms a NEW revision and keeps every prior revision — the
+    // restored content is queryable again, and the replaced version stays browsable.
+    void restoreCreatesNewRevisionPreservingAllHistory() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("asset.dat");
+        put(source, "A");
+        Library library(dir.filePath("library"));
+        const auto asset = library.importFile(source);
+        const qint64 revA = library.revisions(asset.id).first().id;
+        put(asset.path, "B");
+        QVERIFY(library.capture(asset, "stage B"));
+        const qint64 revB = library.revisions(asset.id).first().id;
+
+        // A -> B -> restore A produces a new revision C; history is not truncated.
+        library.restore(asset, revA);
+        QCOMPARE(library.revisions(asset.id).size(), 3);
+        QCOMPARE(get(asset.path), QByteArray("A"));
+        const auto revisions = library.revisions(asset.id); // newest first: C, B, A
+        QCOMPARE(revisions.at(1).id, revB); // B preserved, still browsable
+        QCOMPARE(revisions.at(2).id, revA);
+
+        // B remains exportable; the restored result is queryable again.
+        library.exportRevision(asset.id, revB, dir.filePath("b.dat"));
+        QCOMPARE(get(dir.filePath("b.dat")), QByteArray("B"));
+        library.exportRevision(asset.id, revisions.at(0).id, dir.filePath("c.dat"));
+        QCOMPARE(get(dir.filePath("c.dat")), QByteArray("A"));
+        QCOMPARE(library.revisions(asset.id).at(0).note, QStringLiteral("恢复历史版本 #%1").arg(revA));
+    }
     void readObjectIsPublicAndVerifiesHash() {
         QTemporaryDir dir;
         const auto source = dir.filePath("asset.dat");
