@@ -180,5 +180,6 @@ private:
     void showSourceState();
     void exportBackup();
     void checkConsistency();
+    void showSpacePreview();
     void report(const std::exception &error);
 };

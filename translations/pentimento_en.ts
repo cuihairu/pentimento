@@ -416,12 +416,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+1000"/>
+        <location line="+1001"/>
         <source>记录版本</source>
         <translation>Record version</translation>
     </message>
     <message>
-        <location line="-999"/>
+        <location line="-1000"/>
         <source>编辑工作副本</source>
         <translation>Edit working copy</translation>
     </message>
@@ -457,7 +457,7 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+1522"/>
+        <location line="+1523"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>Restore to anchor</translation>
@@ -523,7 +523,7 @@
         <translation>No rating</translation>
     </message>
     <message>
-        <location line="-92"/>
+        <location line="-93"/>
         <source>浏览快照…</source>
         <translation>Browse snapshot…</translation>
     </message>
@@ -541,6 +541,11 @@
         <location line="+1"/>
         <source>一致性检查…</source>
         <translation>一致性检查…</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>空间预演…</source>
+        <translation>空间预演…</translation>
     </message>
     <message>
         <location line="+19"/>
@@ -743,12 +748,12 @@ Restoring appends a new version; existing history is always kept.</translation>
         <location line="+877"/>
         <location line="+223"/>
         <location line="+152"/>
-        <location line="+194"/>
+        <location line="+246"/>
         <source>关闭</source>
         <translation>Off</translation>
     </message>
     <message>
-        <location line="-1445"/>
+        <location line="-1497"/>
         <source>每 15 分钟</source>
         <translation>Every 15 minutes</translation>
     </message>
@@ -1475,6 +1480,42 @@ I/O 错误（无法读取）：
     </message>
     <message>
         <location line="+12"/>
+        <source>正在计算空间预演（只读，后台进行）…</source>
+        <translation>正在计算空间预演（只读，后台进行）…</translation>
+    </message>
+    <message>
+        <location line="+15"/>
+        <source>空间预演失败：%1</source>
+        <translation>空间预演失败：%1</translation>
+    </message>
+    <message>
+        <location line="+13"/>
+        <source>素材：%1 个；修订：%2 条。
+
+逻辑大小（清单合计，重复计数）：%3
+物理占用（对象文件实际）：%4
+共享对象：%5 个（去重节省 %6）
+固定版本（受保护）：%7 条，占 %8
+理论可回收：%9（%10 个孤立对象）
+
+当前不做任何清理：磁盘会随版本持续增长。</source>
+        <translation>素材：%1 个；修订：%2 条。
+
+逻辑大小（清单合计，重复计数）：%3
+物理占用（对象文件实际）：%4
+共享对象：%5 个（去重节省 %6）
+固定版本（受保护）：%7 条，占 %8
+理论可回收：%9（%10 个孤立对象）
+
+当前不做任何清理：磁盘会随版本持续增长。</translation>
+    </message>
+    <message>
+        <location line="+12"/>
+        <source>空间预演</source>
+        <translation>空间预演</translation>
+    </message>
+    <message>
+        <location line="+12"/>
         <source>挂载来源状态</source>
         <translation>Mounted Source Status</translation>
     </message>
@@ -1631,7 +1672,7 @@ I/O 错误（无法读取）：
 Unrecorded current content is saved first. Close the file in external editors.</translation>
     </message>
     <message>
-        <location line="-753"/>
+        <location line="-805"/>
         <location line="+5"/>
         <source>导出历史版本</source>
         <translation>Export revision</translation>

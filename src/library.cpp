@@ -1935,6 +1935,58 @@ Library::ConsistencyReport Library::checkConsistency(
     return report;
 }
 
+Library::SpacePreview Library::spacePreview() const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
+    SpacePreview p;
+    QHash<QString, int> refs;        // hash -> number of revisions referencing it
+    QHash<QString, qint64> hashSize; // hash -> declared revision size
+    QSet<QString> liveAssets;
+    {
+        QSqlQuery q(db_);
+        q.prepare("SELECT asset_id,hash,size,pinned FROM revisions");
+        execute(q);
+        while (q.next()) {
+            liveAssets.insert(q.value(0).toString());
+            ++p.revisions;
+            const QString hash = q.value(1).toString();
+            const qint64 size = q.value(2).toLongLong();
+            ++refs[hash];
+            hashSize[hash] = size;
+            // Naive manifest sum: a content hash shared across versions counts
+            // once per revision, which is exactly what overstates usage.
+            p.logicalSize += size;
+            if (q.value(3).toBool()) {  // P-307 pinned: excluded from cleanup
+                ++p.pinnedRevisions;
+                p.pinnedBytes += size;
+            }
+        }
+    }
+    p.assets = liveAssets.size();
+    // Physical occupancy and the shared/orphan split come from the object store,
+    // keyed by how many revisions actually reference each object file.
+    const QDir objects(root_ + QStringLiteral("/objects"));
+    if (objects.exists()) {
+        const auto files = objects.entryList(QDir::Files | QDir::NoDotAndDotDot, QDir::Name);
+        for (const auto &name : files) {
+            const qint64 size = hashSize.value(name, QFileInfo(objects.filePath(name)).size());
+            p.physicalSize += size;
+            const int n = refs.value(name, 0);
+            if (n == 0) {
+                // Unreferenced object: pure waste today — the only thing a
+                // cleanup could actually free without touching any history.
+                ++p.orphanObjects;
+                p.reclaimableBytes += size;
+            } else if (n > 1) {
+                // Shared object: counted once on disk but once per reference in
+                // the naive manifest sum — that is the dedup it provides.
+                ++p.sharedObjects;
+                p.dedupSavings += (qint64(n) - 1) * size;
+            }
+        }
+    }
+    return p;
+}
+
 int Library::rollbackAll(qint64 snapshotId) {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
     QHash<QString, Asset> byId;

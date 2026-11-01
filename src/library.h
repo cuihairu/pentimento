@@ -286,6 +286,28 @@ public:
     // unreadable library; per-object problems are reported, never thrown.
     ConsistencyReport checkConsistency(
         const std::function<void(int percent, const QString &current)> &progress = {}) const;
+    // P-602: one run of the read-only space/retention preview.
+    struct SpacePreview {
+        int assets = 0;            // live assets in the manifest
+        int revisions = 0;         // revisions in the manifest (incl. history)
+        qint64 logicalSize = 0;    // naive sum of revision sizes (double-counts
+                                   // shared content — the number to distrust)
+        qint64 physicalSize = 0;   // actual bytes of object files on disk
+        int sharedObjects = 0;     // objects referenced by >1 revision
+        qint64 dedupSavings = 0;   // bytes dedup saves vs. the naive logical sum
+        int pinnedRevisions = 0;   // protected versions (P-307 pins)
+        qint64 pinnedBytes = 0;    // bytes held by pinned revisions
+        int orphanObjects = 0;     // object files no revision references
+        qint64 reclaimableBytes = 0; // theoretical reclaim = orphan bytes only
+    };
+    // P-602: report how the store's bytes break down — logical vs. physical,
+    // shared (deduplicated) objects, protected (pinned) versions and the
+    // theoretical reclaimable bytes. Reclaimable is computed from per-object
+    // reference counts, never by summing file sizes naively (shared objects
+    // would be counted per reference and overstate what cleanup could free).
+    // Nothing is cleaned or deleted here; the store keeps growing until a
+    // cleanup policy is separately approved.
+    SpacePreview spacePreview() const;
     // P-311: the manifest of a consistent snapshot — assetId, path-as-of-
     // snapshot, content hash and state per entry. Older snapshots (written
     // before the manifest carried path/hash) fall back to the asset's current

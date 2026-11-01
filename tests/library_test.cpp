@@ -920,6 +920,39 @@ private slots:
         // Report-only: the store is left exactly as we made it.
         QVERIFY(QFileInfo::exists(objectsDir + "/" + orphanHash));
     }
+    void spacePreviewDistinguishesLogicalPhysicalSharedOrphan() {
+        QTemporaryDir dir;
+        put(dir.filePath("a.png"), "bytes-a");
+        put(dir.filePath("b.png"), "bytes-b");
+        Library library(dir.filePath("library"));
+        QVERIFY(!library.importFile(dir.filePath("a.png")).id.isEmpty());
+        QVERIFY(!library.importFile(dir.filePath("b.png")).id.isEmpty());
+        // Same content as a.png under a different name: two revisions share one
+        // object — the naive logical sum counts it twice, disk holds it once.
+        QTemporaryDir src;
+        put(src.filePath("a-copy.png"), "bytes-a");
+        QVERIFY(!library.importFile(src.filePath("a-copy.png")).id.isEmpty());
+        // Pin one revision (P-307): it is protected bytes in the preview.
+        const auto revs = library.revisions(library.assets().first().id);
+        QVERIFY(!revs.isEmpty());
+        library.pinRevision(revs.first().id, QStringLiteral("test keep"));
+        // An unreferenced object file: the only theoretically reclaimable bytes.
+        const QString objectsDir = dir.filePath("library/objects");
+        const QString orphanHash = digestHex("orphan-bytes");
+        put(objectsDir + "/" + orphanHash, "orphan-bytes");
+
+        const auto p = library.spacePreview();
+        QCOMPARE(p.assets, 3);
+        QCOMPARE(p.revisions, 3);
+        QCOMPARE(p.logicalSize, qint64(21));       // 3 revisions x 7 bytes (naive)
+        QCOMPARE(p.physicalSize, qint64(26));      // hashA(7)+hashB(7)+orphan(12)
+        QCOMPARE(p.sharedObjects, 1);
+        QCOMPARE(p.dedupSavings, qint64(7));       // one shared object counted twice
+        QCOMPARE(p.pinnedRevisions, 1);
+        QCOMPARE(p.pinnedBytes, qint64(7));
+        QCOMPARE(p.orphanObjects, 1);
+        QCOMPARE(p.reclaimableBytes, qint64(12));  // orphan-bytes = 12 bytes
+    }
     void storageInterfaceReportsConsistentLocalInfo() {
         QTemporaryDir dir;
         put(dir.filePath("a.png"), "image-bytes");

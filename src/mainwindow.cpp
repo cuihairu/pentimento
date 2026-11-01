@@ -87,6 +87,7 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     // writes a COMPLETE marker only after every object verifies.
     toolbar->addAction(tr("导出备份包…"), this, &MainWindow::exportBackup);
     toolbar->addAction(tr("一致性检查…"), this, &MainWindow::checkConsistency);
+    toolbar->addAction(tr("空间预演…"), this, &MainWindow::showSpacePreview);
     auto *splitter = new QSplitter;
     auto *left = new QWidget;
     auto *leftLayout = new QVBoxLayout(left);
@@ -1717,6 +1718,58 @@ void MainWindow::checkConsistency() {
                                 .arg(truncate(r.ioErrors, 20).join('\n'));
             }
             QMessageBox::information(this, tr("一致性检查"), body);
+        });
+}
+
+// P-602: report-only space/retention preview. Nothing is cleaned here — the
+// store keeps growing until a cleanup policy is separately approved (P-602
+// explicitly makes that point). The preview separates logical size (naive
+// manifest sum) from physical occupancy (object files on disk), counts shared
+// objects and pinned (protected) versions, and estimates the theoretical
+// reclaimable bytes from per-object reference counts rather than by summing
+// file sizes naively (a shared object would be counted once per reference).
+void MainWindow::showSpacePreview() {
+    statusBar()->showMessage(tr("正在计算空间预演（只读，后台进行）…"));
+    auto result = std::make_shared<Library::SpacePreview>();
+    auto error = std::make_shared<QString>();
+    const qint64 id = captureQueue_->submit(QStringLiteral("空间预演"),
+        [this, result, error](TaskQueue::Progress &) {
+            try {
+                *result = library_.spacePreview();
+            } catch (const std::exception &e) {
+                *error = QString::fromUtf8(e.what());
+            }
+        });
+    QObject::connect(captureQueue_.get(), &TaskQueue::taskFinished, this,
+        [this, id, result, error](qint64 finished, bool, const QString &) {
+            if (finished != id) return;
+            if (!error->isEmpty()) {
+                statusBar()->showMessage(tr("空间预演失败：%1").arg(*error));
+                return;
+            }
+            statusBar()->clearMessage();
+            const Library::SpacePreview &p = *result;
+            auto fmt = [](qint64 bytes) {
+                if (bytes >= 1024 * 1024)
+                    return QStringLiteral("%1 MiB").arg(double(bytes) / (1024.0 * 1024.0), 0, 'f', 1);
+                if (bytes >= 1024)
+                    return QStringLiteral("%1 KiB").arg(double(bytes) / 1024.0, 0, 'f', 1);
+                return QStringLiteral("%1 B").arg(bytes);
+            };
+            const QString body =
+                tr("素材：%1 个；修订：%2 条。\n\n"
+                   "逻辑大小（清单合计，重复计数）：%3\n"
+                   "物理占用（对象文件实际）：%4\n"
+                   "共享对象：%5 个（去重节省 %6）\n"
+                   "固定版本（受保护）：%7 条，占 %8\n"
+                   "理论可回收：%9（%10 个孤立对象）\n\n"
+                   "当前不做任何清理：磁盘会随版本持续增长。")
+                    .arg(p.assets).arg(p.revisions)
+                    .arg(fmt(p.logicalSize)).arg(fmt(p.physicalSize))
+                    .arg(p.sharedObjects).arg(fmt(p.dedupSavings))
+                    .arg(p.pinnedRevisions).arg(fmt(p.pinnedBytes))
+                    .arg(fmt(p.reclaimableBytes)).arg(p.orphanObjects);
+            QMessageBox::information(this, tr("空间预演"), body);
         });
 }
 
