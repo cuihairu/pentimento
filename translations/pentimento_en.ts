@@ -4,68 +4,107 @@
 <context>
     <name>Library</name>
     <message>
-        <location filename="../src/library.cpp" line="25"/>
+        <location filename="../src/library.cpp" line="+25"/>
         <source>无法读取文件：%1</source>
         <translation>Cannot read file: %1</translation>
     </message>
     <message>
-        <location filename="../src/library.cpp" line="27"/>
+        <location line="+2"/>
         <source>首版单文件上限为 256 MiB：%1</source>
         <translation>First release caps single files at 256 MiB: %1</translation>
     </message>
     <message>
-        <location filename="../src/library.cpp" line="35"/>
+        <location line="+8"/>
         <source>无法安全写入文件：%1；%2</source>
         <translation>Cannot safely write file: %1; %2</translation>
     </message>
     <message>
-        <location filename="../src/library.cpp" line="45"/>
         <source>无法创建素材库目录</source>
-        <translation>Cannot create library directories</translation>
+        <translation type="vanished">Cannot create library directories</translation>
     </message>
     <message>
-        <location filename="../src/library.cpp" line="47"/>
+        <location line="+17"/>
+        <source>该目录不是有效的素材库（未找到 catalog.sqlite），不会静默重建</source>
+        <translation>Not a valid asset library (catalog.sqlite missing); will not silently recreate it</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>素材库索引不可读（权限不足），请检查目录权限</source>
+        <translation>Library index is unreadable (permission denied); check directory permissions</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>素材库目录不可达或无法创建（可能是卷未挂载或权限不足）：%1</source>
+        <translation>Library directory is unreachable or cannot be created (volume not mounted or permission denied): %1</translation>
+    </message>
+    <message>
+        <location line="+2"/>
         <source>素材库正在被另一个进程使用</source>
         <translation>The library is in use by another process</translation>
     </message>
     <message>
-        <location filename="../src/library.cpp" line="105"/>
-        <location filename="../src/library.cpp" line="107"/>
+        <location line="+24"/>
+        <source>素材库损坏或索引无法打开：%1</source>
+        <translation>Library is corrupt or the index cannot be opened: %1</translation>
+    </message>
+    <message>
+        <location line="+20"/>
+        <source>素材库 schema 版本不兼容（%1），请使用匹配版本打开</source>
+        <translation>Library schema version is incompatible (%1); open with a matching version</translation>
+    </message>
+    <message>
+        <location line="+27"/>
+        <source>素材库缺少身份标识（library_id），库可能已损坏</source>
+        <translation>Library is missing its identity (library_id); the library may be corrupt</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>该路径不是有效的素材库（未找到可读的 catalog.sqlite）</source>
+        <translation>This path is not a valid asset library (no readable catalog.sqlite found)</translation>
+    </message>
+    <message>
+        <location line="+16"/>
+        <source>该素材库缺少身份标识（library_id），库可能已损坏</source>
+        <translation>This asset library is missing its identity (library_id); the library may be corrupt</translation>
+    </message>
+    <message>
+        <location line="+32"/>
+        <location line="+2"/>
         <source>无效的对象哈希</source>
         <translation>Invalid object hash</translation>
     </message>
     <message>
-        <location filename="../src/library.cpp" line="113"/>
+        <location line="+6"/>
         <source>历史对象校验失败；已停止操作</source>
         <translation>History object verification failed; operation stopped</translation>
     </message>
     <message>
-        <location filename="../src/library.cpp" line="123"/>
+        <location line="+10"/>
         <source>历史对象内容不一致</source>
         <translation>History object content mismatch</translation>
     </message>
     <message>
-        <location filename="../src/library.cpp" line="144"/>
+        <location line="+25"/>
         <source>无法创建工作目录</source>
         <translation>Cannot create working directory</translation>
     </message>
     <message>
-        <location filename="../src/library.cpp" line="181"/>
+        <location line="+45"/>
         <source>无法创建恢复目录</source>
         <translation>Cannot create restore directory</translation>
     </message>
     <message>
-        <location filename="../src/library.cpp" line="193"/>
+        <location line="+12"/>
         <source>找不到属于当前素材的历史版本</source>
         <translation>No revision found for this asset</translation>
     </message>
     <message>
-        <location filename="../src/library.cpp" line="202"/>
+        <location line="+9"/>
         <source>请导出到素材库之外的现有目录</source>
         <translation>Export to an existing directory outside the library</translation>
     </message>
     <message>
-        <location filename="../src/library.cpp" line="206"/>
+        <location line="+4"/>
         <source>找不到历史版本</source>
         <translation>Revision not found</translation>
     </message>
@@ -73,75 +112,100 @@
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../src/mainwindow.cpp" line="24"/>
+        <location filename="../src/mainwindow.cpp" line="+32"/>
         <source>pentimento · 画迹</source>
         <translation>pentimento</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="27"/>
+        <location line="+3"/>
         <source>素材操作</source>
         <translation>Asset actions</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="32"/>
+        <location line="+5"/>
         <source>导入素材</source>
         <translation>Import assets</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="34"/>
-        <location filename="../src/mainwindow.cpp" line="216"/>
+        <location line="+2"/>
+        <location line="+332"/>
         <source>记录版本</source>
         <translation>Record version</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="35"/>
+        <location line="-331"/>
         <source>编辑工作副本</source>
         <translation>Edit working copy</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="38"/>
+        <location line="+3"/>
         <source>无法打开默认编辑器；可通过素材库目录打开工作副本</source>
         <translation>Cannot open the default editor; open the working copy from the library folder</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="40"/>
+        <location line="+2"/>
         <source>打开素材库</source>
         <translation>Open library folder</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="44"/>
-        <location filename="../src/mainwindow.cpp" line="291"/>
-        <location filename="../src/mainwindow.cpp" line="297"/>
+        <location line="+6"/>
+        <source>网格视图</source>
+        <translation>Grid view</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>列表视图</source>
+        <translation>List view</translation>
+    </message>
+    <message>
+        <location line="+9"/>
+        <location line="+384"/>
+        <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>Restore to anchor</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="48"/>
+        <location line="-386"/>
         <source>素材库</source>
         <translation>Library</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="51"/>
+        <location line="+3"/>
         <source>搜索素材名称</source>
         <translation>Search asset names</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="52"/>
+        <location line="+1"/>
         <source>搜索素材</source>
         <translation>Search assets</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="54"/>
+        <location line="+2"/>
         <source>素材列表</source>
         <translation>Asset list</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="62"/>
+        <location line="+9"/>
         <source>导入第一份素材，开始保留创作历史。</source>
         <translation>Import the first asset to start keeping creative history.</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="65"/>
+        <location line="+10"/>
+        <source>适应窗口</source>
+        <translation>Fit window</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>100%</source>
+        <translation>100%</translation>
+    </message>
+    <message>
+        <location line="+7"/>
+        <source>透明底</source>
+        <translation>Transparent</translation>
+    </message>
+    <message>
+        <location line="+17"/>
         <source>素材预览
 
 支持 PNG、JPEG、WebP 等已安装的 Qt 图像格式
@@ -152,55 +216,55 @@ Supports Qt image formats installed on this system (PNG, JPEG, WebP...)
 Other files keep their original bytes; no picture preview yet</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="74"/>
+        <location line="+31"/>
         <source>版本时间轴</source>
         <translation>Version timeline</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="76"/>
+        <location line="+2"/>
         <source>选择历史版本预览
 恢复会新增版本，原有历史始终保留。</source>
         <translation>Select a revision to preview
 Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="79"/>
-        <location filename="../src/mainwindow.cpp" line="177"/>
+        <location line="+3"/>
+        <location line="+164"/>
         <source>历史版本</source>
         <translation>Historical version</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="82"/>
+        <location line="-161"/>
         <source>恢复此版本</source>
         <translation>Restore this version</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="83"/>
+        <location line="+1"/>
         <source>导出此版本…</source>
         <translation>Export this version...</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="110"/>
+        <location line="+38"/>
         <source>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</source>
         <translation>Local library: %1 · stable changes to working copies are recorded automatically</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="119"/>
+        <location line="+9"/>
         <source>操作未完成</source>
         <translation>Operation not completed</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="151"/>
+        <location line="+89"/>
         <source>当前 · </source>
         <translation>Current · </translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="177"/>
+        <location line="+24"/>
         <source>当前版本</source>
         <translation>Current version</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="184"/>
+        <location line="+6"/>
         <source>内容损坏或校验失败
 
 %1
@@ -213,7 +277,7 @@ Restoring appends a new version; existing history is always kept.</translation>
 The original object is preserved; export it for inspection.</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="196"/>
+        <location line="+9"/>
         <source>此格式暂不支持画面预览
 
 原始文件和历史版本已完整保留，可以导出查看。</source>
@@ -222,59 +286,64 @@ The original object is preserved; export it for inspection.</translation>
 The original file and history are fully preserved and can be exported.</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="201"/>
+        <location line="+9"/>
+        <source>预览已降采样显示（解码尺寸超出内存预算），原始文件未修改</source>
+        <translation>Preview downsampled for display (decode size exceeded memory budget); source file unchanged</translation>
+    </message>
+    <message>
+        <location line="+13"/>
         <source>导入素材（保留原文件，创建工作副本）</source>
         <translation>Import assets (originals kept, working copies created)</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="216"/>
+        <location line="+15"/>
         <source>版本说明</source>
         <translation>Version note</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="220"/>
+        <location line="+4"/>
         <source>已记录新版本</source>
         <translation>New version recorded</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="220"/>
+        <location line="+0"/>
         <source>内容未变化，无需重复保存</source>
         <translation>Content unchanged; nothing to save</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="228"/>
+        <location line="+8"/>
         <source>恢复历史版本</source>
         <translation>Restore revision</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="228"/>
+        <location line="+0"/>
         <source>将历史内容恢复为当前工作副本，并新增一个版本。
 未记录的当前内容会先保存。请先在外部编辑器中关闭此文件。</source>
         <translation>Restores the historical content as the current working copy and appends a new version.
 Unrecorded current content is saved first. Close the file in external editors.</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="238"/>
+        <location line="+10"/>
         <source>导出历史版本</source>
         <translation>Export revision</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="258"/>
+        <location line="+20"/>
         <source>自动记录失败：%1</source>
         <translation>Auto-record failed: %1</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="272"/>
+        <location line="+14"/>
         <source>紧急快照失败：%1</source>
         <translation>Emergency snapshot failed: %1</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="274"/>
+        <location line="+2"/>
         <source>疑似勒索批量写入</source>
         <translation>Suspected ransomware batch write</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="275"/>
+        <location line="+1"/>
         <source>工作区检测到异常批量写入，已自动建立紧急快照锚点。
 
 %1
@@ -284,25 +353,25 @@ Unrecorded current content is saved first. Close the file in external editors.</
 
 %1
 
-Close external editors, then roll back via "Restore revision" or "Restore to anchor".</translation>
+Close external editors, then roll back via &quot;Restore revision&quot; or &quot;Restore to anchor&quot;.</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="281"/>
+        <location line="+6"/>
         <source>还没有紧急快照锚点</source>
         <translation>No emergency snapshot anchor yet</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="286"/>
+        <location line="+5"/>
         <source>#%1 %2 · %3 个素材</source>
         <translation>#%1 %2 · %3 assets</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="292"/>
+        <location line="+6"/>
         <source>选择感染前锚点（回滚形成新版本，不销毁后续历史）</source>
         <translation>Choose a pre-infection anchor (rollback forms new versions; later history is preserved)</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="298"/>
+        <location line="+6"/>
         <source>将整个工作区恢复到该锚点。
 未记录的当前内容会先保存，后续历史（含被加密版本）保留。
 请先关闭所有外部编辑器。</source>
@@ -311,7 +380,7 @@ Unrecorded current content is saved first; later history (including encrypted ve
 Close all external editors first.</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="304"/>
+        <location line="+6"/>
         <source>已恢复到锚点 #%1（%2 个素材回滚）</source>
         <translation>Restored to anchor #%1 (%2 assets rolled back)</translation>
     </message>

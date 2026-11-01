@@ -6,10 +6,15 @@
 #include <QMap>
 #include <memory>
 
-class QListWidget;
+class QCheckBox;
 class QLabel;
 class QLineEdit;
+class QListWidget;
 class QPushButton;
+class QScrollArea;
+class QStackedWidget;
+class QToolButton;
+class PreviewCanvas;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -22,9 +27,21 @@ private:
     QVector<Revision> revisions_;
     QListWidget *assetsList_;
     QListWidget *historyList_;
-    QLabel *preview_;
+    QLabel *preview_;          // message panel (corrupt / unsupported format)
     QLabel *details_;
     QLineEdit *search_;
+    // P-209: the preview is a canvas in a scroll area behind a control bar; the
+    // message label and the canvas swap via a stack. Zoom is uniform (never
+    // stretches), and a checkerboard toggles the transparency backdrop.
+    QStackedWidget *previewStack_;
+    QScrollArea *previewScroll_;
+    PreviewCanvas *canvas_;
+    QToolButton *fitBtn_;
+    QToolButton *hundredBtn_;
+    QToolButton *zoomOutBtn_;
+    QToolButton *zoomInBtn_;
+    QLabel *zoomLabel_;
+    QCheckBox *checkerCheck_;
     QPushButton *restore_;
     QPushButton *export_;
     QMap<QString, QPair<qint64, qint64>> observations_;
@@ -40,6 +57,8 @@ private:
     void setAssetViewMode(bool grid);
     void keepSelectionVisible();
     void showRevision();
+    void updateZoomLabel();
+    void syncZoomButtons(bool fit);
     void importFiles();
     void capture();
     void restore();
@@ -47,6 +66,4 @@ private:
     void scanChanges();
     void rollbackToSnapshot();
     void report(const std::exception &error);
-protected:
-    void resizeEvent(QResizeEvent *event) override;
 };

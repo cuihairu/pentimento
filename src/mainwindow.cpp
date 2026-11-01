@@ -1,13 +1,16 @@
 #include "mainwindow.h"
+#include "preview.h"
+#include "preview_canvas.h"
 #include "sentinel.h"
 #include <QAction>
 #include <QActionGroup>
+#include <QCheckBox>
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFrame>
 #include <QHBoxLayout>
-#include <QImageReader>
 #include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
@@ -17,10 +20,12 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSplitter>
+#include <QStackedWidget>
 #include <QStatusBar>
 #include <QStyle>
 #include <QTimer>
 #include <QToolBar>
+#include <QToolButton>
 #include <QUrl>
 
 MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(library.root()) {
@@ -79,13 +84,70 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     details_ = new QLabel(tr("导入第一份素材，开始保留创作历史。"));
     details_->setWordWrap(true);
     details_->setTextFormat(Qt::PlainText);
+    // P-209: preview = control bar (fit/100%/zoom/transparency) + a canvas in a
+    // scroll area; the message label swaps in for corrupt/unsupported formats.
+    auto *previewBox = new QWidget;
+    auto *previewLayout = new QVBoxLayout(previewBox);
+    previewLayout->setContentsMargins(0, 0, 0, 0);
+    auto *controls = new QHBoxLayout;
+    fitBtn_ = new QToolButton;
+    fitBtn_->setText(tr("适应窗口"));
+    fitBtn_->setCheckable(true);
+    fitBtn_->setChecked(true);
+    hundredBtn_ = new QToolButton;
+    hundredBtn_->setText(tr("100%"));
+    hundredBtn_->setCheckable(true);
+    zoomOutBtn_ = new QToolButton;
+    zoomOutBtn_->setText(QStringLiteral("−"));
+    zoomInBtn_ = new QToolButton;
+    zoomInBtn_->setText(QStringLiteral("＋"));
+    zoomLabel_ = new QLabel;
+    checkerCheck_ = new QCheckBox(tr("透明底"));
+    checkerCheck_->setChecked(true);
+    controls->addWidget(fitBtn_);
+    controls->addWidget(hundredBtn_);
+    controls->addSpacing(8);
+    controls->addWidget(zoomOutBtn_);
+    controls->addWidget(zoomInBtn_);
+    controls->addWidget(zoomLabel_);
+    controls->addSpacing(8);
+    controls->addWidget(checkerCheck_);
+    controls->addStretch(1);
+    previewLayout->addLayout(controls);
+    canvas_ = new PreviewCanvas;
+    previewScroll_ = new QScrollArea;
+    previewScroll_->setWidgetResizable(true);
+    previewScroll_->setFrameShape(QFrame::NoFrame);
+    previewScroll_->setWidget(canvas_);
     preview_ = new QLabel(tr("素材预览\n\n支持 PNG、JPEG、WebP 等已安装的 Qt 图像格式\n其他文件保留原始内容，暂不提供画面预览"));
     preview_->setAlignment(Qt::AlignCenter);
     preview_->setMinimumSize(240, 200);
     preview_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
     preview_->setStyleSheet("background:#e5e5e2;color:#444845;border-radius:4px;padding:16px;");
+    previewStack_ = new QStackedWidget;
+    previewStack_->addWidget(previewScroll_); // index 0: image canvas
+    previewStack_->addWidget(preview_);       // index 1: message
+    previewLayout->addWidget(previewStack_, 1);
     centerLayout->addWidget(details_);
-    centerLayout->addWidget(preview_, 1);
+    centerLayout->addWidget(previewBox, 1);
+    connect(fitBtn_, &QToolButton::clicked, this, [this] {
+        canvas_->setFit(true);
+        syncZoomButtons(true);
+    });
+    connect(hundredBtn_, &QToolButton::clicked, this, [this] {
+        canvas_->setZoom(1.0);
+        syncZoomButtons(false);
+    });
+    connect(zoomInBtn_, &QToolButton::clicked, this, [this] {
+        canvas_->setZoom(canvas_->effectiveZoom() * 1.25);
+        syncZoomButtons(false);
+    });
+    connect(zoomOutBtn_, &QToolButton::clicked, this, [this] {
+        canvas_->setZoom(canvas_->effectiveZoom() / 1.25);
+        syncZoomButtons(false);
+    });
+    connect(checkerCheck_, &QCheckBox::toggled, canvas_, &PreviewCanvas::setCheckerboard);
+    connect(canvas_, &PreviewCanvas::zoomChanged, this, [this](qreal) { updateZoomLabel(); });
     auto *right = new QWidget;
     auto *rightLayout = new QVBoxLayout(right);
     auto *historyTitle = new QLabel(tr("版本时间轴"));
@@ -263,21 +325,34 @@ void MainWindow::showRevision() {
     try {
         library_.readObject(revision.hash);
     } catch (const std::exception &error) {
-        preview_->setPixmap(QPixmap());
         preview_->setText(tr("内容损坏或校验失败\n\n%1\n\n原始对象已保留，可导出排查。")
             .arg(QString::fromUtf8(error.what())));
+        previewStack_->setCurrentIndex(1);
         return;
     }
-    QImageReader reader(library_.objectPath(revision.hash));
-    reader.setDecideFormatFromContent(true);
-    reader.setAutoTransform(true);
-    const auto size = reader.size();
-    if (size.isValid()) reader.setScaledSize(size.scaled(preview_->size() - QSize(32,32), Qt::KeepAspectRatio));
-    const QImage image = reader.read();
-    if (image.isNull()) {
-        preview_->setPixmap(QPixmap());
+    // P-209: decode is bounded (huge images downscale on read, never stretching)
+    // and the canvas zoom stays uniform, so the shown aspect is the true aspect.
+    const auto decoded = preview::decode(library_.objectPath(revision.hash));
+    if (!decoded.valid) {
         preview_->setText(tr("此格式暂不支持画面预览\n\n原始文件和历史版本已完整保留，可以导出查看。"));
-    } else preview_->setPixmap(QPixmap::fromImage(image));
+        previewStack_->setCurrentIndex(1);
+        return;
+    }
+    canvas_->setImage(decoded.image);
+    previewStack_->setCurrentIndex(0);
+    syncZoomButtons(canvas_->isFit());
+    updateZoomLabel();
+    if (decoded.reduced)
+        statusBar()->showMessage(tr("预览已降采样显示（解码尺寸超出内存预算），原始文件未修改"));
+}
+
+void MainWindow::updateZoomLabel() {
+    zoomLabel_->setText(QStringLiteral("%1%").arg(qRound(canvas_->effectiveZoom() * 100)));
+}
+
+void MainWindow::syncZoomButtons(bool fit) {
+    fitBtn_->setChecked(fit);
+    hundredBtn_->setChecked(!fit && qAbs(canvas_->effectiveZoom() - 1.0) < 0.001);
 }
 
 void MainWindow::importFiles() {
@@ -388,5 +463,4 @@ void MainWindow::rollbackToSnapshot() {
     } catch (const std::exception &error) { report(error); }
 }
 
-void MainWindow::resizeEvent(QResizeEvent *event) { QMainWindow::resizeEvent(event); showRevision(); }
 void MainWindow::saveScreenshot(const QString &path) { grab().save(path); }

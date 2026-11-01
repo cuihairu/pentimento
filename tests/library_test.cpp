@@ -3,6 +3,7 @@
 #include "i18n.h"
 #include "importer.h"
 #include "platform_immutable.h"
+#include "preview.h"
 #include "recent.h"
 #include "storage.h"
 #include "taskqueue.h"
@@ -585,6 +586,46 @@ private slots:
         // Restore still works and the working file comes back with original content.
         library.restore(asset, v1.id);
         QCOMPARE(get(asset.path), QByteArray("v1 content"));
+    }
+
+    // P-209: fit scale is uniform (one factor for both axes, so a wide image is
+    // never stretched), respects margins, and decode keeps aspect/alpha while a
+    // huge image degrades to a bounded, proportionally-scaled read.
+    void previewScalingKeepsAspectAndBoundedDecode() {
+        // Uniform fit: the limiting dimension governs, aspect is preserved.
+        QCOMPARE(preview::fitScale(QSize(1000, 100), QSize(500, 500)), 0.5);
+        QCOMPARE(preview::fitScale(QSize(100, 1000), QSize(500, 500)), 0.5);
+        QCOMPARE(preview::fitScale(QSize(2000, 1000), QSize(500, 500)), 0.25);
+        // Margins shrink the available area on both axes.
+        QCOMPARE(preview::fitScale(QSize(1000, 100), QSize(500, 500), 10), 0.48);
+        // Degenerate inputs never divide by zero or explode.
+        QCOMPARE(preview::fitScale(QSize(), QSize(500, 500)), 1.0);
+        QCOMPARE(preview::fitScale(QSize(100, 100), QSize(0, 0)), 1.0);
+
+        QTemporaryDir dir;
+        const QString transparent = dir.filePath("alpha.png");
+        QImage alpha(40, 30, QImage::Format_ARGB32);
+        alpha.fill(Qt::transparent);
+        alpha.setPixelColor(5, 5, QColor(255, 0, 0, 128));
+        QVERIFY(alpha.save(transparent));
+        const auto decoded = preview::decode(transparent);
+        QVERIFY(decoded.valid);
+        QVERIFY(!decoded.reduced);
+        QCOMPARE(decoded.image.size(), QSize(40, 30)); // exact pixels, aspect intact
+        QVERIFY(decoded.image.hasAlphaChannel());       // transparency preserved
+
+        // A huge image reads at a downscaled size (aspect kept) instead of an
+        // unbounded allocation, and the source file stays untouched.
+        const QString big = dir.filePath("big.png");
+        QImage huge(1000, 400, QImage::Format_RGB32);
+        huge.fill(Qt::black);
+        QVERIFY(huge.save(big));
+        const auto scaled = preview::decode(big, 100000); // budget 100k pixels
+        QVERIFY(scaled.valid);
+        QVERIFY(scaled.reduced);
+        QVERIFY(scaled.image.width() <= 500 && scaled.image.height() <= 200);
+        const qreal srcAspect = qreal(1000) / 400, outAspect = qreal(scaled.image.width()) / scaled.image.height();
+        QVERIFY(qAbs(srcAspect - outAspect) < 0.02); // uniform: not stretched
     }
 };
 QTEST_GUILESS_MAIN(HistoryTest)
