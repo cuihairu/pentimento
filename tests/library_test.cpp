@@ -6,9 +6,12 @@
 #include "recent.h"
 #include "storage.h"
 #include "taskqueue.h"
+#include "thumbnails.h"
 #include <QTranslator>
+#include <QBuffer>
 #include <QFile>
 #include <QFileInfo>
+#include <QImage>
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QTemporaryDir>
@@ -521,6 +524,44 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(done2.load(), 5000);
         QCOMPARE(cancelled.assets().size(), 0);
         QVERIFY(!cancelled.assets().isEmpty() == false);
+    }
+    void thumbnailCacheKeysByContentAndParamsAndSurvivesCorruption() {
+        QTemporaryDir dir;
+        // A real PNG payload.
+        QImage source(120, 60, QImage::Format_ARGB32);
+        source.fill(Qt::red);
+        QByteArray pngBytes;
+        {
+            QBuffer buffer(&pngBytes);
+            buffer.open(QIODevice::WriteOnly);
+            QVERIFY(source.save(&buffer, "PNG"));
+        }
+        const QString hash = QString::fromLatin1(QCryptographicHash::hash(
+            pngBytes, QCryptographicHash::Sha256).toHex());
+        ThumbnailCache cache(dir.filePath("lib"));
+        const QSize request(64, 64);
+        // Key is content hash + generation params, never a file name.
+        QVERIFY(ThumbnailCache::key(hash, request, 1).contains(hash));
+        QVERIFY(ThumbnailCache::key(hash, request, 1)
+            != ThumbnailCache::key(hash, request, 2));
+        // Generates and caches; aspect ratio preserved (120x60 into 64x64 -> 64x32).
+        const QImage thumb = thumbnailFor(cache, pngBytes, hash, request);
+        QVERIFY(!thumb.isNull());
+        QCOMPARE(thumb.size(), QSize(64, 32));
+        QVERIFY(QFileInfo::exists(cache.filePath(hash, request, 1)));
+        // Second lookup reuses the cache (no regeneration needed).
+        const QImage again = thumbnailFor(cache, pngBytes, hash, request);
+        QCOMPARE(again.size(), thumb.size());
+        // Corrupt cache entry: deleted and rebuilt, original bytes untouched.
+        put(cache.filePath(hash, request, 1), "garbage");
+        QVERIFY(cache.find(hash, request, 1).isNull()); // corrupt -> null
+        QVERIFY(!QFileInfo::exists(cache.filePath(hash, request, 1))); // removed
+        const QImage rebuilt = thumbnailFor(cache, pngBytes, hash, request);
+        QVERIFY(!rebuilt.isNull());
+        QCOMPARE(rebuilt.size(), QSize(64, 32));
+        // The thumbnail is not the history content: the source bytes are untouched.
+        QCOMPARE(hash, QString::fromLatin1(QCryptographicHash::hash(
+            pngBytes, QCryptographicHash::Sha256).toHex()));
     }
     void historyObjectsSurviveWorkspaceEncryption() {
         QTemporaryDir dir;
