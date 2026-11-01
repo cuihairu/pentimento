@@ -200,12 +200,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+797"/>
+        <location line="+842"/>
         <source>记录版本</source>
         <translation>记录版本</translation>
     </message>
     <message>
-        <location line="-796"/>
+        <location line="-841"/>
         <source>编辑工作副本</source>
         <translation>编辑工作副本</translation>
     </message>
@@ -241,13 +241,13 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+880"/>
+        <location line="+1015"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>恢复到锚点</translation>
     </message>
     <message>
-        <location line="-882"/>
+        <location line="-1017"/>
         <source>素材库</source>
         <translation>素材库</translation>
     </message>
@@ -268,13 +268,13 @@
     </message>
     <message>
         <location line="+51"/>
-        <location line="+595"/>
+        <location line="+640"/>
         <location line="+16"/>
         <source>标签</source>
         <translation>标签</translation>
     </message>
     <message>
-        <location line="-608"/>
+        <location line="-653"/>
         <source>标签列表</source>
         <translation>标签列表</translation>
     </message>
@@ -431,12 +431,12 @@
     </message>
     <message>
         <location line="+3"/>
-        <location line="+530"/>
+        <location line="+575"/>
         <source>历史版本</source>
         <translation>历史版本</translation>
     </message>
     <message>
-        <location line="-527"/>
+        <location line="-572"/>
         <source>恢复此版本</source>
         <translation>恢复此版本</translation>
     </message>
@@ -477,12 +477,12 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+319"/>
+        <location line="+364"/>
         <source>未附加证据</source>
         <translation>未附加证据</translation>
     </message>
     <message>
-        <location line="-314"/>
+        <location line="-359"/>
         <source>记录（旧记录可回看）</source>
         <translation>记录（旧记录可回看）</translation>
     </message>
@@ -492,7 +492,51 @@
         <translation>导出证据…</translation>
     </message>
     <message>
-        <location line="+28"/>
+        <location line="+16"/>
+        <source>定时快照</source>
+        <translation>定时快照</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>关闭</source>
+        <translation>关闭</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>每 15 分钟</source>
+        <translation>每 15 分钟</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>每 30 分钟</source>
+        <translation>每 30 分钟</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>每 60 分钟</source>
+        <translation>每 60 分钟</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <location line="+695"/>
+        <source>定时快照未启用</source>
+        <translation>定时快照未启用</translation>
+    </message>
+    <message>
+        <location line="-692"/>
+        <location line="+68"/>
+        <location line="+599"/>
+        <location line="+11"/>
+        <source>暂停</source>
+        <translation>暂停</translation>
+    </message>
+    <message>
+        <location line="-676"/>
+        <source>仅应用运行时生效；退出应用期间不算持续备份。</source>
+        <translation>仅应用运行时生效；退出应用期间不算持续备份。</translation>
+    </message>
+    <message>
+        <location line="+25"/>
         <source>重命名…</source>
         <translation>重命名…</translation>
     </message>
@@ -502,7 +546,18 @@
         <translation>移动到文件夹…</translation>
     </message>
     <message>
-        <location line="+39"/>
+        <location line="+34"/>
+        <source>系统（应用退到后台）</source>
+        <translation>系统（应用退到后台）</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <location line="+622"/>
+        <source>恢复</source>
+        <translation>恢复</translation>
+    </message>
+    <message>
+        <location line="-598"/>
         <source>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</source>
         <translation>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</translation>
     </message>
@@ -814,12 +869,48 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation>导出历史版本</translation>
     </message>
     <message>
-        <location line="+20"/>
+        <location line="+24"/>
         <source>自动记录失败：%1</source>
         <translation>自动记录失败：%1</translation>
     </message>
     <message>
-        <location line="+44"/>
+        <location line="+54"/>
+        <source>暂停定时快照</source>
+        <translation>暂停定时快照</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>暂停原因</source>
+        <translation>暂停原因</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <location line="+2"/>
+        <source>用户暂停</source>
+        <translation>用户暂停</translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <source>已暂停：%1</source>
+        <translation>已暂停：%1</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>快照进行中…</source>
+        <translation>快照进行中…</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>下次快照：%1</source>
+        <translation>下次快照：%1</translation>
+    </message>
+    <message>
+        <location line="+46"/>
+        <source>定时快照失败：%1</source>
+        <translation>定时快照失败：%1</translation>
+    </message>
+    <message>
+        <location line="+13"/>
         <source>紧急快照失败：%1</source>
         <translation>紧急快照失败：%1</translation>
     </message>

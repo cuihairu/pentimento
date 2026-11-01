@@ -58,6 +58,7 @@
 - 下次时间：按启用时点 + 周期计算；暂停原因记录（用户/系统）；重叠合并：同库上一快照未完成则不叠加。
 - 唤醒后只补一次：错过多个周期只补一次（不堆积任务占空间）。
 - 退出应用期间不算持续备份（明确说明）。
+- 实现（2026-11-01）：调度状态机抽成纯逻辑 src/snapshot_schedule.h（无 UI 依赖，可单测）——默认关闭；setPeriod 下次=启用时点+周期并清暂停；pauseByUser/pauseBySystem 记录原因（系统暂停在应用回到前台时自动恢复，用户暂停只由用户恢复）；due() 仅在启用且未暂停且无进行中且到点；beginRun 置进行中门并**从当前时点重算下次**（错过多个周期只补一次，绝不堆积）；resume 从当前时点重算。MainWindow 右侧面板加「定时快照」块（周期下拉 关闭/15/30/60 分钟、状态标签 未启用/下次 HH:mm/已暂停（原因）/快照进行中、暂停/恢复按钮带原因输入、说明「仅应用运行时生效；退出应用期间不算持续备份。」）；应用退到后台（applicationStateChanged≠Active）自动系统暂停、回前台自动恢复；2 秒扫描 tick 调 checkSnapshotSchedule（due→beginRun→captureQueue_ 后台 snapshotAll("定时快照")→结果经 captureResultsMutex_ 回传，下一 tick 排空→endRun/提示错误），与自动记录共用同一串行队列保证写入不重叠。测试 scheduledSnapshotStateMachineEnforcesSpec：默认关闭永不触发、启用下次=now+周期、到点前不触发/到点触发、开始后置进行中门且下次从当前重算（三周期错过只补一次）、重叠合并不叠加、暂停记录原因且不再触发、恢复从当前重算、系统暂停可区分并恢复、禁用清空。ctest 2/2 绿（37 项）；offscreen 冒烟：调度块正常显示（关闭/未启用/暂停禁用/说明）。
 
 ## P-306 版本排除规则
 

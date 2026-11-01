@@ -6,6 +6,7 @@
 #include "platform_immutable.h"
 #include "preview.h"
 #include "recent.h"
+#include "snapshot_schedule.h"
 #include "storage.h"
 #include "taskqueue.h"
 #include "thumbnails.h"
@@ -1180,6 +1181,53 @@ private slots:
         QVERIFY(lib.capture(tga));
         QCOMPARE(lib.assetFormat(tga.id).toUpper(), QStringLiteral("PNG"));
         QCOMPARE(lib.assetSize(tga.id), QSize(120, 60));
+    }
+
+    void scheduledSnapshotStateMachineEnforcesSpec() {
+        // Off by default: never due, regardless of the clock.
+        SnapshotSchedule sched;
+        QVERIFY(!sched.enabled());
+        QVERIFY(!sched.due(QDateTime::currentDateTime()));
+        // Enabling sets next = now + one period.
+        const QDateTime t0 = QDateTime::fromMSecsSinceEpoch(1700000000000);
+        sched.setPeriod(15, t0);
+        QVERIFY(sched.enabled());
+        QCOMPARE(sched.next(), t0.addSecs(15 * 60));
+        QVERIFY(!sched.due(t0.addSecs(15 * 60 - 1))); // one second early: not due
+        QVERIFY(sched.due(t0.addSecs(15 * 60)));      // at/after next: due
+        // Starting the run recomputes next from now, so several missed periods
+        // (sleep/suspend) collapse into this one catch-up run, never stacked.
+        const QDateTime t1 = t0.addSecs(3 * 15 * 60); // three periods late
+        QVERIFY(sched.due(t1));
+        sched.beginRun(t1);
+        QVERIFY(sched.inProgress());
+        QCOMPARE(sched.next(), t1.addSecs(15 * 60));
+        QVERIFY(!sched.due(t1.addSecs(60))); // in-progress merges the overlap
+        sched.endRun();
+        // Next run is one period after the catch-up point, not one after each
+        // missed period.
+        QVERIFY(!sched.due(t1.addSecs(15 * 60 - 1)));
+        QVERIFY(sched.due(t1.addSecs(15 * 60)));
+        // Pause records its reason and blocks any run; resume restarts the clock.
+        sched.pauseByUser(QStringLiteral("用户暂停"));
+        QVERIFY(sched.paused());
+        QCOMPARE(sched.pauseReason(), QStringLiteral("用户暂停"));
+        QVERIFY(!sched.due(t1.addSecs(60)));
+        const QDateTime t2 = t1.addSecs(60);
+        sched.resume(t2);
+        QVERIFY(!sched.paused());
+        QCOMPARE(sched.next(), t2.addSecs(15 * 60));
+        QVERIFY(!sched.due(t2.addSecs(15 * 60 - 1)));
+        // A system pause is distinguishable, and resume lifts it (a user pause
+        // is only ever lifted by an explicit resume — the flag tracks the source).
+        sched.pauseBySystem(QStringLiteral("系统"));
+        QVERIFY(sched.pausedBySystem());
+        sched.resume(t2);
+        QVERIFY(!sched.paused() && !sched.pausedBySystem());
+        // Disabling drops the schedule and any pending run entirely.
+        sched.setPeriod(0, t2);
+        QVERIFY(!sched.enabled());
+        QVERIFY(!sched.due(t2.addSecs(1000)));
     }
 
     void contentObjectStorageStreamsAndDeduplicates() {

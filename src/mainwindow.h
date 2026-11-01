@@ -2,6 +2,7 @@
 #include "filter.h"
 #include "library.h"
 #include "sentinel.h"
+#include "snapshot_schedule.h"
 #include "taskqueue.h"
 #include "thumbnails.h"
 #include <QHash>
@@ -91,6 +92,19 @@ private:
     QListWidget *provenanceList_;
     QString pendingEvidenceHash_;
     QString pendingEvidenceName_;
+    // P-305: whole-tree scheduled snapshots. Off by default; periods 15/30/60
+    // minutes; runtime-only (leaving the app pauses the schedule, since exiting
+    // is never counted as continuous backup). The next run is enable-time plus
+    // one period; a pause (user or system) records its reason; an overlap never
+    // stacks (in-progress skips); missed periods collapse to one catch-up run.
+    // The pure state machine lives in snapshot_schedule.h; the widgets and the
+    // background result channel stay here.
+    QComboBox *snapshotPeriodCombo_;
+    QPushButton *snapshotPauseBtn_;
+    QLabel *snapshotStatus_;
+    SnapshotSchedule snapshotSchedule_;
+    bool snapshotAsyncDone_ = false;    // worker result, drained by the scan tick
+    QString snapshotAsyncError_;
     QPushButton *restore_;
     QPushButton *export_;
     QMap<QString, QPair<qint64, qint64>> observations_;
@@ -142,6 +156,13 @@ private:
     void restore();
     void exportFile();
     void scanChanges();
+    // P-305: scheduled-snapshot state machine (period, pause, next run).
+    void setSnapshotPeriod(int index);
+    void toggleSnapshotPause();
+    void updateSnapshotStatus();
+    void checkSnapshotSchedule();
+    void drainSnapshotResult();
+    void submitScheduledSnapshot();
     void rollbackToSnapshot();
     void report(const std::exception &error);
 };

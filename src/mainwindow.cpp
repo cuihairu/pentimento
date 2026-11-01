@@ -295,6 +295,31 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     rightLayout->addWidget(provListTitle);
     rightLayout->addWidget(provenanceList_);
     rightLayout->addWidget(exportEvidenceBtn_);
+    // P-305: scheduled whole-tree snapshots. Off by default; a period of
+    // 15/30/60 minutes schedules the next run from the enable point; pause
+    // records its reason (user or system) and stops auto snapshots; resuming
+    // restarts the clock. Runtime-only: leaving the app is never counted as
+    // continuous backup, so the note says so explicitly.
+    auto *snapTitle = new QLabel(tr("定时快照"));
+    snapTitle->setStyleSheet("font-size:14px;font-weight:600;");
+    snapshotPeriodCombo_ = new QComboBox;
+    snapshotPeriodCombo_->addItem(tr("关闭"), 0);
+    snapshotPeriodCombo_->addItem(tr("每 15 分钟"), 15);
+    snapshotPeriodCombo_->addItem(tr("每 30 分钟"), 30);
+    snapshotPeriodCombo_->addItem(tr("每 60 分钟"), 60);
+    snapshotStatus_ = new QLabel(tr("定时快照未启用"));
+    snapshotStatus_->setWordWrap(true);
+    snapshotStatus_->setStyleSheet("color:#888;");
+    snapshotPauseBtn_ = new QPushButton(tr("暂停"));
+    snapshotPauseBtn_->setEnabled(false);
+    auto *snapNote = new QLabel(tr("仅应用运行时生效；退出应用期间不算持续备份。"));
+    snapNote->setWordWrap(true);
+    snapNote->setStyleSheet("color:#888;");
+    rightLayout->addWidget(snapTitle);
+    rightLayout->addWidget(snapshotPeriodCombo_);
+    rightLayout->addWidget(snapshotStatus_);
+    rightLayout->addWidget(snapshotPauseBtn_);
+    rightLayout->addWidget(snapNote);
     splitter->addWidget(left); splitter->addWidget(center); splitter->addWidget(right);
     splitter->setSizes({260, 660, 300});
     setCentralWidget(splitter);
@@ -337,6 +362,26 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     });
     connect(restore_, &QPushButton::clicked, this, &MainWindow::restore);
     connect(export_, &QPushButton::clicked, this, &MainWindow::exportFile);
+    // P-305: period selection (default off), pause/resume with a recorded
+    // reason, and a system pause while the app is out of the foreground —
+    // resuming on return only lifts a system pause, never a user pause.
+    connect(snapshotPeriodCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &MainWindow::setSnapshotPeriod);
+    connect(snapshotPauseBtn_, &QPushButton::clicked, this, &MainWindow::toggleSnapshotPause);
+    connect(qApp, &QApplication::applicationStateChanged, this, [this](Qt::ApplicationState state) {
+        if (!snapshotSchedule_.enabled()) return;
+        if (state != Qt::ApplicationActive) {
+            if (!snapshotSchedule_.paused()) {
+                snapshotSchedule_.pauseBySystem(tr("系统（应用退到后台）"));
+                snapshotPauseBtn_->setText(tr("恢复"));
+                updateSnapshotStatus();
+            }
+        } else if (snapshotSchedule_.paused() && snapshotSchedule_.pausedBySystem()) {
+            snapshotSchedule_.resume(QDateTime::currentDateTime());
+            snapshotPauseBtn_->setText(tr("暂停"));
+            updateSnapshotStatus();
+        }
+    });
     // P-304: the stable-change capture runs on a serial background worker so a
     // large file never blocks the UI thread. The Library serializes its own
     // access (one internal mutex), so the worker's captureIfStable is safe
@@ -875,6 +920,10 @@ void MainWindow::exportFile() {
 }
 
 void MainWindow::scanChanges() {
+    // P-305: drain a finished scheduled snapshot first, so a completed run
+    // frees the in-progress gate before the schedule check looks at it.
+    drainSnapshotResult();
+    checkSnapshotSchedule();
     // P-304: drain the background captures finished since the last tick (the
     // worker wrote each result under the mutex). This runs on the UI thread.
     QHash<QString, QPair<bool, QString>> results;
@@ -921,6 +970,92 @@ void MainWindow::scanChanges() {
                 captureResults_.insert(asset.id, {changed, error});
             });
     }
+}
+
+// P-305: period combo changed. Enabling computes the next run from now plus
+// one period; disabling drops the schedule and any pause state entirely.
+void MainWindow::setSnapshotPeriod(int index) {
+    const int minutes = snapshotPeriodCombo_->itemData(index).toInt();
+    snapshotSchedule_.setPeriod(minutes, QDateTime::currentDateTime());
+    snapshotPauseBtn_->setText(tr("暂停"));
+    snapshotPauseBtn_->setEnabled(minutes > 0);
+    updateSnapshotStatus();
+}
+
+// P-305: pause asks for a reason (recorded, user-initiated); resume restarts
+// the clock from now regardless of who paused.
+void MainWindow::toggleSnapshotPause() {
+    if (!snapshotSchedule_.enabled()) return;
+    if (snapshotSchedule_.paused()) {
+        snapshotSchedule_.resume(QDateTime::currentDateTime());
+        snapshotPauseBtn_->setText(tr("暂停"));
+    } else {
+        bool ok = false;
+        const QString reason = QInputDialog::getText(this, tr("暂停定时快照"), tr("暂停原因"),
+                                                     QLineEdit::Normal, tr("用户暂停"), &ok);
+        if (!ok) return;
+        snapshotSchedule_.pauseByUser(reason.isEmpty() ? tr("用户暂停") : reason);
+        snapshotPauseBtn_->setText(tr("恢复"));
+    }
+    updateSnapshotStatus();
+}
+
+void MainWindow::updateSnapshotStatus() {
+    if (!snapshotSchedule_.enabled()) {
+        snapshotStatus_->setText(tr("定时快照未启用"));
+    } else if (snapshotSchedule_.paused()) {
+        snapshotStatus_->setText(tr("已暂停：%1").arg(snapshotSchedule_.pauseReason()));
+    } else if (snapshotSchedule_.inProgress()) {
+        snapshotStatus_->setText(tr("快照进行中…"));
+    } else {
+        snapshotStatus_->setText(tr("下次快照：%1")
+                                     .arg(snapshotSchedule_.next().toString(QStringLiteral("MM-dd HH:mm"))));
+    }
+}
+
+// P-305: called on every 2 s housekeeping tick. A run is due only when the
+// schedule is active, not paused, and no snapshot is in progress — an overlap
+// is merged (skipped), never stacked. When several periods were missed (e.g.
+// the machine slept) the single due run catches up once and the next run is
+// recomputed from now, so missed periods never pile up tasks.
+void MainWindow::checkSnapshotSchedule() {
+    const auto now = QDateTime::currentDateTime();
+    if (!snapshotSchedule_.due(now)) return;
+    snapshotSchedule_.beginRun(now);
+    updateSnapshotStatus();
+    submitScheduledSnapshot();
+}
+
+// P-305: take the snapshot on the background worker (the same serial queue as
+// auto-record, so writes never overlap) and hand the outcome back for the next
+// scan tick to drain.
+void MainWindow::submitScheduledSnapshot() {
+    captureQueue_->submit(QStringLiteral("定时快照"), [this](TaskQueue::Progress &) {
+        QString error;
+        try {
+            library_.snapshotAll(QStringLiteral("定时快照"));
+        } catch (const std::exception &e) {
+            error = QString::fromUtf8(e.what());
+        }
+        QMutexLocker lock(&captureResultsMutex_);
+        snapshotAsyncError_ = error;
+        snapshotAsyncDone_ = true;
+    });
+}
+
+void MainWindow::drainSnapshotResult() {
+    bool done = false;
+    QString error;
+    {
+        QMutexLocker lock(&captureResultsMutex_);
+        done = snapshotAsyncDone_;
+        error = snapshotAsyncError_;
+        snapshotAsyncDone_ = false;
+    }
+    if (!done) return;
+    snapshotSchedule_.endRun();
+    if (!error.isEmpty()) statusBar()->showMessage(tr("定时快照失败：%1").arg(error));
+    updateSnapshotStatus();
 }
 
 void MainWindow::pollSentinel() {
