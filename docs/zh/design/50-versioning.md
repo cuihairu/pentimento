@@ -116,6 +116,18 @@
 - 内容引用与清单一致性：清单含 assetId/path/contentHash/state（present|tombstone|excluded|missing）；对象按清单校验。
 - 不做：逐文件扫完就叫一致；直接复制运行中的数据库当快照；宣称外部编辑器同时冻结。
 
+实现（2026-11-01）：
+
+- **清单数据**：`snapshot_assets` 增加 `folder`/`name`（快照时刻路径，后续改名/移动/删除不回写）与 `hash`（引用修订的内容哈希）。老行默认空串，读取时回退到素材当前记录位置（`snapshotEntries`）。
+- **发布语义**：快照边界=修订序列点。发布前先对每个现有工作副本做有界等待（仅最近 3 秒内修改过的文件进入等待循环，≤3×25ms）；仍未稳定→**候选不完整，整体失败**，绝不发布为成功快照。事务内读取后再 stat 一次（torn-read 守卫），写入未稳定→同样失败回滚。因此清单只引用**已完成修订**。
+- **清单状态**：`present`（锚定最近干净修订）、`tombstone`（应用内删除，对象保留）、`excluded`（规则命中，无内容引用）、`missing`（工作副本缺失，可恢复，不视为删除）。
+- **对象校验**：每条含 hash 的清单项在提交前校验对象存在且大小匹配；失败→候选不完整，回滚不发布。
+- **已删除素材**：整树清单同样收录为 tombstone 项（库状态含“此处删除、历史保留”）；`assets()` 过滤后实时清单不含它们，但旧快照与历史仍可查到。
+- **rollbackAll**：恢复 `present` **和** `missing`（缺失工作副本可从锚点恢复，正是“可恢复”语义）；`excluded`/`tombstone` 跳过。
+- **snapshots() 计数**：`assets`=present+missing（锚定且可恢复），`excluded`=excluded，按精确状态求和（LEFT JOIN 空快照不误计）。
+- **修复**：present 计数曾把 `missing` 计入（因 NULL-safe 通配）——现按状态精确求和。
+- **测试**：`consistentSnapshotManifestFreezesPathsAndStates`（present/excluded/missing/tombstone 四态、路径冻结于快照时刻、改名/移动后清单不变、对象按清单校验、rollback 恢复 present+missing）；`incompleteSnapshotCandidateIsNotPublished`（并发写入→快照抛错且不发布）。ctest 2/2 绿；offscreen 冒烟通过；翻译 228/228。
+
 ## P-312 时间点目录浏览（只读）
 
 - 按快照清单只读显示当时目录、名称、删除与排除状态；不混用当前索引。

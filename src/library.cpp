@@ -13,6 +13,7 @@
 #include <QLockFile>
 #include <QSaveFile>
 #include <QSqlError>
+#include <QThread>
 #include <QSqlQuery>
 #include <QUuid>
 #include <stdexcept>
@@ -178,6 +179,13 @@ void Library::openAndInitialize(const QString &catalog) {
     };
     ensureSnapshotColumn(QStringLiteral("state"), QStringLiteral("state TEXT NOT NULL DEFAULT 'present'"));
     ensureSnapshotColumn(QStringLiteral("reason"), QStringLiteral("reason TEXT NOT NULL DEFAULT ''"));
+    // P-311: the manifest denormalizes the path and content hash as of the
+    // snapshot, so a later rename/move/delete never rewrites what a snapshot
+    // shows (P-312 reads exactly these). Older snapshots default to '' and fall
+    // back to the asset's current recorded location.
+    ensureSnapshotColumn(QStringLiteral("folder"), QStringLiteral("folder TEXT NOT NULL DEFAULT ''"));
+    ensureSnapshotColumn(QStringLiteral("name"), QStringLiteral("name TEXT NOT NULL DEFAULT ''"));
+    ensureSnapshotColumn(QStringLiteral("hash"), QStringLiteral("hash TEXT NOT NULL DEFAULT ''"));
     // P-307: a revision can be pinned (with a reason) so a future retention
     // policy never cleans or overwrites its object. Old libraries lack the
     // columns; every existing revision is simply unpinned by default.
@@ -1126,6 +1134,38 @@ int Library::hardenObjects() {
 
 qint64 Library::snapshotAll(const QString &note) {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
+    // P-311: the manifest is published once, built from completed revisions —
+    // the snapshot boundary is a sequence point in the revision sequence, not
+    // whatever a live file scan happens to see. Before the transaction, wait
+    // (bounded retries) for any file still being written; a file that never
+    // settles makes the candidate incomplete, and an incomplete candidate is
+    // never published as a successful snapshot: the whole call fails instead.
+    const auto fileSig = [](const QString &path) {
+        const QFileInfo info(path);
+        return qMakePair(info.size(), info.lastModified().toMSecsSinceEpoch());
+    };
+    QStringList writing;
+    for (const auto &asset : assets()) {
+        const QFileInfo info(asset.path);
+        if (!info.exists()) continue; // missing: manifest lists the last revision
+        // Only a very recently modified file can be mid-write; older files are
+        // treated as settled (one stat, no wait). The transaction's torn-read
+        // guard is the authoritative check regardless of this fast path.
+        const qint64 ageMs = QDateTime::currentMSecsSinceEpoch()
+                           - info.lastModified().toMSecsSinceEpoch();
+        if (ageMs > 3000) continue;
+        auto observed = fileSig(asset.path);
+        bool settled = false;
+        for (int attempt = 0; attempt < 3 && !settled; ++attempt) {
+            QThread::msleep(25); // bounded wait for the external writer to finish
+            const auto again = fileSig(asset.path);
+            settled = again == observed;
+            observed = again; // keep observing the latest writer state
+        }
+        if (!settled) writing << asset.logicalPath();
+    }
+    if (!writing.isEmpty())
+        fail(Library::tr("无法发布一致快照，以下文件仍在写入：%1").arg(writing.join(QStringLiteral("、"))));
     if (!db_.transaction()) fail(db_.lastError().text());
     qint64 snapshotId = 0;
     try {
@@ -1135,9 +1175,34 @@ qint64 Library::snapshotAll(const QString &note) {
         q.addBindValue(note.isEmpty() ? QStringLiteral("紧急快照") : note);
         execute(q);
         snapshotId = q.lastInsertId().toLongLong();
-        const auto all = assets();
         const auto rules = exclusions();
-        for (const auto &asset : all) {
+        // One manifest row per entry: assetId, path as of the snapshot, the
+        // referenced revision's content hash, and a state
+        // (present|tombstone|excluded|missing). Every referenced object is
+        // verified (present + size) before the manifest is committed.
+        const auto insertEntry = [&](const QString &assetId, const QString &folder,
+                                     const QString &name, const QString &hash,
+                                     const QString &state, const QString &reason,
+                                     qint64 revisionId, qint64 objectSize) {
+            if (!hash.isEmpty()) {
+                const QFileInfo object(objectPath(hash));
+                if (!object.exists() || object.size() != objectSize)
+                    fail(Library::tr("无法发布一致快照，对象校验失败：%1").arg(name));
+            }
+            QSqlQuery ins(db_);
+            ins.prepare("INSERT OR REPLACE INTO snapshot_assets"
+                        "(snapshot_id,asset_id,revision_id,state,reason,folder,name,hash) VALUES(?,?,?,?,?,?,?,?)");
+            ins.addBindValue(snapshotId);
+            ins.addBindValue(assetId);
+            ins.addBindValue(revisionId);
+            ins.addBindValue(state);
+            ins.addBindValue(reason);
+            ins.addBindValue(folder);
+            ins.addBindValue(name);
+            ins.addBindValue(hash);
+            execute(ins);
+        };
+        for (const auto &asset : assets()) {
             // P-306: an asset hitting an exclusion rule is listed in this
             // snapshot as excluded but gets no anchor and is never backed up —
             // it simply stays out of subsequent snapshots, and "excluded" is
@@ -1148,21 +1213,22 @@ qint64 Library::snapshotAll(const QString &note) {
                 if (!hit.isEmpty()) break;
             }
             if (!hit.isEmpty()) {
-                QSqlQuery ins(db_);
-                ins.prepare("INSERT OR REPLACE INTO snapshot_assets(snapshot_id,asset_id,revision_id,state,reason) VALUES(?,?,?,?,?)");
-                ins.addBindValue(snapshotId);
-                ins.addBindValue(asset.id);
-                ins.addBindValue(0);
-                ins.addBindValue(QStringLiteral("excluded"));
-                ins.addBindValue(hit);
-                execute(ins);
+                insertEntry(asset.id, asset.folder, asset.name, QString(),
+                            QStringLiteral("excluded"), hit, 0, 0);
                 continue;
             }
             const auto history = revisions(asset.id);
-            QFile file(asset.path);
+            QFileInfo info(asset.path);
             QByteArray current;
-            if (file.exists() && file.open(QIODevice::ReadOnly)) {
-                current = file.readAll();
+            if (info.exists() && info.isReadable()) {
+                const auto pre = fileSig(asset.path);
+                QFile file(asset.path);
+                if (file.open(QIODevice::ReadOnly)) current = file.readAll();
+                // Torn-read guard: the manifest may only reference settled
+                // content, so a writer that touched the file during the read
+                // makes this candidate incomplete — fail it, publish nothing.
+                if (fileSig(asset.path) != pre)
+                    fail(Library::tr("无法发布一致快照，文件写入未稳定：%1").arg(asset.name));
             }
             // The recovery anchor must be the last CLEAN revision (pre-infection).
             // Race: scanChanges (2s) can auto-record suspected-infected bytes
@@ -1176,21 +1242,44 @@ qint64 Library::snapshotAll(const QString &note) {
             // revision is kept as the anchor rather than dropping the asset.
             const QString currentHash = current.isEmpty() ? QString() : digest(current);
             qint64 anchor = 0;
+            QString anchorHash;
+            qint64 anchorSize = 0;
             for (const auto &rev : history) { // newest first
-                if (current.isEmpty() || rev.hash != currentHash) { anchor = rev.id; break; }
+                if (current.isEmpty() || rev.hash != currentHash) {
+                    anchor = rev.id; anchorHash = rev.hash; anchorSize = rev.size; break;
+                }
             }
-            if (!anchor && !history.isEmpty()) anchor = history.first().id;
+            if (!anchor && !history.isEmpty()) {
+                anchor = history.first().id;
+                anchorHash = history.first().hash;
+                anchorSize = history.first().size;
+            }
             if (!current.isEmpty() && (history.isEmpty() || history.first().hash != currentHash))
                 append(asset, current, QStringLiteral("紧急快照锚点"));
             if (!anchor) continue; // no clean history to recover to
-            QSqlQuery ins(db_);
-            ins.prepare("INSERT OR REPLACE INTO snapshot_assets(snapshot_id,asset_id,revision_id,state,reason) VALUES(?,?,?,?,?)");
-            ins.addBindValue(snapshotId);
-            ins.addBindValue(asset.id);
-            ins.addBindValue(anchor);
-            ins.addBindValue(QStringLiteral("present"));
-            ins.addBindValue(QString());
-            execute(ins);
+            // P-310/P-311: a working copy that is gone (external removal) is
+            // "missing" — recoverable from the anchored revision, never a
+            // deletion, and never silently dropped from the manifest.
+            const QString state = info.exists() ? QStringLiteral("present")
+                                                : QStringLiteral("missing");
+            insertEntry(asset.id, asset.folder, asset.name, anchorHash, state, QString(),
+                        anchor, anchorSize);
+        }
+        // P-310/P-311: in-app deleted assets belong to the whole-tree manifest
+        // as tombstones — the library state at this boundary includes "deleted
+        // here, history retained". The newest revision of a deleted asset is
+        // the tombstone deleteAsset wrote; its object is verified like any
+        // other reference.
+        QSqlQuery dead(db_);
+        dead.prepare("SELECT id,name,folder FROM assets WHERE deleted=1 ORDER BY name,id");
+        execute(dead);
+        while (dead.next()) {
+            const auto history = revisions(dead.value(0).toString());
+            if (history.isEmpty()) continue;
+            insertEntry(dead.value(0).toString(), dead.value(2).toString(),
+                        dead.value(1).toString(), history.first().hash,
+                        QStringLiteral("tombstone"), QString(),
+                        history.first().id, history.first().size);
         }
         if (!db_.commit()) fail(db_.lastError().text());
     } catch (...) {
@@ -1204,9 +1293,12 @@ QVector<Snapshot> Library::snapshots() const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
     QSqlQuery q(db_);
     q.prepare("SELECT s.id,s.created,s.note,"
-              // NULL-safe: a LEFT JOIN row for a snapshot with no entries has
-              // state=NULL and must not be counted as present (P-310 empty tree).
-              "SUM(CASE WHEN sa.state IS NOT NULL AND sa.state!='excluded' THEN 1 ELSE 0 END),"
+              // P-311: counts are by exact manifest state. present and missing
+              // both carry a recoverable anchor, so both count as anchored
+              // assets (a missing working copy is recoverable, not deleted).
+              // An empty snapshot (no matching rows) yields NULL from the LEFT
+              // JOIN, which compares false against every state, so it is 0.
+              "SUM(CASE WHEN sa.state='present' OR sa.state='missing' THEN 1 ELSE 0 END),"
               "SUM(CASE WHEN sa.state='excluded' THEN 1 ELSE 0 END) "
               "FROM snapshots s LEFT JOIN snapshot_assets sa ON sa.snapshot_id=s.id "
               "GROUP BY s.id ORDER BY s.id DESC");
@@ -1219,15 +1311,54 @@ QVector<Snapshot> Library::snapshots() const {
     return result;
 }
 
+QVector<SnapshotEntry> Library::snapshotEntries(qint64 snapshotId) const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
+    QSqlQuery q(db_);
+    q.prepare("SELECT asset_id,folder,name,hash,state,reason,revision_id "
+              "FROM snapshot_assets WHERE snapshot_id=? ORDER BY folder,name,asset_id");
+    q.addBindValue(snapshotId);
+    execute(q);
+    QVector<SnapshotEntry> result;
+    while (q.next()) {
+        SnapshotEntry entry;
+        entry.assetId = q.value(0).toString();
+        entry.folder = q.value(1).toString();
+        entry.name = q.value(2).toString();
+        entry.hash = q.value(3).toString();
+        entry.state = q.value(4).toString();
+        entry.reason = q.value(5).toString();
+        entry.revisionId = q.value(6).toLongLong();
+        // P-311: snapshots written before the manifest carried path/hash fall
+        // back to the asset's current recorded location (deleted assets still
+        // have their row, so this stays correct for tombstones too). The trigger
+        // is an empty name only — a root-level entry legitimately has folder=''.
+        if (entry.name.isEmpty()) {
+            QSqlQuery cur(db_);
+            cur.prepare("SELECT folder,name FROM assets WHERE id=?");
+            cur.addBindValue(entry.assetId);
+            execute(cur);
+            if (cur.next()) {
+                entry.folder = cur.value(0).toString();
+                entry.name = cur.value(1).toString();
+            }
+        }
+        result.push_back(entry);
+    }
+    return result;
+}
+
 int Library::rollbackAll(qint64 snapshotId) {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
     QHash<QString, Asset> byId;
     for (const auto &asset : assets()) byId.insert(asset.id, asset);
     QSqlQuery q(db_);
     // P-306: an excluded entry has no anchor (revision_id 0) and is never a
-    // deletion — rollback only touches present entries, so a restore can never
-    // damage an excluded asset's current working file.
-    q.prepare("SELECT asset_id, revision_id FROM snapshot_assets WHERE snapshot_id=? AND state='present'");
+    // deletion — rollback only touches present and missing entries, so a
+    // restore can never damage an excluded asset's current working file.
+    // P-311: a missing working copy is recoverable from its anchor, so it is
+    // restored exactly like a present one.
+    q.prepare("SELECT asset_id, revision_id FROM snapshot_assets "
+              "WHERE snapshot_id=? AND (state='present' OR state='missing')");
     q.addBindValue(snapshotId);
     execute(q);
     int restored = 0;

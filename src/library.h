@@ -61,6 +61,21 @@ struct Snapshot {
     int excluded = 0;    // entries skipped by an exclusion rule (P-306)
 };
 
+// P-311: one manifest row of a consistent whole-tree snapshot. The path and
+// content hash are denormalized as of the snapshot (later renames/moves/
+// deletions never rewrite it), and state is the P-311 vocabulary
+// present|tombstone|excluded|missing. `hash` is '' only for excluded entries
+// (they have no content reference). P-312 browses exactly these rows.
+struct SnapshotEntry {
+    QString assetId;
+    QString folder;     // logical folder at snapshot time
+    QString name;       // file name at snapshot time
+    QString hash;       // content hash of the referenced revision
+    QString state;      // present | tombstone | excluded | missing
+    QString reason;     // exclusion reason / tombstone note, '' otherwise
+    qint64 revisionId = 0;
+};
+
 // One manual source/author/license entry, exactly as the user typed it (P-215).
 // Empty fields mean unknown; nothing is inferred. Evidence is an attached file
 // kept as an immutable content-addressed object inside the library.
@@ -140,6 +155,11 @@ public:
     // Anti-ransomware: freeze current working state of every asset as one anchor.
     qint64 snapshotAll(const QString &note);
     QVector<Snapshot> snapshots() const;
+    // P-311: the manifest of a consistent snapshot — assetId, path-as-of-
+    // snapshot, content hash and state per entry. Older snapshots (written
+    // before the manifest carried path/hash) fall back to the asset's current
+    // recorded location; the hash column stays '' for those entries.
+    QVector<SnapshotEntry> snapshotEntries(qint64 snapshotId) const;
     // Anti-ransomware: one-click whole-tree rollback to a snapshot anchor. Each
     // asset is restored via the normal "restore forms a new version" path, so
     // later history is preserved rather than destroyed. Returns how many assets

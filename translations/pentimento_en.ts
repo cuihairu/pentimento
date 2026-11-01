@@ -4,7 +4,7 @@
 <context>
     <name>Library</name>
     <message>
-        <location filename="../src/library.cpp" line="+27"/>
+        <location filename="../src/library.cpp" line="+28"/>
         <location line="+19"/>
         <location line="+6"/>
         <location line="+7"/>
@@ -52,7 +52,7 @@
         <translation>Library is corrupt or the index cannot be opened: %1</translation>
     </message>
     <message>
-        <location line="+90"/>
+        <location line="+97"/>
         <source>素材库 schema 版本不兼容（%1），请使用匹配版本打开</source>
         <translation>Library schema version is incompatible (%1); open with a matching version</translation>
     </message>
@@ -158,19 +158,34 @@
         <translation>History object verification failed; operation stopped</translation>
     </message>
     <message>
-        <location line="-376"/>
+        <location line="+283"/>
+        <source>无法发布一致快照，以下文件仍在写入：%1</source>
+        <translation>Cannot publish a consistent snapshot, still being written: %1</translation>
+    </message>
+    <message>
+        <location line="+22"/>
+        <source>无法发布一致快照，对象校验失败：%1</source>
+        <translation>Cannot publish a consistent snapshot, object verification failed: %1</translation>
+    </message>
+    <message>
+        <location line="+41"/>
+        <source>无法发布一致快照，文件写入未稳定：%1</source>
+        <translation>Cannot publish a consistent snapshot, write not settled: %1</translation>
+    </message>
+    <message>
+        <location line="-722"/>
         <source>历史对象内容不一致</source>
         <translation>History object content mismatch</translation>
     </message>
     <message>
-        <location line="-441"/>
+        <location line="-448"/>
         <location line="+7"/>
         <location line="+4"/>
         <source>无法写入暂存对象：%1</source>
         <translation>Cannot write the staged object: %1</translation>
     </message>
     <message>
-        <location line="+809"/>
+        <location line="+816"/>
         <source>无法发布历史对象</source>
         <translation>Cannot publish the history object</translation>
     </message>

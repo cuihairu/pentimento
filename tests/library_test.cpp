@@ -27,6 +27,8 @@
 
 #include <algorithm>
 #include <atomic>
+#include <thread>
+#include <chrono>
 
 namespace {
 void put(const QString &path, const QByteArray &data) {
@@ -1695,6 +1697,111 @@ private slots:
         QCOMPARE(library.revisions(asset.id).size(), 1);
         QVERIFY(!library.revisions(asset.id).first().tombstone);
         QFile::setPermissions(asset.path, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+    }
+    void consistentSnapshotManifestFreezesPathsAndStates() {
+        QTemporaryDir dir;
+        put(dir.filePath("a.png"), "png-a");
+        put(dir.filePath("b.psd"), "psd-b");
+        put(dir.filePath("c.dat"), "c-body");
+        put(dir.filePath("d.jpg"), "d-jpg");
+        Library lib(dir.filePath("lib"));
+        const auto a = lib.importFile(dir.filePath("a.png"));
+        const auto b = lib.importFile(dir.filePath("b.psd"));
+        const auto c = lib.importFile(dir.filePath("c.dat"));
+        const auto d = lib.importFile(dir.filePath("d.jpg"));
+        put(a.path, "png-a2");
+        QVERIFY(lib.capture(a, "second"));
+
+        // One consistent boundary: b excluded by a rule, c's working copy gone
+        // (missing, recoverable), d in-app deleted (tombstone).
+        lib.addExclusion(QStringLiteral("extension"), QStringLiteral("psd"));
+        lib.deleteAsset(d.id);
+        QFile::remove(c.path);
+
+        const qint64 snap = lib.snapshotAll(QStringLiteral("一致性快照"));
+        const auto find = [](const QVector<SnapshotEntry> &entries, const QString &id) {
+            for (const auto &e : entries) if (e.assetId == id) return e;
+            return SnapshotEntry{};
+        };
+        auto entries = lib.snapshotEntries(snap);
+        QCOMPARE(entries.size(), 4);
+        const auto ea = find(entries, a.id);
+        const auto eb = find(entries, b.id);
+        const auto ec = find(entries, c.id);
+        const auto ed = find(entries, d.id);
+        // present: anchored to the last clean revision, path as of the snapshot.
+        QCOMPARE(ea.state, QStringLiteral("present"));
+        QCOMPARE(ea.name, QStringLiteral("a.png"));
+        QCOMPARE(ea.folder, QString());
+        // The anchor is the newest revision differing from the (recorded)
+        // working content — the pre-"second" version, not the newest one.
+        QCOMPARE(ea.hash, lib.revisions(a.id).at(1).hash);
+        // excluded: no content reference, human-readable reason.
+        QCOMPARE(eb.state, QStringLiteral("excluded"));
+        QCOMPARE(eb.hash, QString());
+        QVERIFY(!eb.reason.isEmpty());
+        // missing: recoverable, anchored to the last completed revision, never
+        // a deletion.
+        QCOMPARE(ec.state, QStringLiteral("missing"));
+        QVERIFY(!ec.hash.isEmpty());
+        // tombstone: history retained, object verified.
+        QCOMPARE(ed.state, QStringLiteral("tombstone"));
+        QVERIFY(!ed.hash.isEmpty());
+
+        // Every referenced object verifies against the manifest (the anchor is
+        // the pre-"second" content).
+        QCOMPARE(get(lib.objectPath(ea.hash)), QByteArray("png-a"));
+        QCOMPARE(get(lib.objectPath(ec.hash)), QByteArray("c-body"));
+        QCOMPARE(get(lib.objectPath(ed.hash)), QByteArray("d-jpg"));
+
+        // Rename/move AFTER the snapshot: the manifest path is frozen at the
+        // snapshot boundary and never rewrites.
+        lib.renameAsset(a.id, "renamed.png");
+        lib.moveAsset(a.id, "scenes");
+        entries = lib.snapshotEntries(snap);
+        const auto ea2 = find(entries, a.id);
+        QCOMPARE(ea2.name, QStringLiteral("a.png"));
+        QCOMPARE(ea2.folder, QString());
+        // The live asset moved; the manifest did not.
+        Asset moved;
+        for (const auto &entry : lib.assets()) if (entry.id == a.id) moved = entry;
+        QCOMPARE(moved.name, QStringLiteral("renamed.png"));
+        QCOMPARE(moved.folder, QStringLiteral("scenes"));
+
+        // The rollback touches present and missing entries (recoverable); the
+        // excluded b and tombstoned d are skipped. a is restored to its
+        // pre-"second" anchor content and the missing c is recovered, so two
+        // assets change.
+        const int restored = lib.rollbackAll(snap);
+        QCOMPARE(restored, 2);
+        QCOMPARE(get(moved.path), QByteArray("png-a"));
+        QCOMPARE(get(c.path), QByteArray("c-body"));
+    }
+    void incompleteSnapshotCandidateIsNotPublished() {
+        QTemporaryDir dir;
+        put(dir.filePath("a.dat"), "body-a");
+        Library lib(dir.filePath("lib"));
+        const auto a = lib.importFile(dir.filePath("a.dat"));
+        // A writer keeps touching the file across the snapshot's settle window,
+        // so the candidate can never settle into a complete manifest.
+        std::atomic<bool> stop{false};
+        std::thread writer([&] {
+            QFile f(a.path);
+            if (!f.open(QIODevice::WriteOnly | QIODevice::Append)) return;
+            while (!stop.load()) {
+                f.write("xxxx", 4);
+                f.flush();
+                std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            }
+        });
+        QThread::msleep(30); // let the writer get going
+        bool threw = false;
+        try { lib.snapshotAll(QStringLiteral("写入中")); } catch (const std::exception &) { threw = true; }
+        stop = true;
+        writer.join();
+        QVERIFY(threw);
+        // An incomplete candidate is never published as a successful snapshot.
+        QVERIFY(lib.snapshots().isEmpty());
     }
 };
 QTEST_GUILESS_MAIN(HistoryTest)
