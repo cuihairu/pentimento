@@ -7,6 +7,8 @@
 #include <QTranslator>
 #include <QFile>
 #include <QFileInfo>
+#include <QSqlDatabase>
+#include <QSqlQuery>
 #include <QTemporaryDir>
 #include <QtTest>
 #include <sys/stat.h>
@@ -295,6 +297,65 @@ private slots:
         QCOMPARE(i18n::languagePreference(), QString("en"));
         i18n::setLanguagePreference("zh_CN");
         QCOMPARE(i18n::languagePreference(), QString("zh_CN"));
+    }
+    void libraryOpenCategoriesCoverSixCases() {
+        QTemporaryDir dir;
+        // 1) 新建: a fresh path creates all artifacts and a persistent identity.
+        QString id;
+        {
+            Library fresh(dir.filePath("newlib"));
+            QVERIFY(QFileInfo::exists(dir.filePath("newlib/catalog.sqlite")));
+            QVERIFY(QFileInfo::exists(dir.filePath("newlib/objects")));
+            QVERIFY(QFileInfo::exists(dir.filePath("newlib/working")));
+            QVERIFY(QFileInfo::exists(dir.filePath("newlib/library.lock")));
+            id = fresh.libraryId();
+            QVERIFY(!id.isEmpty());
+            QVERIFY(id.size() == 32 || id.size() == 36);
+        }
+        // 2) 有效库: reopening a valid library (lock released) keeps the identity.
+        {
+            Library reopened(dir.filePath("newlib"));
+            QCOMPARE(reopened.libraryId(), id);
+        }
+        // 3) 无效目录: an existing non-empty directory without catalog.sqlite must
+        // not be silently rebuilt into a library.
+        QVERIFY(QDir().mkpath(dir.filePath("notalib")));
+        put(dir.filePath("notalib/leftover.txt"), "x");
+        QVERIFY_EXCEPTION_THROWN(Library invalid(dir.filePath("notalib")), std::runtime_error);
+        QVERIFY(!QFileInfo::exists(dir.filePath("notalib/catalog.sqlite")));
+        // 4) 已锁定: a second writer on the same path is refused while held.
+        {
+            Library first(dir.filePath("lockedlib"));
+            QVERIFY_EXCEPTION_THROWN(Library second(dir.filePath("lockedlib")), std::runtime_error);
+        }
+        // A released lock frees the path for the next writer.
+        { Library afterRelease(dir.filePath("lockedlib")); Q_UNUSED(afterRelease); }
+        // 5) 权限不足: an existing read-only directory cannot be opened for writing.
+        if (::geteuid() != 0) {
+            QVERIFY(QDir().mkpath(dir.filePath("rolib")));
+            QVERIFY(::chmod(dir.filePath("rolib").toLocal8Bit().constData(), 0555) == 0);
+            QVERIFY_EXCEPTION_THROWN(Library denied(dir.filePath("rolib")), std::runtime_error);
+            QVERIFY(::chmod(dir.filePath("rolib").toLocal8Bit().constData(), 0755) == 0);
+        }
+        // 6) 拔盘/不可达: a path whose parent is a regular file cannot be created.
+        put(dir.filePath("blocker"), "file");
+        QVERIFY_EXCEPTION_THROWN(Library unreachable(dir.filePath("blocker/lib")), std::runtime_error);
+        // An incompatible schema version must be refused, not silently reopened.
+        {
+            Library v1(dir.filePath("schemav"));
+            QVERIFY(!v1.libraryId().isEmpty());
+            const QString catalog = dir.filePath("schemav/catalog.sqlite");
+            {
+                auto db = QSqlDatabase::addDatabase("QSQLITE", "schema_stamp");
+                db.setDatabaseName(catalog);
+                QVERIFY(db.open());
+                QSqlQuery q(db);
+                QVERIFY(q.exec("UPDATE meta SET value='99' WHERE key='schema_version'"));
+                db.close();
+            }
+            QSqlDatabase::removeDatabase("schema_stamp");
+        }
+        QVERIFY_EXCEPTION_THROWN(Library wrong(dir.filePath("schemav")), std::runtime_error);
     }
     void historyObjectsSurviveWorkspaceEncryption() {
         QTemporaryDir dir;

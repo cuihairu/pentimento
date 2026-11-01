@@ -41,21 +41,51 @@ void execute(QSqlQuery &query) {
 
 Library::Library(const QString &root)
     : root_(QDir(root).absolutePath()), connection_(QUuid::createUuid().toString()) {
+    // P-201 six-category open validation. Order matters: a non-library directory
+    // must never be silently rebuilt into a library, and an unreachable volume
+    // must be told apart from a permission problem.
+    const QString catalog = root_ + "/catalog.sqlite";
+    if (QFileInfo::exists(root_)) {
+        const QDir dir(root_);
+        const bool nonEmpty = dir.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot).size() > 0;
+        if (nonEmpty && !QFileInfo::exists(catalog))
+            fail(Library::tr("该目录不是有效的素材库（未找到 catalog.sqlite），不会静默重建"));
+        if (QFileInfo::exists(catalog) && !QFileInfo(catalog).isReadable())
+            fail(Library::tr("素材库索引不可读（权限不足），请检查目录权限"));
+    }
     if (!QDir().mkpath(root_ + "/objects") || !QDir().mkpath(root_ + "/working"))
-        fail(Library::tr("无法创建素材库目录"));
+        fail(Library::tr("素材库目录不可达或无法创建（可能是卷未挂载或权限不足）：%1").arg(root_));
     lock_ = std::make_unique<QLockFile>(root_ + "/library.lock");
     if (!lock_->tryLock(0)) fail(Library::tr("素材库正在被另一个进程使用"));
+    try {
+        openAndInitialize(catalog);
+    } catch (...) {
+        // Exception-safe construction: never leak a registered, open SQLite
+        // connection (or a held lock) when the constructor fails partway.
+        db_ = QSqlDatabase();
+        QSqlDatabase::removeDatabase(connection_);
+        lock_.reset();
+        throw;
+    }
+    // Opening an existing library must re-apply immutability to any object that
+    // a tamperer left writable (idempotent, best-effort). Documented promise in
+    // 85-antiransom.md: hardenObjects() is for hardening existing objects on open.
+    hardenObjects();
+}
+
+void Library::openAndInitialize(const QString &catalog) {
     db_ = QSqlDatabase::addDatabase("QSQLITE", connection_);
-    db_.setDatabaseName(root_ + "/catalog.sqlite");
+    db_.setDatabaseName(catalog);
     if (!db_.open()) {
         const QString error = db_.lastError().text();
         db_ = QSqlDatabase();
         QSqlDatabase::removeDatabase(connection_);
-        fail(error);
+        fail(Library::tr("素材库损坏或索引无法打开：%1").arg(error));
     }
     QSqlQuery q(db_);
     for (const QString &sql : {
              QStringLiteral("PRAGMA foreign_keys=ON"),
+             QStringLiteral("CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY,value TEXT NOT NULL)"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS assets(id TEXT PRIMARY KEY,name TEXT NOT NULL,path TEXT NOT NULL)"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS revisions(id INTEGER PRIMARY KEY AUTOINCREMENT,asset_id TEXT NOT NULL REFERENCES assets(id),hash TEXT NOT NULL,created TEXT NOT NULL,note TEXT NOT NULL,size INTEGER NOT NULL)"),
              QStringLiteral("CREATE INDEX IF NOT EXISTS revisions_asset ON revisions(asset_id,id)"),
@@ -63,10 +93,21 @@ Library::Library(const QString &root)
              QStringLiteral("CREATE TABLE IF NOT EXISTS snapshot_assets(snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),asset_id TEXT NOT NULL REFERENCES assets(id),revision_id INTEGER NOT NULL,PRIMARY KEY(snapshot_id,asset_id))")}) {
         if (!q.exec(sql)) fail(q.lastError().text());
     }
-    // Opening an existing library must re-apply immutability to any object that
-    // a tamperer left writable (idempotent, best-effort). Documented promise in
-    // 85-antiransom.md: hardenObjects() is for hardening existing objects on open.
-    hardenObjects();
+    // Schema/identity metadata. A library predating the meta table, or with an
+    // unknown schema version, must not be silently treated as current (P-201).
+    QSqlQuery meta(db_);
+    meta.prepare("SELECT value FROM meta WHERE key='schema_version'");
+    execute(meta);
+    if (meta.next()) {
+        if (meta.value(0).toString() != QStringLiteral("1"))
+            fail(Library::tr("素材库 schema 版本不兼容（%1），请使用匹配版本打开").arg(meta.value(0).toString()));
+    } else {
+        // Fresh library: stamp identity + version (P-202 foundation).
+        QSqlQuery stamp(db_);
+        stamp.prepare("INSERT OR REPLACE INTO meta(key,value) VALUES('schema_version','1'),('library_id',?)");
+        stamp.addBindValue(QUuid::createUuid().toString(QUuid::WithoutBraces));
+        execute(stamp);
+    }
 }
 
 Library::~Library() {
@@ -79,6 +120,14 @@ BackendInfo Library::backendInfo() const {
     // V1 only ever hosts the self-built backend. Git/SVN (read-only) and Time
     // Machine are deferred to V1.x; they must not be assumed writable here.
     return selfBackendInfo();
+}
+
+QString Library::libraryId() const {
+    QSqlQuery q(db_);
+    q.prepare("SELECT value FROM meta WHERE key='library_id'");
+    execute(q);
+    if (q.next()) return q.value(0).toString();
+    fail(Library::tr("素材库缺少身份标识（library_id），库可能已损坏"));
 }
 
 QVector<Asset> Library::assets() const {

@@ -63,10 +63,16 @@ public:
     // Version-backend capability report (P-103): the self-built backend.
     BackendInfo backendInfo() const;
     QString root() const { return root_; }
+    // Library identity (P-202): a random UUID stamped at creation and persisted
+    // in the meta table; used to validate a relocated library before reopening.
+    QString libraryId() const;
 private:
     QString root_;
     QString connection_;
     QSqlDatabase db_;
     std::unique_ptr<QLockFile> lock_;
+    // Exception-safe construction helper (P-201): open the catalog, stamp the
+    // schema/identity metadata, and validate the schema version.
+    void openAndInitialize(const QString &catalog);
     void append(const Asset &asset, const QByteArray &bytes, const QString &note);
 };
