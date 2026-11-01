@@ -53,16 +53,21 @@ void ThumbnailCache::store(const QString &contentHash, const QSize &size,
 }
 
 QImage thumbnailFor(ThumbnailCache &cache, const QByteArray &contentBytes,
-                    const QString &contentHash, const QSize &size) {
+                    const QString &contentHash, const QSize &size,
+                    const QString &formatHint) {
     const int version = ThumbnailCache::decoderVersion();
     QImage cached = cache.find(contentHash, size, version);
     if (!cached.isNull()) return cached;
     // Decode from the object bytes, never from a path: the hash is authoritative
-    // and a renamed/version-changed file cannot show a stale image.
+    // and a renamed/version-changed file cannot show a stale image. The hint is
+    // authoritative for signature-less formats (TGA) that sniffing mislabels.
     QBuffer buffer;
     buffer.setData(contentBytes);
     buffer.open(QIODevice::ReadOnly);
     QImageReader reader(&buffer);
+    if (!formatHint.isEmpty() &&
+        QImageReader::supportedImageFormats().contains(formatHint.toLatin1()))
+        reader.setFormat(formatHint.toLatin1());
     reader.setAutoTransform(true);
     QImage decoded = reader.read();
     if (decoded.isNull()) return QImage();

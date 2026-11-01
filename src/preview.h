@@ -3,6 +3,7 @@
 #include <QImage>
 #include <QSize>
 #include <QString>
+#include <QStringList>
 
 // Preview helpers (P-209). Aspect-preserving zoom math and bounded decoding so
 // huge images degrade to a scaled read instead of exhausting memory. All scaling
@@ -21,10 +22,25 @@ struct Decoded {
 // still land in a usable range. Returns 1 when either size is empty.
 qreal fitScale(const QSize &imageSize, const QSize &viewportSize, int margin = 0);
 
-// Decode `path` for preview. When the RGBA decode would exceed `pixelBudget`
-// pixels, the image is read at a uniformly downscaled size (aspect preserved)
-// and flagged `reduced`; the source file is never modified. Never allocates
-// unbounded memory.
-Decoded decode(const QString &path, qint64 pixelBudget = 64LL * 1024 * 1024);
+// Decode `path` for preview. `formatHint` (from the asset's own file extension,
+// which the asset stores) is authoritative for signature-less formats such as
+// TGA that content sniffing mislabels; when absent or unsupported, content
+// sniffing decides. When the RGBA decode would exceed `pixelBudget` pixels, the
+// image is read at a uniformly downscaled size (aspect preserved) and flagged
+// `reduced`; the source file is never modified. Never allocates unbounded memory.
+Decoded decode(const QString &path, const QString &formatHint = QString(),
+               qint64 pixelBudget = 64LL * 1024 * 1024);
+
+// Content-sniffed format of `path` ("png", "jpeg", ...), empty when the content
+// is unrecognized. Never trusts the file extension (P-210).
+QString detectedFormat(const QString &path);
+
+// True when the running Qt can actually decode `path` (content-based). Distinct
+// from a successful decode: a truncated file is recognizable but not decodable.
+bool canDecode(const QString &path);
+
+// The V1 first-batch formats (PNG/JPEG/WebP/TGA/BMP) that this Qt build can
+// decode; reports capability honestly instead of claiming support by extension.
+QStringList firstBatchSupported();
 
 } // namespace preview

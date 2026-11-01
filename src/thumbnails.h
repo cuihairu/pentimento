@@ -34,6 +34,8 @@ private:
 
 // Find a thumbnail for content bytes; if absent or corrupt, decode from the
 // bytes (never from a file path, so the object hash is authoritative) and cache
-// it. The returned image is scaled to fit `size` preserving aspect ratio.
+// it. `formatHint` (the asset's file extension) is authoritative for formats
+// content sniffing mislabels (TGA). Scaled to fit `size` preserving aspect.
 QImage thumbnailFor(ThumbnailCache &cache, const QByteArray &contentBytes,
-                    const QString &contentHash, const QSize &size);
+                    const QString &contentHash, const QSize &size,
+                    const QString &formatHint = QString());

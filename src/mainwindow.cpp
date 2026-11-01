@@ -225,7 +225,8 @@ void MainWindow::reloadAssets(const QString &selectId) {
             const auto revisions = library_.revisions(asset.id);
             if (!revisions.isEmpty()) {
                 const auto bytes = library_.readObject(revisions.first().hash);
-                const QImage thumb = thumbnailFor(thumbnails_, bytes, revisions.first().hash, QSize(80, 80));
+                const QImage thumb = thumbnailFor(thumbnails_, bytes, revisions.first().hash, QSize(80, 80),
+                                                  QFileInfo(asset.name).suffix().toLower());
                 if (!thumb.isNull()) icon = QPixmap::fromImage(thumb);
             }
         } catch (const std::exception &) { /* corrupt object: keep placeholder */ }
@@ -300,7 +301,8 @@ void MainWindow::reloadHistory() {
         QIcon icon;
         try {
             const auto bytes = library_.readObject(revision.hash);
-            const QImage thumb = thumbnailFor(thumbnails_, bytes, revision.hash, QSize(80, 80));
+            const QImage thumb = thumbnailFor(thumbnails_, bytes, revision.hash, QSize(80, 80),
+                                              QFileInfo(selected().name).suffix().toLower());
             if (!thumb.isNull()) icon = QPixmap::fromImage(thumb);
         } catch (const std::exception &) {
             icon = style()->standardIcon(QStyle::SP_MessageBoxWarning);
@@ -330,9 +332,11 @@ void MainWindow::showRevision() {
         previewStack_->setCurrentIndex(1);
         return;
     }
-    // P-209: decode is bounded (huge images downscale on read, never stretching)
-    // and the canvas zoom stays uniform, so the shown aspect is the true aspect.
-    const auto decoded = preview::decode(library_.objectPath(revision.hash));
+    // P-209/P-210: decode is bounded (huge images downscale on read, never
+    // stretching), the canvas zoom stays uniform, and the asset's own extension
+    // is authoritative for signature-less formats (TGA) that sniffing mislabels.
+    const auto decoded = preview::decode(library_.objectPath(revision.hash),
+                                         QFileInfo(selected().name).suffix().toLower());
     if (!decoded.valid) {
         preview_->setText(tr("此格式暂不支持画面预览\n\n原始文件和历史版本已完整保留，可以导出查看。"));
         previewStack_->setCurrentIndex(1);

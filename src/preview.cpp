@@ -15,10 +15,15 @@ qreal fitScale(const QSize &imageSize, const QSize &viewportSize, int margin) {
     return qBound(1.0 / 32.0, scale, 8.0);
 }
 
-Decoded decode(const QString &path, qint64 pixelBudget) {
+Decoded decode(const QString &path, const QString &formatHint, qint64 pixelBudget) {
     Decoded out;
     QImageReader reader(path);
-    reader.setDecideFormatFromContent(true);
+    if (!formatHint.isEmpty() &&
+        QImageReader::supportedImageFormats().contains(formatHint.toLatin1())) {
+        reader.setFormat(formatHint.toLatin1()); // authoritative (signature-less TGA)
+    } else {
+        reader.setDecideFormatFromContent(true); // fallback: sniff the content
+    }
     reader.setAutoTransform(true);
     const QSize size = reader.size();
     if (!size.isValid()) return out;
@@ -33,6 +38,30 @@ Decoded decode(const QString &path, qint64 pixelBudget) {
     }
     out.image = reader.read();
     out.valid = !out.image.isNull();
+    return out;
+}
+
+QString detectedFormat(const QString &path) {
+    QImageReader reader(path);
+    reader.setDecideFormatFromContent(true);
+    return reader.format(); // recognized from content, never from the extension
+}
+
+bool canDecode(const QString &path) {
+    QImageReader reader(path);
+    reader.setDecideFormatFromContent(true);
+    reader.setAutoTransform(true);
+    return reader.canRead();
+}
+
+QStringList firstBatchSupported() {
+    const auto all = QImageReader::supportedImageFormats();
+    const QStringList batch = {QStringLiteral("png"), QStringLiteral("jpeg"),
+                               QStringLiteral("webp"), QStringLiteral("tga"),
+                               QStringLiteral("bmp")};
+    QStringList out;
+    for (const auto &format : batch)
+        if (all.contains(format)) out << format;
     return out;
 }
 

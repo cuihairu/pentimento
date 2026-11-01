@@ -13,6 +13,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QImage>
+#include <QImageReader>
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QTemporaryDir>
@@ -28,6 +29,35 @@ void put(const QString &path, const QByteArray &data) {
     QFile file(path); QVERIFY(file.open(QIODevice::WriteOnly)); QCOMPARE(file.write(data), data.size());
 }
 QByteArray get(const QString &path) { QFile file(path); return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray(); }
+
+// A known-good uncompressed 32-bit BGRA TGA (Qt can read TGA but not write it,
+// so the sample is built byte-exact to validate the decoder, P-210). The Qt TGA
+// plugin only accepts TrueVision 2.0 files, which require the 26-byte footer
+// carrying the "TRUEVISION-XFILE" signature at offset 8.
+QByteArray makeTga(int w, int h, QRgb fill) {
+    QByteArray out;
+    out.reserve(18 + w * h * 4 + 26);
+    out.append(char(0));       // id length
+    out.append(char(0));       // color map type
+    out.append(char(2));       // uncompressed truecolor
+    out.append(QByteArray(5, '\0')); // color map spec
+    out.append(char(0)).append(char(0)); // x origin
+    out.append(char(0)).append(char(0)); // y origin
+    out.append(char(w & 0xff)).append(char((w >> 8) & 0xff));
+    out.append(char(h & 0xff)).append(char((h >> 8) & 0xff));
+    out.append(char(32));      // pixel depth
+    out.append(char(0x28));    // 8 alpha bits + top-left origin
+    for (int i = 0; i < w * h; ++i) {
+        out.append(char(qBlue(fill)));   // B
+        out.append(char(qGreen(fill)));  // G
+        out.append(char(qRed(fill)));    // R
+        out.append(char(qAlpha(fill)));  // A
+    }
+    out.append(QByteArray(8, '\0'));               // ext + developer area offsets
+    out.append(QByteArray("TRUEVISION-XFILE", 16)); // TrueVision 2.0 signature
+    out.append(char(0)).append(char(0));           // NUL + padding
+    return out;
+}
 }
 
 class HistoryTest : public QObject {
@@ -620,12 +650,81 @@ private slots:
         QImage huge(1000, 400, QImage::Format_RGB32);
         huge.fill(Qt::black);
         QVERIFY(huge.save(big));
-        const auto scaled = preview::decode(big, 100000); // budget 100k pixels
+        const auto scaled = preview::decode(big, QString(), 100000); // budget 100k pixels
         QVERIFY(scaled.valid);
         QVERIFY(scaled.reduced);
         QVERIFY(scaled.image.width() <= 500 && scaled.image.height() <= 200);
         const qreal srcAspect = qreal(1000) / 400, outAspect = qreal(scaled.image.width()) / scaled.image.height();
         QVERIFY(qAbs(srcAspect - outAspect) < 0.02); // uniform: not stretched
+    }
+
+    // P-210: every V1 first-batch format must have a sample that actually
+    // decodes (never claiming support by extension), corrupt files degrade
+    // without crashing, and unsupported files stay visible as assets.
+    void firstBatchFormatsDecodeOrDegrade() {
+        QTemporaryDir dir;
+        const QStringList batch = {"png", "jpeg", "webp", "tga", "bmp"};
+        for (const auto &fmt : batch) {
+            const QByteArray latin = fmt.toLatin1();
+            QVERIFY2(QImageReader::supportedImageFormats().contains(latin),
+                     qPrintable("missing codec: " + fmt));
+            const QString path = dir.filePath("sample." + fmt);
+            if (fmt == "tga") {
+                put(path, makeTga(64, 48, qRgba(10, 200, 30, 200))); // read-only codec
+            } else {
+                QImage img(64, 48, QImage::Format_ARGB32);
+                img.fill(Qt::transparent);
+                img.setPixelColor(8, 8, QColor(10, 200, 30, 200));
+                QVERIFY2(img.save(path, latin), qPrintable("encode failed: " + fmt));
+            }
+            // The asset's own extension is authoritative (the app decodes
+            // extensionless objects; the hint guards signature-less formats),
+            // and content sniffing (no hint) is also reliable for well-formed
+            // samples — the detected format is content-based, never extension.
+            const auto d = preview::decode(path, fmt);
+            QVERIFY2(d.valid, qPrintable("decode failed: " + fmt));
+            QCOMPARE(d.image.size(), QSize(64, 48)); // exact size, aspect intact
+            // Transparency per the P-210 sample table: PNG/WebP/TGA keep alpha;
+            // JPEG and BMP have no alpha channel by design.
+            if (fmt == "png" || fmt == "webp" || fmt == "tga")
+                QVERIFY2(d.image.hasAlphaChannel(), qPrintable("alpha lost: " + fmt));
+            if (fmt == "tga") QCOMPARE(d.image.pixelColor(8, 8), QColor(10, 200, 30, 200));
+            QVERIFY2(preview::decode(path).valid, qPrintable("sniff failed: " + fmt));
+            QCOMPARE(preview::detectedFormat(path), fmt); // content-based, not extension
+            // The thumbnail path decodes the same object bytes with the hint.
+            ThumbnailCache cache(dir.filePath("thumbs"));
+            const auto thumb = thumbnailFor(cache, get(path), QString::number(qHash(fmt)), QSize(40, 40), fmt);
+            QVERIFY(!thumb.isNull());
+        }
+        // firstBatchSupported reports exactly the codecs the runtime has.
+        for (const auto &fmt : preview::firstBatchSupported())
+            QVERIFY(QImageReader::supportedImageFormats().contains(fmt.toLatin1()));
+
+        // Truncated (corrupt) file: recognizable but not decodable, never a crash.
+        const QString corrupt = dir.filePath("corrupt.png");
+        QImage good(40, 40, QImage::Format_RGB32);
+        good.fill(Qt::red);
+        QVERIFY(good.save(corrupt));
+        QFile cf(corrupt);
+        QVERIFY(cf.open(QIODevice::WriteOnly | QIODevice::Append));
+        QVERIFY(cf.resize(20)); // keep only the header bytes
+        cf.close();
+        const auto cd = preview::decode(corrupt);
+        QVERIFY(!cd.valid);
+
+        // Unsupported format (PSD-like bytes): visible, degraded, never claims
+        // support by extension, never allocates memory.
+        const QString unsupported = dir.filePath("art.psd");
+        put(unsupported, QByteArray("8BPSfake-not-a-real-psd-header"));
+        QVERIFY(preview::detectedFormat(unsupported).isEmpty());
+        QVERIFY(!preview::canDecode(unsupported));
+        QVERIFY(!preview::decode(unsupported).valid);
+        // It is still importable and listed as an asset ("不支持格式可见").
+        Library lib(dir.filePath("lib"));
+        const auto asset = lib.importFile(unsupported);
+        QVERIFY(!asset.id.isEmpty());
+        QCOMPARE(lib.assets().size(), 1);
+        QCOMPARE(lib.assets().first().id, asset.id);
     }
 };
 QTEST_GUILESS_MAIN(HistoryTest)
