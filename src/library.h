@@ -136,6 +136,12 @@ public:
     // ("..", absolute paths) are rejected.
     void renameAsset(const QString &assetId, const QString &newName);
     void moveAsset(const QString &assetId, const QString &newFolder);
+    // --- Filtering facts (P-217) ------------------------------------------------
+    // Detected format and pixel size of the asset's last committed revision
+    // (updated at import/capture/restore). format is empty and size 0 when the
+    // content is not a decodable image — never fabricated.
+    QString assetFormat(const QString &assetId) const;
+    QSize assetSize(const QString &assetId) const;
     // Read a library's identity from its catalog WITHOUT taking the write lock.
     // Used when re-locating a missing library: verify this is the same library
     // (same id) before opening it at the new path. Throws when the directory is

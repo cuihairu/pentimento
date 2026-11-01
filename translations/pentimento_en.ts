@@ -4,7 +4,7 @@
 <context>
     <name>Library</name>
     <message>
-        <location filename="../src/library.cpp" line="+25"/>
+        <location filename="../src/library.cpp" line="+26"/>
         <source>无法读取文件：%1</source>
         <translation>Cannot read file: %1</translation>
     </message>
@@ -48,7 +48,7 @@
         <translation>Library is corrupt or the index cannot be opened: %1</translation>
     </message>
     <message>
-        <location line="+38"/>
+        <location line="+46"/>
         <source>素材库 schema 版本不兼容（%1），请使用匹配版本打开</source>
         <translation>Library schema version is incompatible (%1); open with a matching version</translation>
     </message>
@@ -104,7 +104,7 @@
         <translation>An asset with this name already exists in the target folder: %1; will not merge</translation>
     </message>
     <message>
-        <location line="+11"/>
+        <location line="+33"/>
         <source>该路径不是有效的素材库（未找到可读的 catalog.sqlite）</source>
         <translation>This path is not a valid asset library (no readable catalog.sqlite found)</translation>
     </message>
@@ -125,13 +125,13 @@
         <translation>History object verification failed; operation stopped</translation>
     </message>
     <message>
-        <location line="-158"/>
-        <location line="+168"/>
+        <location line="-180"/>
+        <location line="+190"/>
         <source>历史对象内容不一致</source>
         <translation>History object content mismatch</translation>
     </message>
     <message>
-        <location line="+27"/>
+        <location line="+41"/>
         <source>无法创建工作目录</source>
         <translation>Cannot create working directory</translation>
     </message>
@@ -146,8 +146,8 @@
         <translation>No revision found for this asset</translation>
     </message>
     <message>
-        <location line="-243"/>
-        <location line="+252"/>
+        <location line="-279"/>
+        <location line="+288"/>
         <source>请导出到素材库之外的现有目录</source>
         <translation>Export to an existing directory outside the library</translation>
     </message>
@@ -160,7 +160,7 @@
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../src/mainwindow.cpp" line="+36"/>
+        <location filename="../src/mainwindow.cpp" line="+37"/>
         <source>pentimento · 画迹</source>
         <translation>pentimento</translation>
     </message>
@@ -176,12 +176,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+684"/>
+        <location line="+792"/>
         <source>记录版本</source>
         <translation>Record version</translation>
     </message>
     <message>
-        <location line="-683"/>
+        <location line="-791"/>
         <source>编辑工作副本</source>
         <translation>Edit working copy</translation>
     </message>
@@ -217,13 +217,13 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+732"/>
+        <location line="+840"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>Restore to anchor</translation>
     </message>
     <message>
-        <location line="-734"/>
+        <location line="-842"/>
         <source>素材库</source>
         <translation>Library</translation>
     </message>
@@ -243,14 +243,14 @@
         <translation>Asset list</translation>
     </message>
     <message>
-        <location line="+9"/>
-        <location line="+524"/>
+        <location line="+51"/>
+        <location line="+590"/>
         <location line="+16"/>
         <source>标签</source>
         <translation>Tags</translation>
     </message>
     <message>
-        <location line="-537"/>
+        <location line="-603"/>
         <source>标签列表</source>
         <translation>Tag list</translation>
     </message>
@@ -276,12 +276,73 @@
         <translation>Rating</translation>
     </message>
     <message>
-        <location line="+1"/>
+        <location line="-40"/>
+        <location line="+41"/>
         <source>无评分</source>
         <translation>No rating</translation>
     </message>
     <message>
+        <location line="-66"/>
+        <source>筛选</source>
+        <translation>Filter</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>标签（逗号分隔，任一命中）</source>
+        <translation>Tags (comma-separated, any match)</translation>
+    </message>
+    <message>
         <location line="+2"/>
+        <source>格式筛选</source>
+        <translation>Format filter</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>全部格式</source>
+        <translation>All formats</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>最小宽度</source>
+        <translation>Minimum width</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>宽度不限</source>
+        <translation>Any width</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>最小高度</source>
+        <translation>Minimum height</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>高度不限</source>
+        <translation>Any height</translation>
+    </message>
+    <message>
+        <location line="+5"/>
+        <source>评分筛选</source>
+        <translation>Rating filter</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>全部评分</source>
+        <translation>All ratings</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>≥ %1 星</source>
+        <translation>≥ %1 star(s)</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>清除条件</source>
+        <translation>Clear conditions</translation>
+    </message>
+    <message>
+        <location line="+40"/>
         <source>%1 星</source>
         <translation>%1 star(s)</translation>
     </message>
@@ -346,12 +407,12 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+3"/>
-        <location line="+459"/>
+        <location line="+525"/>
         <source>历史版本</source>
         <translation>Historical version</translation>
     </message>
     <message>
-        <location line="-456"/>
+        <location line="-522"/>
         <source>恢复此版本</source>
         <translation>Restore this version</translation>
     </message>
@@ -392,12 +453,12 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location line="+248"/>
+        <location line="+314"/>
         <source>未附加证据</source>
         <translation>No evidence attached</translation>
     </message>
     <message>
-        <location line="-243"/>
+        <location line="-309"/>
         <source>记录（旧记录可回看）</source>
         <translation>Records (old entries stay viewable)</translation>
     </message>
@@ -407,7 +468,7 @@ Restoring appends a new version; existing history is always kept.</translation>
         <translation>Export evidence…</translation>
     </message>
     <message>
-        <location line="+35"/>
+        <location line="+28"/>
         <source>重命名…</source>
         <translation>Rename…</translation>
     </message>
@@ -422,12 +483,47 @@ Restoring appends a new version; existing history is always kept.</translation>
         <translation>Local library: %1 · stable changes to working copies are recorded automatically</translation>
     </message>
     <message>
-        <location line="+9"/>
+        <location line="+25"/>
+        <source>名称:%1</source>
+        <translation>Name: %1</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>标签:%1</source>
+        <translation>Tags: %1</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>格式:%1</source>
+        <translation>Format: %1</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>尺寸:≥%1×%2</source>
+        <translation>Size: ≥%1×%2</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>评分:无评分</source>
+        <translation>Rating: no rating</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>评分:≥%1 星</source>
+        <translation>Rating: ≥%1 star(s)</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>无生效条件</source>
+        <translation>No active conditions</translation>
+    </message>
+    <message>
+        <location line="+34"/>
         <source>操作未完成</source>
         <translation>Operation not completed</translation>
     </message>
     <message>
-        <location line="+93"/>
+        <location line="+109"/>
         <source>当前 · </source>
         <translation>Current · </translation>
     </message>

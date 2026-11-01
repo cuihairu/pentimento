@@ -1,7 +1,9 @@
 #pragma once
+#include "filter.h"
 #include "library.h"
 #include "sentinel.h"
 #include "thumbnails.h"
+#include <QHash>
 #include <QMainWindow>
 #include <QMap>
 #include <memory>
@@ -12,6 +14,7 @@ class QLabel;
 class QLineEdit;
 class QListWidget;
 class QPlainTextEdit;
+class QSpinBox;
 class QPushButton;
 class QScrollArea;
 class QStackedWidget;
@@ -61,6 +64,17 @@ private:
     // go here (not to selected()) so switching assets mid-edit never writes the
     // old note into the newly selected asset.
     QString noteAssetId_;
+    // P-217: combined filter (name, tags any-of, format, min size, rating),
+    // all ANDed. Facts are cached per reload so a filter change re-applies
+    // without touching the database; the summary never hides active conditions.
+    QLineEdit *tagFilterEdit_;
+    QComboBox *formatFilterCombo_;
+    QSpinBox *minWidthSpin_;
+    QSpinBox *minHeightSpin_;
+    QComboBox *ratingFilterCombo_;
+    QPushButton *clearFilterBtn_;
+    QLabel *filterSummary_;
+    QHash<QString, AssetFacts> facts_;
     // P-215: manual source/author/license records (append-only, old entries
     // stay viewable). Evidence files are stored as library objects; a pending
     // attachment is held until the entry is recorded.
@@ -98,6 +112,10 @@ private:
     void exportEvidenceFile();
     void renameSelected();
     void moveSelected();
+    void applyFilter();
+    void clearFilter();
+    AssetFilter currentFilter() const;
+    void updateFilterSummary(const AssetFilter &filter);
     QStringList visibleAssetIds() const;
     // P-208: one shared model, two render modes (grid/list); selection is held by
     // stable asset id so a filter/sort/view change never selects another asset.

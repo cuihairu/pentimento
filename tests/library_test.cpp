@@ -1,5 +1,6 @@
 #include "library.h"
 #include "backend.h"
+#include "filter.h"
 #include "i18n.h"
 #include "importer.h"
 #include "platform_immutable.h"
@@ -1079,6 +1080,106 @@ private slots:
         QCOMPARE(byId.value(bId), QStringLiteral("b.png"));
         QCOMPARE(reopened.revisions(aId).size(), 1);
         QCOMPARE(reopened.tags(aId), QStringList({"立绘"}));
+    }
+
+    void combinedFilterMatchesAcrossConditions() {
+        // Two facts: a 64x48 PNG with tags 角色/立绘 rated 4, and a 200x100
+        // JPEG with no tags/rating in a subfolder.
+        AssetFacts png;
+        png.name = QStringLiteral("hero.png"); png.format = QStringLiteral("PNG");
+        png.width = 64; png.height = 48; png.rating = 4;
+        png.tags = {QStringLiteral("角色"), QStringLiteral("立绘")};
+        AssetFacts jpg;
+        jpg.name = QStringLiteral("bg.jpg"); jpg.folder = QStringLiteral("scenes");
+        jpg.format = QStringLiteral("JPEG"); jpg.width = 200; jpg.height = 100; jpg.rating = -1;
+
+        // No condition matches everything; active() stays false.
+        AssetFilter none;
+        QVERIFY(!none.active());
+        QVERIFY(filterMatches(png, none) && filterMatches(jpg, none));
+
+        // Name: matches the logical path (folder/name) case-insensitively.
+        AssetFilter byName; byName.name = QStringLiteral("HERO");
+        QVERIFY(filterMatches(png, byName));
+        QVERIFY(!filterMatches(jpg, byName));
+        AssetFilter byFolder; byFolder.name = QStringLiteral("scenes");
+        QVERIFY(filterMatches(jpg, byFolder));
+        QVERIFY(!filterMatches(png, byFolder));
+
+        // Tags: any-of (OR) within the set; an asset with none fails.
+        AssetFilter byTag; byTag.tags = {QStringLiteral("立绘")};
+        QVERIFY(filterMatches(png, byTag));
+        QVERIFY(!filterMatches(jpg, byTag));
+        AssetFilter byTagAny; byTagAny.tags = {QStringLiteral("立绘"), QStringLiteral("场景")};
+        QVERIFY(filterMatches(png, byTagAny)); // one of two hits
+
+        // Format: exact (case-insensitive); unknown format fails a named one.
+        AssetFilter byFormat; byFormat.format = QStringLiteral("png");
+        QVERIFY(filterMatches(png, byFormat));
+        QVERIFY(!filterMatches(jpg, byFormat));
+
+        // Size: both floors must hold; a floor of 0 is no condition.
+        AssetFilter bySize; bySize.minWidth = 100; bySize.minHeight = 50;
+        QVERIFY(filterMatches(jpg, bySize));
+        QVERIFY(!filterMatches(png, bySize));
+        AssetFilter byWide; byWide.minWidth = 150; byWide.minHeight = 0;
+        QVERIFY(filterMatches(jpg, byWide));
+        QVERIFY(!filterMatches(png, byWide));
+
+        // Rating: no-rating (-1) does not satisfy ">= N"; explicit no-rating only.
+        AssetFilter byRating; byRating.minRating = 3;
+        QVERIFY(filterMatches(png, byRating));
+        QVERIFY(!filterMatches(jpg, byRating)); // no rating is not a score
+        AssetFilter byNoRating; byNoRating.minRating = -1;
+        QVERIFY(filterMatches(jpg, byNoRating));
+        QVERIFY(!filterMatches(png, byNoRating));
+
+        // Combined: all conditions ANDed — only png passes here.
+        AssetFilter combo;
+        combo.name = QStringLiteral("hero");
+        combo.tags = {QStringLiteral("角色")};
+        combo.format = QStringLiteral("PNG");
+        combo.minWidth = 32; combo.minHeight = 32; combo.minRating = 4;
+        QVERIFY(combo.active());
+        QVERIFY(filterMatches(png, combo));
+        combo.minWidth = 128; // now png's 64 fails the size floor
+        QVERIFY(!filterMatches(png, combo));
+    }
+
+    void filteringFactsDerivedFromCommittedRevision() {
+        QTemporaryDir dir;
+        put(dir.filePath("a.tga"), makeTga(64, 48, qRgba(10, 200, 30, 200)));
+        put(dir.filePath("bin.dat"), "not-an-image");
+        QByteArray pngBytes;
+        {
+            QImage img(120, 60, QImage::Format_RGB32);
+            img.fill(Qt::blue);
+            QBuffer buffer(&pngBytes);
+            buffer.open(QIODevice::WriteOnly);
+            QVERIFY(img.save(&buffer, "PNG"));
+        }
+        put(dir.filePath("b.png"), pngBytes);
+        Library lib(dir.filePath("lib"));
+        const auto tga = lib.importFile(dir.filePath("a.tga"));
+        const auto bin = lib.importFile(dir.filePath("bin.dat"));
+        const auto png = lib.importFile(dir.filePath("b.png"));
+
+        // A decodable image reports its real format and size; unknown stays empty/0.
+        QCOMPARE(lib.assetFormat(tga.id).toUpper(), QStringLiteral("TGA"));
+        QCOMPARE(lib.assetSize(tga.id), QSize(64, 48));
+        QCOMPARE(lib.assetFormat(png.id).toUpper(), QStringLiteral("PNG"));
+        QCOMPARE(lib.assetSize(png.id), QSize(120, 60));
+        QVERIFY(lib.assetFormat(bin.id).isEmpty());
+        QCOMPARE(lib.assetSize(bin.id), QSize(0, 0)); // unknown, not fabricated
+
+        // Facts follow the last committed revision: capture a PNG into the TGA
+        // asset and the stored facts update; a restore reverts them.
+        put(dir.filePath("a2.png"), pngBytes);
+        QFile::remove(tga.path);
+        QFile::copy(dir.filePath("a2.png"), tga.path);
+        QVERIFY(lib.capture(tga));
+        QCOMPARE(lib.assetFormat(tga.id).toUpper(), QStringLiteral("PNG"));
+        QCOMPARE(lib.assetSize(tga.id), QSize(120, 60));
     }
 };
 QTEST_GUILESS_MAIN(HistoryTest)

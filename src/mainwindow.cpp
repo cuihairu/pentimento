@@ -24,6 +24,7 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSplitter>
+#include <QSpinBox>
 #include <QStackedWidget>
 #include <QStatusBar>
 #include <QStyle>
@@ -86,6 +87,48 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     setAssetViewMode(true); // default: grid (one shared model, two render modes)
     leftLayout->addWidget(libraryTitle);
     leftLayout->addWidget(search_);
+    // P-217: combined filter — tags (any-of), format, minimum size, rating —
+    // ANDed with the name search. Conditions are always visible in a summary;
+    // one click clears everything back to the full list.
+    auto *filterTitle = new QLabel(tr("筛选"));
+    filterTitle->setStyleSheet("font-size:14px;font-weight:600;");
+    tagFilterEdit_ = new QLineEdit;
+    tagFilterEdit_->setPlaceholderText(tr("标签（逗号分隔，任一命中）"));
+    formatFilterCombo_ = new QComboBox;
+    formatFilterCombo_->setAccessibleName(tr("格式筛选"));
+    formatFilterCombo_->addItem(tr("全部格式"), QString());
+    for (const QString &format : {QStringLiteral("PNG"), QStringLiteral("JPEG"), QStringLiteral("WebP"),
+                                  QStringLiteral("TGA"), QStringLiteral("BMP"), QStringLiteral("PSD")})
+        formatFilterCombo_->addItem(format, format);
+    auto *sizeRow = new QHBoxLayout;
+    minWidthSpin_ = new QSpinBox;
+    minWidthSpin_->setAccessibleName(tr("最小宽度"));
+    minWidthSpin_->setRange(0, 100000);
+    minWidthSpin_->setSpecialValueText(tr("宽度不限"));
+    minHeightSpin_ = new QSpinBox;
+    minHeightSpin_->setAccessibleName(tr("最小高度"));
+    minHeightSpin_->setRange(0, 100000);
+    minHeightSpin_->setSpecialValueText(tr("高度不限"));
+    sizeRow->addWidget(minWidthSpin_);
+    sizeRow->addWidget(new QLabel("×"));
+    sizeRow->addWidget(minHeightSpin_);
+    ratingFilterCombo_ = new QComboBox;
+    ratingFilterCombo_->setAccessibleName(tr("评分筛选"));
+    ratingFilterCombo_->addItem(tr("全部评分"), -2);
+    ratingFilterCombo_->addItem(tr("无评分"), -1);
+    for (int stars = 1; stars <= 5; ++stars)
+        ratingFilterCombo_->addItem(tr("≥ %1 星").arg(stars), stars);
+    clearFilterBtn_ = new QPushButton(tr("清除条件"));
+    filterSummary_ = new QLabel;
+    filterSummary_->setStyleSheet("color:#888;");
+    filterSummary_->setWordWrap(true);
+    leftLayout->addWidget(filterTitle);
+    leftLayout->addWidget(tagFilterEdit_);
+    leftLayout->addWidget(formatFilterCombo_);
+    leftLayout->addLayout(sizeRow);
+    leftLayout->addWidget(ratingFilterCombo_);
+    leftLayout->addWidget(clearFilterBtn_);
+    leftLayout->addWidget(filterSummary_);
     leftLayout->addWidget(assetsList_);
     // P-213: tags of the selected asset, add/remove one at a time; the result is
     // immediately queryable in this list (backed by library.tags()).
@@ -255,21 +298,14 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     splitter->addWidget(left); splitter->addWidget(center); splitter->addWidget(right);
     splitter->setSizes({260, 660, 300});
     setCentralWidget(splitter);
-    connect(search_, &QLineEdit::textChanged, this, [this] {
-        const QString selectedId = selected().id;
-        for (int i = 0; i < assetsList_->count(); ++i)
-            assetsList_->item(i)->setHidden(!assetsList_->item(i)->text().contains(search_->text(), Qt::CaseInsensitive));
-        // P-208: keep selection by stable id; if the current item was filtered
-        // out, focus moves to the nearest visible item instead of nowhere.
-        if (!selectedId.isEmpty()) {
-            bool found = false;
-            for (int i = 0; i < assetsList_->count(); ++i)
-                if (!assetsList_->item(i)->isHidden() && assets_.value(i).id == selectedId) {
-                    assetsList_->setCurrentRow(i); found = true; break;
-                }
-            if (!found) keepSelectionVisible();
-        } else keepSelectionVisible();
-    });
+    // P-217: every filter widget (name included) re-applies the combined filter.
+    connect(search_, &QLineEdit::textChanged, this, &MainWindow::applyFilter);
+    connect(tagFilterEdit_, &QLineEdit::textChanged, this, &MainWindow::applyFilter);
+    connect(formatFilterCombo_, &QComboBox::currentIndexChanged, this, &MainWindow::applyFilter);
+    connect(minWidthSpin_, &QSpinBox::valueChanged, this, &MainWindow::applyFilter);
+    connect(minHeightSpin_, &QSpinBox::valueChanged, this, &MainWindow::applyFilter);
+    connect(ratingFilterCombo_, &QComboBox::currentIndexChanged, this, &MainWindow::applyFilter);
+    connect(clearFilterBtn_, &QPushButton::clicked, this, &MainWindow::clearFilter);
     connect(assetsList_, &QListWidget::currentRowChanged, this, &MainWindow::reloadHistory);
     // P-216: rename / in-library move on the selected asset (identity preserved).
     assetsList_->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -319,12 +355,84 @@ Asset MainWindow::selected() const {
     return row >= 0 && row < assets_.size() ? assets_.at(row) : Asset{};
 }
 
+// P-217: read the filter widgets into an AssetFilter. Tags are comma-separated
+// (any-of); format is the combo's stored value; rating maps the combo (-2 none,
+// -1 no-rating, 1..5 >= N); size is the two spin floors (0 = no condition).
+AssetFilter MainWindow::currentFilter() const {
+    AssetFilter filter;
+    filter.name = search_->text().trimmed();
+    const QStringList tags = tagFilterEdit_->text().split(',', Qt::SkipEmptyParts);
+    for (const QString &tag : tags) filter.tags << tag.trimmed();
+    filter.format = formatFilterCombo_->currentData().toString();
+    filter.minWidth = minWidthSpin_->value();
+    filter.minHeight = minHeightSpin_->value();
+    filter.minRating = ratingFilterCombo_->currentData().toInt();
+    return filter;
+}
+
+void MainWindow::updateFilterSummary(const AssetFilter &filter) {
+    QStringList parts;
+    if (!filter.name.isEmpty()) parts << tr("名称:%1").arg(filter.name);
+    if (!filter.tags.isEmpty()) parts << tr("标签:%1").arg(filter.tags.join(','));
+    if (!filter.format.isEmpty()) parts << tr("格式:%1").arg(filter.format);
+    if (filter.minWidth > 0 || filter.minHeight > 0)
+        parts << tr("尺寸:≥%1×%2").arg(filter.minWidth).arg(filter.minHeight);
+    if (filter.minRating == -1) parts << tr("评分:无评分");
+    else if (filter.minRating >= 1) parts << tr("评分:≥%1 星").arg(filter.minRating);
+    filterSummary_->setText(parts.isEmpty() ? tr("无生效条件") : parts.join(" · "));
+}
+
+// Re-apply the filter over the cached facts: hides non-matching items without
+// touching the database. Keeps the selection on a visible item (P-208).
+void MainWindow::applyFilter() {
+    const AssetFilter filter = currentFilter();
+    const QString selectedId = selected().id;
+    for (int i = 0; i < assetsList_->count() && i < assets_.size(); ++i) {
+        const auto &asset = assets_.at(i);
+        assetsList_->item(i)->setHidden(!filterMatches(facts_.value(asset.id), filter));
+    }
+    updateFilterSummary(filter);
+    if (!selectedId.isEmpty()) {
+        bool found = false;
+        for (int i = 0; i < assetsList_->count(); ++i)
+            if (!assetsList_->item(i)->isHidden() && assets_.value(i).id == selectedId) {
+                assetsList_->setCurrentRow(i); found = true; break;
+            }
+        if (!found) keepSelectionVisible();
+    } else keepSelectionVisible();
+}
+
+void MainWindow::clearFilter() {
+    search_->clear();
+    tagFilterEdit_->clear();
+    formatFilterCombo_->setCurrentIndex(0);
+    minWidthSpin_->setValue(0);
+    minHeightSpin_->setValue(0);
+    ratingFilterCombo_->setCurrentIndex(0);
+    applyFilter(); // reset widgets to defaults, then re-show everything
+}
+
 void MainWindow::report(const std::exception &error) {
     QMessageBox::warning(this, tr("操作未完成"), QString::fromUtf8(error.what()));
 }
 
 void MainWindow::reloadAssets(const QString &selectId) {
     assets_ = library_.assets();
+    // P-217: cache the filter facts once per reload (tags/format/size/rating),
+    // so re-applying the filter on any widget change is pure and DB-free.
+    facts_.clear();
+    for (const auto &asset : assets_) {
+        AssetFacts facts;
+        facts.name = asset.name;
+        facts.folder = asset.folder;
+        facts.tags = library_.tags(asset.id);
+        facts.format = library_.assetFormat(asset.id);
+        const QSize size = library_.assetSize(asset.id);
+        facts.width = size.width();
+        facts.height = size.height();
+        facts.rating = library_.rating(asset.id);
+        facts_.insert(asset.id, facts);
+    }
     assetsList_->blockSignals(true);
     assetsList_->clear();
     // Selection is restored by stable asset id (P-208), never by row or filename.
@@ -348,7 +456,7 @@ void MainWindow::reloadAssets(const QString &selectId) {
             }
         } catch (const std::exception &) { /* corrupt object: keep placeholder */ }
         if (!icon.isNull()) item->setIcon(icon);
-        item->setHidden(!asset.logicalPath().contains(search_->text(), Qt::CaseInsensitive));
+        item->setHidden(!filterMatches(facts_.value(asset.id), currentFilter()));
         if (!asset.id.isEmpty() && asset.id == selectId) selection = i;
     }
     // If the requested id (or any item) is filtered out, focus the nearest visible item.
@@ -356,6 +464,7 @@ void MainWindow::reloadAssets(const QString &selectId) {
         assetsList_->setCurrentRow(selection);
     else keepSelectionVisible();
     assetsList_->blockSignals(false);
+    updateFilterSummary(currentFilter());
     reloadHistory();
 }
 

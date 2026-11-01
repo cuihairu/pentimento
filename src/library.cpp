@@ -1,6 +1,7 @@
 #include "library.h"
 
 #include "platform_immutable.h"
+#include "preview.h"
 
 #include <QCryptographicHash>
 #include <QDateTime>
@@ -101,16 +102,24 @@ void Library::openAndInitialize(const QString &catalog) {
              QStringLiteral("CREATE TABLE IF NOT EXISTS snapshot_assets(snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),asset_id TEXT NOT NULL REFERENCES assets(id),revision_id INTEGER NOT NULL,PRIMARY KEY(snapshot_id,asset_id))")}) {
         if (!q.exec(sql)) fail(q.lastError().text());
     }
-    // P-216: assets gain a logical folder column. CREATE IF NOT EXISTS does not
-    // alter an existing table, so add the column when it is missing (existing
-    // rows default to the root folder "").
-    QSqlQuery folderCheck(db_);
-    folderCheck.prepare("SELECT COUNT(*) FROM pragma_table_info('assets') WHERE name='folder'");
-    execute(folderCheck);
-    if (folderCheck.next() && folderCheck.value(0).toInt() == 0) {
-        if (!q.exec("ALTER TABLE assets ADD COLUMN folder TEXT NOT NULL DEFAULT ''"))
-            fail(q.lastError().text());
-    }
+    // P-216/P-217: assets gain a logical folder column plus filtering facts
+    // (detected format, pixel size). CREATE IF NOT EXISTS does not alter an
+    // existing table, so add each column when it is missing (existing rows keep
+    // the root folder "" and unknown format/size).
+    const auto ensureColumn = [&](const QString &name, const QString &ddl) {
+        QSqlQuery check(db_);
+        check.prepare("SELECT COUNT(*) FROM pragma_table_info('assets') WHERE name=?");
+        check.addBindValue(name);
+        execute(check);
+        if (check.next() && check.value(0).toInt() == 0) {
+            if (!q.exec("ALTER TABLE assets ADD COLUMN " + ddl))
+                fail(q.lastError().text());
+        }
+    };
+    ensureColumn(QStringLiteral("folder"), QStringLiteral("folder TEXT NOT NULL DEFAULT ''"));
+    ensureColumn(QStringLiteral("format"), QStringLiteral("format TEXT NOT NULL DEFAULT ''"));
+    ensureColumn(QStringLiteral("width"), QStringLiteral("width INTEGER NOT NULL DEFAULT 0"));
+    ensureColumn(QStringLiteral("height"), QStringLiteral("height INTEGER NOT NULL DEFAULT 0"));
     // Schema/identity metadata. A library predating the meta table, or with an
     // unknown schema version, must not be silently treated as current (P-201).
     QSqlQuery meta(db_);
@@ -465,6 +474,28 @@ void Library::moveAsset(const QString &assetId, const QString &newFolder) {
     execute(update);
 }
 
+// --- Filtering facts (P-217) ----------------------------------------------------
+// The detected format and pixel size of the asset's last committed revision.
+// Unknown stays unknown: an undecodable content yields an empty format and a
+// 0x0 size, never a guessed value.
+
+QString Library::assetFormat(const QString &assetId) const {
+    QSqlQuery q(db_);
+    q.prepare("SELECT format FROM assets WHERE id=?");
+    q.addBindValue(assetId);
+    execute(q);
+    return q.next() ? q.value(0).toString() : QString();
+}
+
+QSize Library::assetSize(const QString &assetId) const {
+    QSqlQuery q(db_);
+    q.prepare("SELECT width,height FROM assets WHERE id=?");
+    q.addBindValue(assetId);
+    execute(q);
+    if (!q.next()) return QSize();
+    return QSize(q.value(0).toInt(), q.value(1).toInt());
+}
+
 QString Library::peekLibraryId(const QString &root) {
     const QString catalog = QDir(root).absoluteFilePath("catalog.sqlite");
     if (!QFileInfo::exists(catalog) || !QFileInfo(catalog).isReadable())
@@ -548,6 +579,20 @@ void Library::append(const Asset &asset, const QByteArray &bytes, const QString 
     q.addBindValue(note.isEmpty() ? QStringLiteral("手动快照") : note);
     q.addBindValue(bytes.size());
     execute(q);
+    // P-217: refresh the asset's filtering facts from this new revision. Header
+    // only; an undecodable content leaves the format empty and size 0 (unknown).
+    // Content detection is authoritative (no name-extension hint): the asset
+    // name can be stale after a format-changing capture, and the facts must
+    // reflect the true committed content.
+    const auto meta = preview::metadata(path);
+    QSqlQuery facts(db_);
+    facts.prepare("UPDATE assets SET format=?,width=?,height=? WHERE id=?");
+    // A null QString binds as SQL NULL and the NOT NULL column rejects it.
+    facts.addBindValue(meta.format.isEmpty() ? QStringLiteral("") : meta.format.toUpper());
+    facts.addBindValue(meta.width);
+    facts.addBindValue(meta.height);
+    facts.addBindValue(asset.id);
+    execute(facts);
 }
 
 Asset Library::importFile(const QString &source) {

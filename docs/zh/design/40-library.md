@@ -135,3 +135,4 @@ PNG/JPEG/WebP/TGA/BMP 建编码、透明、损坏和像素尺寸边界样本表�
 - 清除：一键清除全部条件；清除后回到全量。
 - **补充评分验收**：评分范围与无评分状态（原验收缺，补入）。
 - 不做：自然语言/图像语义搜索。
+- 实现（2026-11-01）：纯结构 AssetFilter/AssetFacts + 头文件内联 filterMatches()（src/filter.h，加入 pentimento_core）；条件：名称（logicalPath 大小写不敏感子串）、标签（任一命中，逗号分隔去空）、格式（大小写不敏感）、最小宽/高（0=不限）、评分（-1=显式无评分，-2=不限，≥N），全部 AND，标签组内 OR；事实集每次 reload 缓存在 QHash<id,AssetFacts>（tags/format/size/rating 各一次查询），筛选重应用零 DB 访问；assets 表增 format/width/height 列（ALTER 迁移），append() 每次新修订后从内容（preview::metadata，无文件名后缀提示——内容嗅探权威，文件扩展名可能滞后于换格式后的捕获）刷新事实；格式/尺寸筛选控件（全部格式+PNG/JPEG/WebP/TGA/BMP/PSD、宽度/高度不限、全部评分/无评分/≥1–5星）、清除条件一键复位、条件摘要始终显示生效条件（无生效条件时提示）；列表条目按 logicalPath 显示、按 filterMatches 隐藏（setHidden），筛选变化保持 P-208 选择身份。测试 combinedFilterMatchesAcrossConditions（纯 filterMatches 各条件组合）与 filteringFactsDerivedFromCommittedRevision（换格式捕获后 assetFormat 随真实内容更新，而非陈旧扩展名）。
