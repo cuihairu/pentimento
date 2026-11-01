@@ -20,6 +20,14 @@ struct Asset {
     QString path;
     // Path relative to the library root, as persisted in the catalog.
     QString relative;
+    // Logical folder within the library (P-216): a library-relative path such as
+    // "characters/hero", or "" for the root. The working file physically stays in
+    // a per-asset directory; the folder is the organizational view.
+    QString folder;
+    // User-visible location of the asset: "<folder>/<name>" (or just name).
+    QString logicalPath() const {
+        return folder.isEmpty() ? name : folder + QStringLiteral("/") + name;
+    }
 };
 
 struct Revision {
@@ -119,6 +127,15 @@ public:
     void addProvenance(const QString &assetId, const Provenance &entry);
     QString storeEvidence(const QString &filePath);
     void exportEvidence(const QString &hash, const QString &destination) const;
+    // --- Folder organization and asset identity (P-216) --------------------------
+    // Rename keeps the asset id (history stays with the same asset) and renames
+    // the working copy file to match. Move changes only the logical folder
+    // (library-relative path, "" = root), keeping id and name. Both refuse a
+    // name/folder clash with another asset: never a silent overwrite, never an
+    // automatic merge of two distinct assets. Out-of-library folder targets
+    // ("..", absolute paths) are rejected.
+    void renameAsset(const QString &assetId, const QString &newName);
+    void moveAsset(const QString &assetId, const QString &newFolder);
     // Read a library's identity from its catalog WITHOUT taking the write lock.
     // Used when re-locating a missing library: verify this is the same library
     // (same id) before opening it at the new path. Throws when the directory is

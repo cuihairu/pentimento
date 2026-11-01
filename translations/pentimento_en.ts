@@ -48,7 +48,7 @@
         <translation>Library is corrupt or the index cannot be opened: %1</translation>
     </message>
     <message>
-        <location line="+28"/>
+        <location line="+38"/>
         <source>素材库 schema 版本不兼容（%1），请使用匹配版本打开</source>
         <translation>Library schema version is incompatible (%1); open with a matching version</translation>
     </message>
@@ -63,7 +63,48 @@
         <translation>Invalid rating: %1</translation>
     </message>
     <message>
-        <location line="+110"/>
+        <location line="+116"/>
+        <source>名称不能为空</source>
+        <translation>Name cannot be empty</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>名称不能包含路径分隔符</source>
+        <translation>Name cannot contain a path separator</translation>
+    </message>
+    <message>
+        <location line="+5"/>
+        <location line="+50"/>
+        <source>找不到素材</source>
+        <translation>Asset not found</translation>
+    </message>
+    <message>
+        <location line="-40"/>
+        <source>同文件夹已有同名素材：%1，不会覆盖</source>
+        <translation>An asset with this name already exists in this folder: %1; will not overwrite</translation>
+    </message>
+    <message>
+        <location line="+12"/>
+        <source>无法重命名工作副本</source>
+        <translation>Cannot rename the working copy</translation>
+    </message>
+    <message>
+        <location line="+14"/>
+        <source>文件夹必须是库内相对路径</source>
+        <translation>The folder must be a library-relative path</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>文件夹不能超出素材库</source>
+        <translation>The folder cannot escape the library</translation>
+    </message>
+    <message>
+        <location line="+18"/>
+        <source>目标文件夹已有同名素材：%1，不会合并</source>
+        <translation>An asset with this name already exists in the target folder: %1; will not merge</translation>
+    </message>
+    <message>
+        <location line="+11"/>
         <source>该路径不是有效的素材库（未找到可读的 catalog.sqlite）</source>
         <translation>This path is not a valid asset library (no readable catalog.sqlite found)</translation>
     </message>
@@ -84,18 +125,18 @@
         <translation>History object verification failed; operation stopped</translation>
     </message>
     <message>
-        <location line="-74"/>
-        <location line="+84"/>
+        <location line="-158"/>
+        <location line="+168"/>
         <source>历史对象内容不一致</source>
         <translation>History object content mismatch</translation>
     </message>
     <message>
-        <location line="+25"/>
+        <location line="+27"/>
         <source>无法创建工作目录</source>
         <translation>Cannot create working directory</translation>
     </message>
     <message>
-        <location line="+45"/>
+        <location line="+47"/>
         <source>无法创建恢复目录</source>
         <translation>Cannot create restore directory</translation>
     </message>
@@ -105,8 +146,8 @@
         <translation>No revision found for this asset</translation>
     </message>
     <message>
-        <location line="-155"/>
-        <location line="+164"/>
+        <location line="-243"/>
+        <location line="+252"/>
         <source>请导出到素材库之外的现有目录</source>
         <translation>Export to an existing directory outside the library</translation>
     </message>
@@ -119,7 +160,7 @@
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../src/mainwindow.cpp" line="+35"/>
+        <location filename="../src/mainwindow.cpp" line="+36"/>
         <source>pentimento · 画迹</source>
         <translation>pentimento</translation>
     </message>
@@ -135,12 +176,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+643"/>
+        <location line="+684"/>
         <source>记录版本</source>
         <translation>Record version</translation>
     </message>
     <message>
-        <location line="-642"/>
+        <location line="-683"/>
         <source>编辑工作副本</source>
         <translation>Edit working copy</translation>
     </message>
@@ -176,13 +217,13 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+691"/>
+        <location line="+732"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>Restore to anchor</translation>
     </message>
     <message>
-        <location line="-693"/>
+        <location line="-734"/>
         <source>素材库</source>
         <translation>Library</translation>
     </message>
@@ -203,13 +244,13 @@
     </message>
     <message>
         <location line="+9"/>
-        <location line="+483"/>
+        <location line="+524"/>
         <location line="+16"/>
         <source>标签</source>
         <translation>Tags</translation>
     </message>
     <message>
-        <location line="-496"/>
+        <location line="-537"/>
         <source>标签列表</source>
         <translation>Tag list</translation>
     </message>
@@ -305,12 +346,12 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+3"/>
-        <location line="+418"/>
+        <location line="+459"/>
         <source>历史版本</source>
         <translation>Historical version</translation>
     </message>
     <message>
-        <location line="-415"/>
+        <location line="-456"/>
         <source>恢复此版本</source>
         <translation>Restore this version</translation>
     </message>
@@ -351,12 +392,12 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location line="+236"/>
+        <location line="+248"/>
         <source>未附加证据</source>
         <translation>No evidence attached</translation>
     </message>
     <message>
-        <location line="-231"/>
+        <location line="-243"/>
         <source>记录（旧记录可回看）</source>
         <translation>Records (old entries stay viewable)</translation>
     </message>
@@ -366,7 +407,17 @@ Restoring appends a new version; existing history is always kept.</translation>
         <translation>Export evidence…</translation>
     </message>
     <message>
-        <location line="+61"/>
+        <location line="+35"/>
+        <source>重命名…</source>
+        <translation>Rename…</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>移动到文件夹…</source>
+        <translation>Move to folder…</translation>
+    </message>
+    <message>
+        <location line="+34"/>
         <source>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</source>
         <translation>Local library: %1 · stable changes to working copies are recorded automatically</translation>
     </message>
@@ -376,7 +427,7 @@ Restoring appends a new version; existing history is always kept.</translation>
         <translation>Operation not completed</translation>
     </message>
     <message>
-        <location line="+90"/>
+        <location line="+93"/>
         <source>当前 · </source>
         <translation>Current · </translation>
     </message>
@@ -419,6 +470,41 @@ Restoring appends a new version; existing history is always kept.</translation>
         <location line="+19"/>
         <source>已记录来源与授权</source>
         <translation>Source &amp; license recorded</translation>
+    </message>
+    <message>
+        <location line="+9"/>
+        <source>重命名</source>
+        <translation>Rename</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>新名称</source>
+        <translation>New name</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>已重命名：%1</source>
+        <translation>Renamed: %1</translation>
+    </message>
+    <message>
+        <location line="+9"/>
+        <source>移动到文件夹</source>
+        <translation>Move to folder</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>文件夹（库内相对路径，空为根目录）</source>
+        <translation>Folder (library-relative path, empty = root)</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>已移到根目录</source>
+        <translation>Moved to root</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>已移动到：%1</source>
+        <translation>Moved to: %1</translation>
     </message>
     <message>
         <location line="+10"/>

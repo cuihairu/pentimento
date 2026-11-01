@@ -18,6 +18,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QListView>
+#include <QMenu>
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -270,6 +271,15 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
         } else keepSelectionVisible();
     });
     connect(assetsList_, &QListWidget::currentRowChanged, this, &MainWindow::reloadHistory);
+    // P-216: rename / in-library move on the selected asset (identity preserved).
+    assetsList_->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(assetsList_, &QListWidget::customContextMenuRequested, this, [this](const QPoint &pos) {
+        if (selected().id.isEmpty()) return;
+        QMenu menu;
+        menu.addAction(tr("重命名…"), this, &MainWindow::renameSelected);
+        menu.addAction(tr("移动到文件夹…"), this, &MainWindow::moveSelected);
+        menu.exec(assetsList_->viewport()->mapToGlobal(pos));
+    });
     connect(historyList_, &QListWidget::currentRowChanged, this, &MainWindow::showRevision);
     connect(tagAddBtn_, &QPushButton::clicked, this, &MainWindow::addTagToSelected);
     connect(tagInput_, &QLineEdit::returnPressed, this, &MainWindow::addTagToSelected);
@@ -321,8 +331,11 @@ void MainWindow::reloadAssets(const QString &selectId) {
     int selection = -1;
     for (int i = 0; i < assets_.size(); ++i) {
         const auto &asset = assets_.at(i);
-        auto *item = new QListWidgetItem(asset.name, assetsList_);
-        item->setToolTip(asset.path);
+        // P-216: the label is the user-visible location (folder/name), so an
+        // in-library move is immediately visible; the tooltip keeps the physical
+        // working-copy path for inspection.
+        auto *item = new QListWidgetItem(asset.logicalPath(), assetsList_);
+        item->setToolTip(asset.logicalPath() + QStringLiteral("\n") + asset.path);
         item->setData(Qt::UserRole, asset.id);
         QIcon icon;
         try {
@@ -335,7 +348,7 @@ void MainWindow::reloadAssets(const QString &selectId) {
             }
         } catch (const std::exception &) { /* corrupt object: keep placeholder */ }
         if (!icon.isNull()) item->setIcon(icon);
-        item->setHidden(!asset.name.contains(search_->text(), Qt::CaseInsensitive));
+        item->setHidden(!asset.logicalPath().contains(search_->text(), Qt::CaseInsensitive));
         if (!asset.id.isEmpty() && asset.id == selectId) selection = i;
     }
     // If the requested id (or any item) is filtered out, focus the nearest visible item.
@@ -509,6 +522,35 @@ void MainWindow::recordProvenance() {
         licenseInput_->clear();
         statusBar()->showMessage(tr("已记录来源与授权"));
         reloadProvenance();
+    } catch (const std::exception &error) { report(error); }
+}
+
+void MainWindow::renameSelected() {
+    const auto asset = selected();
+    if (asset.id.isEmpty()) return;
+    bool ok = false;
+    const QString name = QInputDialog::getText(this, tr("重命名"), tr("新名称"), QLineEdit::Normal, asset.name, &ok).trimmed();
+    if (!ok || name.isEmpty()) return;
+    try {
+        library_.renameAsset(asset.id, name);
+        statusBar()->showMessage(tr("已重命名：%1").arg(name));
+        reloadAssets(asset.id);
+    } catch (const std::exception &error) { report(error); }
+}
+
+void MainWindow::moveSelected() {
+    const auto asset = selected();
+    if (asset.id.isEmpty()) return;
+    bool ok = false;
+    const QString folder = QInputDialog::getText(this, tr("移动到文件夹"),
+                                                 tr("文件夹（库内相对路径，空为根目录）"),
+                                                 QLineEdit::Normal, asset.folder, &ok);
+    if (!ok) return;
+    try {
+        library_.moveAsset(asset.id, folder);
+        const QString cleaned = folder.trimmed();
+        statusBar()->showMessage(cleaned.isEmpty() ? tr("已移到根目录") : tr("已移动到：%1").arg(cleaned));
+        reloadAssets(asset.id);
     } catch (const std::exception &error) { report(error); }
 }
 

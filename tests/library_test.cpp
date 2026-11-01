@@ -1001,6 +1001,85 @@ private slots:
         QCOMPARE(rows.last().license, QStringLiteral("CC BY 4.0"));
         QCOMPARE(reopened.readObject(rows.last().evidence), QByteArray("license email printout"));
     }
+
+    void renameAndMoveKeepAssetIdentity() {
+        QTemporaryDir dir;
+        put(dir.filePath("a.png"), "asset-a");
+        put(dir.filePath("b.png"), "asset-b");
+        put(dir.filePath("c.png"), "asset-c");
+        QString aId, bId, cId;
+        {
+            Library lib(dir.filePath("lib"));
+            const auto a = lib.importFile(dir.filePath("a.png"));
+            const auto b = lib.importFile(dir.filePath("b.png"));
+            const auto c = lib.importFile(dir.filePath("c.png"));
+            aId = a.id; bId = b.id; cId = c.id;
+            lib.addTag(aId, "立绘");
+            lib.setRating(aId, 4);
+            lib.setNote(aId, "备注");
+            Provenance prov; prov.source = QStringLiteral("某处"); prov.license = QStringLiteral("CC0");
+            lib.addProvenance(aId, prov);
+            const auto before = lib.revisions(aId);
+            QCOMPARE(before.size(), 1);
+
+            // Rename: identity (id) unchanged, name and working file updated.
+            lib.renameAsset(aId, "hero.png");
+            const auto byId = [&lib](const QString &id) {
+                for (const auto &asset : lib.assets()) if (asset.id == id) return asset;
+                return Asset{};
+            };
+            const Asset renamed = byId(aId);
+            QCOMPARE(renamed.id, aId);
+            QCOMPARE(renamed.name, QStringLiteral("hero.png"));
+            QCOMPARE(renamed.logicalPath(), QStringLiteral("hero.png"));
+            QVERIFY(QFileInfo::exists(renamed.path));
+            QVERIFY(!QFileInfo::exists(dir.filePath("lib/working/" + aId + "/a.png")));
+            // History, tags, rating and note all still belong to the same asset.
+            QCOMPARE(lib.revisions(aId).size(), before.size());
+            QCOMPARE(lib.revisions(aId).first().hash, before.first().hash);
+            QCOMPARE(lib.tags(aId), QStringList({"立绘"}));
+            QCOMPARE(lib.rating(aId), 4);
+            QCOMPARE(lib.note(aId), QStringLiteral("备注"));
+            QCOMPARE(lib.provenance(aId).first().source, QStringLiteral("某处"));
+
+            // Same-folder name clash: refused, nothing overwritten or merged.
+            QVERIFY_EXCEPTION_THROWN(lib.renameAsset(aId, "b.png"), std::runtime_error);
+            QCOMPARE(byId(aId).name, QStringLiteral("hero.png"));
+
+            // Invalid names are rejected before touching anything.
+            QVERIFY_EXCEPTION_THROWN(lib.renameAsset(aId, "   "), std::runtime_error);
+            QVERIFY_EXCEPTION_THROWN(lib.renameAsset(aId, "x/y.png"), std::runtime_error);
+
+            // Move: only the logical folder changes; id and name are kept.
+            lib.moveAsset(aId, " characters/hero ");   // trimmed + normalized
+            const Asset moved = byId(aId);
+            QCOMPARE(moved.id, aId);
+            QCOMPARE(moved.name, QStringLiteral("hero.png"));
+            QCOMPARE(moved.folder, QStringLiteral("characters/hero"));
+            QCOMPARE(moved.logicalPath(), QStringLiteral("characters/hero/hero.png"));
+            QCOMPARE(lib.revisions(aId).size(), before.size()); // history intact
+            // Move to the same folder is a no-op, not an error.
+            lib.moveAsset(aId, "characters/hero");
+            QCOMPARE(byId(aId).folder, QStringLiteral("characters/hero"));
+
+            // Move-time clash: c renamed to hero.png, moving into a's folder fails.
+            lib.renameAsset(cId, "hero.png");
+            QVERIFY_EXCEPTION_THROWN(lib.moveAsset(cId, "characters/hero"), std::runtime_error);
+            QVERIFY(byId(cId).folder.isEmpty()); // c stayed in root, not merged
+
+            // Folder traversal is rejected (never escape the library).
+            QVERIFY_EXCEPTION_THROWN(lib.moveAsset(aId, "../outside"), std::runtime_error);
+            QVERIFY_EXCEPTION_THROWN(lib.moveAsset(aId, "/abs/path"), std::runtime_error);
+        }
+        // Reopen: folder and name persist; identity is unchanged.
+        Library reopened(dir.filePath("lib"));
+        QHash<QString, QString> byId;
+        for (const auto &asset : reopened.assets()) byId.insert(asset.id, asset.logicalPath());
+        QCOMPARE(byId.value(aId), QStringLiteral("characters/hero/hero.png"));
+        QCOMPARE(byId.value(bId), QStringLiteral("b.png"));
+        QCOMPARE(reopened.revisions(aId).size(), 1);
+        QCOMPARE(reopened.tags(aId), QStringList({"立绘"}));
+    }
 };
 QTEST_GUILESS_MAIN(HistoryTest)
 #include "library_test.moc"

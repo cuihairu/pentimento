@@ -96,6 +96,8 @@ private:
     void attachEvidence();
     void recordProvenance();
     void exportEvidenceFile();
+    void renameSelected();
+    void moveSelected();
     QStringList visibleAssetIds() const;
     // P-208: one shared model, two render modes (grid/list); selection is held by
     // stable asset id so a filter/sort/view change never selects another asset.

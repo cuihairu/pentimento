@@ -101,6 +101,16 @@ void Library::openAndInitialize(const QString &catalog) {
              QStringLiteral("CREATE TABLE IF NOT EXISTS snapshot_assets(snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),asset_id TEXT NOT NULL REFERENCES assets(id),revision_id INTEGER NOT NULL,PRIMARY KEY(snapshot_id,asset_id))")}) {
         if (!q.exec(sql)) fail(q.lastError().text());
     }
+    // P-216: assets gain a logical folder column. CREATE IF NOT EXISTS does not
+    // alter an existing table, so add the column when it is missing (existing
+    // rows default to the root folder "").
+    QSqlQuery folderCheck(db_);
+    folderCheck.prepare("SELECT COUNT(*) FROM pragma_table_info('assets') WHERE name='folder'");
+    execute(folderCheck);
+    if (folderCheck.next() && folderCheck.value(0).toInt() == 0) {
+        if (!q.exec("ALTER TABLE assets ADD COLUMN folder TEXT NOT NULL DEFAULT ''"))
+            fail(q.lastError().text());
+    }
     // Schema/identity metadata. A library predating the meta table, or with an
     // unknown schema version, must not be silently treated as current (P-201).
     QSqlQuery meta(db_);
@@ -371,6 +381,90 @@ void Library::exportEvidence(const QString &hash, const QString &destination) co
     writeFile(dest, readObject(hash));
 }
 
+// --- Folder organization and asset identity (P-216) ----------------------------
+// Identity is the asset id: rename and move only update the catalog row (and,
+// for a rename, the working-copy file name), so every revision, tag, rating and
+// provenance record stays attached to the same asset. A clash with another
+// asset's (folder, name) is refused — never a silent overwrite and never an
+// automatic merge of two distinct assets.
+
+void Library::renameAsset(const QString &assetId, const QString &newName) {
+    const QString name = newName.trimmed();
+    if (name.isEmpty()) fail(Library::tr("名称不能为空"));
+    if (name.contains('/') || name.contains('\\'))
+        fail(Library::tr("名称不能包含路径分隔符"));
+    QSqlQuery find(db_);
+    find.prepare("SELECT name,folder,path FROM assets WHERE id=?");
+    find.addBindValue(assetId);
+    execute(find);
+    if (!find.next()) fail(Library::tr("找不到素材"));
+    const QString folder = find.value(1).toString();
+    // Same-folder name clash: refuse and say so; two assets never merge.
+    QSqlQuery clash(db_);
+    clash.prepare("SELECT id FROM assets WHERE folder=? AND name=? AND id<>?");
+    clash.addBindValue(folder);
+    clash.addBindValue(name);
+    clash.addBindValue(assetId);
+    execute(clash);
+    if (clash.next())
+        fail(Library::tr("同文件夹已有同名素材：%1，不会覆盖").arg(name));
+    const QString oldStored = find.value(2).toString();
+    // P-202 onward stores root-relative paths; a pre-P-202 library may still hold
+    // absolute ones. Resolve the working file either way, then keep its name in
+    // sync with the catalog (the per-asset directory itself is untouched).
+    const QString oldAbsolute = QFileInfo(oldStored).isAbsolute() ? oldStored : root_ + "/" + oldStored;
+    const QString newAbsolute = QFileInfo(oldAbsolute).path() + "/" + name;
+    const QString newStored = QFileInfo(oldStored).isAbsolute()
+        ? newAbsolute
+        : QFileInfo(oldStored).path() + "/" + name;
+    if (QFileInfo::exists(oldAbsolute) && oldAbsolute != newAbsolute) {
+        if (!QFile::rename(oldAbsolute, newAbsolute))
+            fail(Library::tr("无法重命名工作副本"));
+    }
+    QSqlQuery update(db_);
+    update.prepare("UPDATE assets SET name=?,path=? WHERE id=?");
+    update.addBindValue(name);
+    update.addBindValue(newStored);
+    update.addBindValue(assetId);
+    execute(update);
+}
+
+void Library::moveAsset(const QString &assetId, const QString &newFolder) {
+    // A folder is always library-relative; an absolute target is refused rather
+    // than silently relativized (the user's intent would be misread).
+    if (newFolder.startsWith('/') || newFolder.startsWith('\\'))
+        fail(Library::tr("文件夹必须是库内相对路径"));
+    // Normalize: trim, drop redundant separators, forbid escaping the library.
+    QStringList parts;
+    for (const QString &part : newFolder.split('/', Qt::KeepEmptyParts)) {
+        const QString piece = part.trimmed();
+        if (piece.isEmpty() || piece == ".") continue;
+        if (piece == "..") fail(Library::tr("文件夹不能超出素材库"));
+        parts << piece;
+    }
+    const QString folder = parts.join('/');
+    QSqlQuery find(db_);
+    find.prepare("SELECT name,folder FROM assets WHERE id=?");
+    find.addBindValue(assetId);
+    execute(find);
+    if (!find.next()) fail(Library::tr("找不到素材"));
+    if (find.value(1).toString() == folder) return; // already there: no-op
+    // Same-folder name clash after the move: refuse, never merge identities.
+    QSqlQuery clash(db_);
+    clash.prepare("SELECT id FROM assets WHERE folder=? AND name=? AND id<>?");
+    clash.addBindValue(folder);
+    clash.addBindValue(find.value(0).toString());
+    clash.addBindValue(assetId);
+    execute(clash);
+    if (clash.next())
+        fail(Library::tr("目标文件夹已有同名素材：%1，不会合并").arg(find.value(0).toString()));
+    QSqlQuery update(db_);
+    update.prepare("UPDATE assets SET folder=? WHERE id=?");
+    update.addBindValue(folder);
+    update.addBindValue(assetId);
+    execute(update);
+}
+
 QString Library::peekLibraryId(const QString &root) {
     const QString catalog = QDir(root).absoluteFilePath("catalog.sqlite");
     if (!QFileInfo::exists(catalog) || !QFileInfo(catalog).isReadable())
@@ -396,12 +490,12 @@ QString Library::peekLibraryId(const QString &root) {
 
 QVector<Asset> Library::assets() const {
     QSqlQuery q(db_);
-    q.prepare("SELECT id,name,path FROM assets ORDER BY name,id");
+    q.prepare("SELECT id,name,path,folder FROM assets ORDER BY name,id");
     execute(q);
     QVector<Asset> result;
     while (q.next()) {
         const QString stored = q.value(2).toString();
-        Asset asset{q.value(0).toString(), q.value(1).toString(), QString(), stored};
+        Asset asset{q.value(0).toString(), q.value(1).toString(), QString(), stored, q.value(3).toString()};
         // Relative paths resolve against the current root; a pre-relative-path
         // library (stored absolute paths) keeps working unchanged.
         asset.path = QFileInfo(stored).isAbsolute() ? stored : root_ + "/" + stored;
@@ -462,7 +556,9 @@ Asset Library::importFile(const QString &source) {
     const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     // Persist a root-relative path so the library stays relocatable (P-202);
     // the absolute working-file path is derived from the current root.
-    Asset asset{id, info.fileName(), QString(), QStringLiteral("working/%1/%2").arg(id, info.fileName())};
+    // New imports start at the root folder (P-216: organization happens later).
+    Asset asset{id, info.fileName(), QString(),
+                QStringLiteral("working/%1/%2").arg(id, info.fileName()), QString()};
     asset.path = root_ + "/" + asset.relative;
     const QString workingDir = QFileInfo(asset.path).absolutePath();
     if (!QDir().mkpath(workingDir)) fail(Library::tr("无法创建工作目录"));
@@ -478,8 +574,10 @@ Asset Library::importFile(const QString &source) {
     if (!db_.transaction()) fail(db_.lastError().text());
     try {
         QSqlQuery q(db_);
-        q.prepare("INSERT INTO assets VALUES(?,?,?)");
+        q.prepare("INSERT INTO assets(id,name,path,folder) VALUES(?,?,?,?)");
         q.addBindValue(asset.id); q.addBindValue(asset.name); q.addBindValue(asset.relative);
+        // A null QString binds as SQL NULL; the root folder is stored as ''.
+        q.addBindValue(asset.folder.isNull() ? QStringLiteral("") : asset.folder);
         execute(q);
         append(asset, bytes, QStringLiteral("首次导入"));
         if (!db_.commit()) fail(db_.lastError().text());
