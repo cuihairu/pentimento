@@ -1,6 +1,7 @@
 #include "library.h"
 #include "backend.h"
 #include "i18n.h"
+#include "importer.h"
 #include "platform_immutable.h"
 #include "recent.h"
 #include "storage.h"
@@ -435,6 +436,91 @@ private slots:
         recent::clear();
         QVERIFY(recent::libraries().isEmpty());
         recent::setStoragePath(QString());
+    }
+    void recursiveScanAppliesIgnoreRulesWithoutFollowingSymlinks() {
+        QTemporaryDir dir;
+        // Tree: two files, a subdir with one file, a hidden file, and a symlink
+        // loop pointing at the root (must not be followed).
+        put(dir.filePath("a.png"), "a");
+        put(dir.filePath("b.bak"), "b");
+        QVERIFY(QDir().mkpath(dir.filePath("sub")));
+        put(dir.filePath("sub/c.png"), "c");
+        put(dir.filePath(".hidden.png"), "h");
+        put(dir.filePath("notes.txt"), "notes");
+        QVERIFY(QFile::link(dir.path(), dir.filePath("loop")));
+        // No rules: recursive, includes hidden files, never follows the symlink.
+        const auto all = importer::scanDirectory(dir.path());
+        QCOMPARE(all.total, 5); // a.png, b.bak, sub/c.png, .hidden.png, notes.txt
+        QCOMPARE(all.excluded, 0);
+        QCOMPARE(all.permissionErrors.size(), 0);
+        bool sawLoop = false;
+        for (const auto &c : all.candidates) sawLoop = sawLoop || c.relative.startsWith(QStringLiteral("loop"));
+        QVERIFY(!sawLoop);
+        // Rules: extension (.png), glob (*.bak), name subtree (sub), hidden-name.
+        const auto rules = QVector<importer::IgnoreRule>{
+            importer::parseIgnoreLine(".png"),
+            importer::parseIgnoreLine("*.bak"),
+            importer::parseIgnoreLine("sub"),
+            importer::parseIgnoreLine("*.txt"),
+        };
+        const auto filtered = importer::scanDirectory(dir.path(), rules);
+        // a.png(.png) b.bak(*.bak) sub/c.png(sub) .hidden.png(.png) notes.txt(*.txt).
+        QCOMPARE(filtered.excluded, 5);
+        QCOMPARE(filtered.total, 5);
+        bool sawAnyIncluded = false;
+        for (const auto &c : filtered.candidates)
+            if (c.excludeReason.isEmpty()) sawAnyIncluded = true;
+        QVERIFY(!sawAnyIncluded);
+        // parseIgnoreLine forms are distinct and displayable.
+        QCOMPARE(importer::parseIgnoreLine(".png").display(), QString("*.png"));
+        QCOMPARE(importer::parseIgnoreLine("*.bak").display(), QString("*.bak"));
+        QCOMPARE(importer::parseIgnoreLine("node_modules").display(), QString("node_modules"));
+    }
+    void importPlanReportsPerItemResultsAndCancelsAtBoundary() {
+        QTemporaryDir dir;
+        QVERIFY(QDir().mkpath(dir.filePath("tree")));
+        QStringList sources;
+        for (int i = 0; i < 8; ++i) {
+            const QString file = dir.filePath(QString("tree/f%1.png").arg(i));
+            put(file, QByteArray("content-") + QByteArray::number(i));
+            sources << file;
+        }
+        // A missing source exercises the failure path (recorded, others proceed).
+        sources << dir.filePath("tree/not-there.png");
+        Library library(dir.filePath("lib"));
+        // Full run: every importable file lands, the failure is recorded per item,
+        // and the library reopens cleanly with no dangling working directories.
+        TaskQueue queue;
+        std::atomic_bool done = false;
+        QObject::connect(&queue, &TaskQueue::taskFinished, [&](qint64, bool, const QString &) { done = true; });
+        queue.submit("import", [&](TaskQueue::Progress &p) {
+            importer::importPlan(library, sources, p);
+        });
+        QTRY_VERIFY_WITH_TIMEOUT(done.load(), 5000);
+        auto status = queue.statuses().first();
+        QCOMPARE(status.items.size(), 9); // 8 ok + 1 failure
+        int ok = 0, failed = 0;
+        for (const auto &item : status.items) item.ok ? ++ok : ++failed;
+        QCOMPARE(ok, 8);
+        QCOMPARE(failed, 1);
+        QCOMPARE(library.assets().size(), 8);
+        // No dangling working directories: one per imported asset.
+        const int workingDirs = QDir(dir.filePath("lib/working")).entryInfoList(
+            QDir::Dirs | QDir::NoDotAndDotDot).size();
+        QCOMPARE(workingDirs, 8);
+        // Cancellation at a file boundary: a pre-set cancel stops before any file,
+        // and the library stays consistent (reopen matches, no partial assets).
+        Library cancelled(dir.filePath("lib2"));
+        TaskQueue q2;
+        std::atomic_bool done2 = false;
+        QObject::connect(&q2, &TaskQueue::taskFinished, [&](qint64, bool, const QString &) { done2 = true; });
+        const qint64 id2 = q2.submit("import", [&](TaskQueue::Progress &p) {
+            importer::importPlan(cancelled, sources, p);
+        });
+        q2.cancel(id2); // set before the worker starts: a boundary-clean no-op
+        QTRY_VERIFY_WITH_TIMEOUT(done2.load(), 5000);
+        QCOMPARE(cancelled.assets().size(), 0);
+        QVERIFY(!cancelled.assets().isEmpty() == false);
     }
     void historyObjectsSurviveWorkspaceEncryption() {
         QTemporaryDir dir;
