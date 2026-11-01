@@ -196,3 +196,5 @@
 - [ ] 审核发现：`importFile` 事务阶段失败（`db_.transaction()`、`append` 或 `db_.commit()` 抛出）时，`working/` 下已写入的工作副本文件不会被清理（仅 `writeFile` 失败路径有 `rmdir`），留下无 `assets` 记录引用的孤儿目录与同名历史对象，与 P-203「pre-registration failure must not leave a half-written asset」的承诺不符（src/library.cpp:348-361）。
 - [ ] 审核发现：`peekLibraryId` 中若 `db.open()` 失败，连接未 `close()` 即 `removeDatabase`，会输出 Qt「connection still in use」警告（错误路径，仅在损坏 catalog 时触发）（src/library.cpp:253-262）。
 - [ ] 审核发现：`statSource` 对 `isWritable()==false` 的只读挂载判定为 `ReadOnly`，但该状态与「目录不可写」同义；`listDirectory` 对只读目录仍会正常列出内容（符合导入可读用途），但 `SourceInfo::state` 字段名与语义在文档中未区分「来源只读」与「健康磁盘」的边界，`stateFor` 注释未说明对目录也适用 `isWritable`，可能误导后续调用方（src/storage.cpp:9-15）。
+
+- [ ] **UI-AUDIT · P2 · 界面审核(impeccable 流程)**:原生桌面界面此前不在 web 界面审核范围,补审——按 impeccable 审计(层级/排版/对比度 a11y/布局/边界态),报告+截图入 docs/review/,坏损当场修。
