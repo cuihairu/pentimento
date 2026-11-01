@@ -230,6 +230,14 @@
 - 检查：目标真实路径（拒绝指向库内对象/当前工作文件）、符号链接、已存在文件（覆盖需明确确认）、磁盘满。
 - 不做：导出覆盖库内部数据；修改后端或自动提交仓库。
 
+**实现（2026-11-01）**
+- 设计：`exportRevision(assetId, revisionId, destination, overwrite=false)`——版本归属校验（找不到历史版本→拒绝）+ readObject 对象哈希校验；目标父目录 canonicalPath 必须在库外（拒绝 objects/ 与工作副本）；目标为符号链接→拒绝；已存在且 !overwrite→拒绝（UI 先确认）。
+- 磁盘满：QSaveFile 原子写，写失败/提交失败→抛错，不半写。
+- 后端/工作区零改动：导出为只读路径，无任何修订/对象/工作文件写入。
+- 接线：导出对话框：目标已存在→明确「覆盖？」确认后才 overwrite=true。
+- 测试：`exportRevisionValidatesPathAndRefusesUnconfirmedOverwrite`（库外导出成功且后端/工作区不变、未确认覆盖拒绝、库内路径拒绝、符号链接拒绝）。
+- 验证：ctest 2/2 绿；离线烟雾运行无崩溃。
+
 ## P-320 恢复日志与重启收敛（硬门槛）
 
 **阶段列表**（各阶段中断验证再次启动）：

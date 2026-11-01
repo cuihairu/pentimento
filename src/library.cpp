@@ -1300,7 +1300,8 @@ Library::Health Library::workingCopyHealth(const Asset &asset) const {
     return Health::Healthy;
 }
 
-void Library::exportRevision(const QString &assetId, qint64 revisionId, const QString &destination) const {
+void Library::exportRevision(const QString &assetId, qint64 revisionId,
+                             const QString &destination, bool overwrite) const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
     // Never export into the managed library (would permit overwriting immutable objects).
     const QString dest = QFileInfo(destination).absoluteFilePath();
@@ -1308,6 +1309,14 @@ void Library::exportRevision(const QString &assetId, qint64 revisionId, const QS
     const QString canonicalRoot = QDir(root_).canonicalPath();
     if (parent.isEmpty() || parent == canonicalRoot || parent.startsWith(canonicalRoot + '/'))
         fail(Library::tr("请导出到素材库之外的现有目录"));
+    // P-319: a symlink destination could resolve back into the library (objects/
+    // or a working file) — following it would overwrite library-internal data.
+    if (QFileInfo(dest).isSymLink())
+        fail(Library::tr("导出目标是指向其他位置的链接，请选择一个真实文件路径"));
+    // P-319: an existing file is only overwritten with explicit confirmation —
+    // the caller passes overwrite=true after asking.
+    if (!overwrite && QFileInfo::exists(dest))
+        fail(Library::tr("目标文件已存在；覆盖需要明确确认"));
     for (const auto &revision : revisions(assetId)) {
         if (revision.id == revisionId) { writeFile(dest, readObject(revision.hash)); return; }
     }

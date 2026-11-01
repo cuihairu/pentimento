@@ -353,6 +353,42 @@ private slots:
         const auto tombstoneOutcomes = library.restoreFromSnapshot(afterDelete, tombstoneItems);
         QCOMPARE(tombstoneOutcomes.at(0).outcome, QStringLiteral("skipped"));
     }
+    // P-319: exporting a historical copy validates the path (outside the library,
+    // no symlink, no unconfirmed overwrite), verifies the object hash, and never
+    // mutates the version backend or the working area.
+    void exportRevisionValidatesPathAndRefusesUnconfirmedOverwrite() {
+        QTemporaryDir dir;
+        put(dir.filePath("asset.dat"), "v1");
+        Library library(dir.filePath("library"));
+        const auto asset = library.importFile(dir.filePath("asset.dat"));
+        put(asset.path, "v2");
+        QVERIFY(library.capture(asset, "v2"));
+        const qint64 revisionsBefore = library.revisions(asset.id).size();
+        const auto rev2 = library.revisions(asset.id).first();
+
+        // Fresh destination: exports the content and verifies the object hash.
+        const QString out = dir.filePath("export.dat");
+        library.exportRevision(asset.id, rev2.id, out);
+        QCOMPARE(get(out), QByteArray("v2"));
+        // The backend and working area are untouched.
+        QCOMPARE(library.revisions(asset.id).size(), revisionsBefore);
+        QCOMPARE(get(asset.path), QByteArray("v2"));
+
+        // An existing destination is refused without overwrite, allowed with it.
+        QVERIFY_EXCEPTION_THROWN(library.exportRevision(asset.id, rev2.id, out), std::runtime_error);
+        library.exportRevision(asset.id, rev2.id, out, /*overwrite=*/true);
+        QCOMPARE(get(out), QByteArray("v2"));
+
+        // A destination resolving into the library is refused (parent check).
+        const QString inLib = library.objectPath(rev2.hash);
+        QVERIFY_EXCEPTION_THROWN(library.exportRevision(asset.id, rev2.id, inLib), std::runtime_error);
+
+        // A symlink destination is refused even when its parent is outside the
+        // library (it could resolve back into objects/ or a working file).
+        const QString link = dir.filePath("link.dat");
+        QVERIFY(QFile::link(inLib, link));
+        QVERIFY_EXCEPTION_THROWN(library.exportRevision(asset.id, rev2.id, link), std::runtime_error);
+    }
     void readObjectIsPublicAndVerifiesHash() {
         QTemporaryDir dir;
         const auto source = dir.filePath("asset.dat");

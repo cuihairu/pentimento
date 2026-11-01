@@ -192,7 +192,15 @@ public:
     // is ever written for this); "" = healthy.
     enum class Health { Healthy, Missing, Unreachable };
     Health workingCopyHealth(const Asset &asset) const;
-    void exportRevision(const QString &assetId, qint64 revisionId, const QString &destination) const;
+    // P-319: export a historical copy OUTSIDE the library after validating the
+    // revision belongs to the asset and its object hash matches. The destination
+    // must resolve outside the library (never into objects/ or a working file),
+    // must not be a symlink, and an existing file is refused unless `overwrite`
+    // is set — the caller confirms an overwrite explicitly. Disk-full / write
+    // failures throw (QSaveFile). Never modifies the version backend or the
+    // working area.
+    void exportRevision(const QString &assetId, qint64 revisionId,
+                        const QString &destination, bool overwrite = false) const;
     QString objectPath(const QString &hash) const;
     QByteArray readObject(const QString &hash) const;
     // Anti-ransomware: re-apply immutability to any object left writable (idempotent).

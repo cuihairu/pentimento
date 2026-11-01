@@ -221,7 +221,17 @@
         <translation>素材不存在，跳过</translation>
     </message>
     <message>
-        <location line="+174"/>
+        <location line="+127"/>
+        <source>导出目标是指向其他位置的链接，请选择一个真实文件路径</source>
+        <translation>导出目标是指向其他位置的链接，请选择一个真实文件路径</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>目标文件已存在；覆盖需要明确确认</source>
+        <translation>目标文件已存在；覆盖需要明确确认</translation>
+    </message>
+    <message>
+        <location line="+52"/>
         <source>无法发布一致快照，以下文件仍在写入：%1</source>
         <translation>无法发布一致快照，以下文件仍在写入：%1</translation>
     </message>
@@ -236,7 +246,7 @@
         <translation>无法发布一致快照，文件写入未稳定：%1</translation>
     </message>
     <message>
-        <location line="-916"/>
+        <location line="-925"/>
         <source>历史对象内容不一致</source>
         <translation>历史对象内容不一致</translation>
     </message>
@@ -275,12 +285,12 @@
     </message>
     <message>
         <location line="-580"/>
-        <location line="+789"/>
+        <location line="+790"/>
         <source>请导出到素材库之外的现有目录</source>
         <translation>请导出到素材库之外的现有目录</translation>
     </message>
     <message>
-        <location line="-89"/>
+        <location line="-90"/>
         <location line="+22"/>
         <source>素材不存在</source>
         <translation>素材不存在</translation>
@@ -296,7 +306,7 @@
         <translation>无法删除工作副本：%1（请关闭占用该文件的程序）</translation>
     </message>
     <message>
-        <location line="+57"/>
+        <location line="+66"/>
         <source>找不到历史版本</source>
         <translation>找不到历史版本</translation>
     </message>
@@ -361,13 +371,13 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+1498"/>
+        <location line="+1506"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>恢复到锚点</translation>
     </message>
     <message>
-        <location line="-1498"/>
+        <location line="-1506"/>
         <source>素材库</source>
         <translation>素材库</translation>
     </message>
@@ -405,12 +415,12 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+1189"/>
+        <location line="+1197"/>
         <source>添加</source>
         <translation>添加</translation>
     </message>
     <message>
-        <location line="-1188"/>
+        <location line="-1196"/>
         <source>移除</source>
         <translation>移除</translation>
     </message>
@@ -629,14 +639,14 @@
     </message>
     <message>
         <location line="+3"/>
-        <location line="+860"/>
+        <location line="+868"/>
         <location line="+223"/>
         <location line="+152"/>
         <source>关闭</source>
         <translation>关闭</translation>
     </message>
     <message>
-        <location line="-1234"/>
+        <location line="-1242"/>
         <source>每 15 分钟</source>
         <translation>每 15 分钟</translation>
     </message>
@@ -652,20 +662,20 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+945"/>
+        <location line="+953"/>
         <source>定时快照未启用</source>
         <translation>定时快照未启用</translation>
     </message>
     <message>
-        <location line="-942"/>
+        <location line="-950"/>
         <location line="+114"/>
-        <location line="+803"/>
+        <location line="+811"/>
         <location line="+11"/>
         <source>暂停</source>
         <translation>暂停</translation>
     </message>
     <message>
-        <location line="-926"/>
+        <location line="-934"/>
         <source>仅应用运行时生效；退出应用期间不算持续备份。</source>
         <translation>仅应用运行时生效；退出应用期间不算持续备份。</translation>
     </message>
@@ -732,12 +742,12 @@
     <message>
         <location line="+1"/>
         <location line="+238"/>
-        <location line="+588"/>
+        <location line="+596"/>
         <source>恢复</source>
         <translation>恢复</translation>
     </message>
     <message>
-        <location line="-802"/>
+        <location line="-810"/>
         <source>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</source>
         <translation>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</translation>
     </message>
@@ -937,12 +947,12 @@
     <message>
         <location line="+1"/>
         <location line="+257"/>
-        <location line="+443"/>
+        <location line="+451"/>
         <source>取消</source>
         <translation>取消</translation>
     </message>
     <message>
-        <location line="-695"/>
+        <location line="-703"/>
         <source>已删除：%1（历史与对象保留，可从时间线恢复）</source>
         <translation>已删除：%1（历史与对象保留，可从时间线恢复）</translation>
     </message>
@@ -1150,18 +1160,25 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
     </message>
     <message>
         <location line="+4"/>
-        <location line="+447"/>
+        <location line="+455"/>
         <source>恢复预演</source>
         <translation>恢复预演</translation>
     </message>
     <message>
-        <location line="-439"/>
-        <location line="+443"/>
+        <location line="-447"/>
+        <location line="+451"/>
         <source>确认恢复</source>
         <translation>确认恢复</translation>
     </message>
     <message>
-        <location line="-401"/>
+        <location line="-430"/>
+        <source>目标文件已存在：%1
+覆盖？</source>
+        <translation>目标文件已存在：%1
+覆盖？</translation>
+    </message>
+    <message>
+        <location line="+29"/>
         <source>双版对比</source>
         <translation>双版对比</translation>
     </message>
@@ -1251,12 +1268,13 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
 未记录的当前内容会先保存。请先在外部编辑器中关闭此文件。</translation>
     </message>
     <message>
-        <location line="-463"/>
+        <location line="-471"/>
+        <location line="+5"/>
         <source>导出历史版本</source>
         <translation>导出历史版本</translation>
     </message>
     <message>
-        <location line="+95"/>
+        <location line="+98"/>
         <source>自动记录失败：%1</source>
         <translation>自动记录失败：%1</translation>
     </message>

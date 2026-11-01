@@ -1103,7 +1103,15 @@ void MainWindow::exportFile() {
     if (row < 0) return;
     const auto path = QFileDialog::getSaveFileName(this, tr("导出历史版本"), selected().name);
     if (path.isEmpty()) return;
-    try { library_.exportRevision(selected().id, revisions_.at(row).id, path); }
+    // P-319: an existing destination is only overwritten after explicit confirmation.
+    bool overwrite = false;
+    if (QFileInfo::exists(path)) {
+        if (QMessageBox::question(this, tr("导出历史版本"),
+                                  tr("目标文件已存在：%1\n覆盖？").arg(path)) != QMessageBox::Yes)
+            return;
+        overwrite = true;
+    }
+    try { library_.exportRevision(selected().id, revisions_.at(row).id, path, overwrite); }
     catch (const std::exception &error) { report(error); }
 }
 
