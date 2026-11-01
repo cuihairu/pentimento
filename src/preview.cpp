@@ -4,6 +4,10 @@
 #include <QtGlobal>
 #include <QtMath>
 
+namespace {
+const QByteArray kPsdSignature = QByteArrayLiteral("8BPS");
+}
+
 namespace preview {
 
 qreal fitScale(const QSize &imageSize, const QSize &viewportSize, int margin) {
@@ -52,6 +56,10 @@ bool canDecode(const QString &path) {
     reader.setDecideFormatFromContent(true);
     reader.setAutoTransform(true);
     return reader.canRead();
+}
+
+bool isPsdSignature(const QByteArray &content) {
+    return content.startsWith(kPsdSignature);
 }
 
 QStringList firstBatchSupported() {

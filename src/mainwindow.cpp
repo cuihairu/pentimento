@@ -324,8 +324,9 @@ void MainWindow::showRevision() {
         .arg(selected().name, row == 0 ? tr("当前版本") : tr("历史版本"),
              QDateTime::fromString(revision.created, Qt::ISODateWithMs).toLocalTime().toString("yyyy-MM-dd HH:mm:ss"))
         .arg(revision.id));
+    QByteArray content;
     try {
-        library_.readObject(revision.hash);
+        content = library_.readObject(revision.hash);
     } catch (const std::exception &error) {
         preview_->setText(tr("内容损坏或校验失败\n\n%1\n\n原始对象已保留，可导出排查。")
             .arg(QString::fromUtf8(error.what())));
@@ -338,7 +339,12 @@ void MainWindow::showRevision() {
     const auto decoded = preview::decode(library_.objectPath(revision.hash),
                                          QFileInfo(selected().name).suffix().toLower());
     if (!decoded.valid) {
-        preview_->setText(tr("此格式暂不支持画面预览\n\n原始文件和历史版本已完整保留，可以导出查看。"));
+        // P-211: PSD composite preview was evaluated (no PSD codec in Qt), so
+        // Photoshop files degrade explicitly: no composite view is claimed, and
+        // the original bytes stay fully preserved and exportable.
+        preview_->setText(preview::isPsdSignature(content)
+            ? tr("原文件已保留，暂无合成预览（PSD 解析未支持）\n\nPhotoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码插件）。\n原始文件和历史版本已完整保留，可以导出查看。")
+            : tr("此格式暂不支持画面预览\n\n原始文件和历史版本已完整保留，可以导出查看。"));
         previewStack_->setCurrentIndex(1);
         return;
     }

@@ -10,6 +10,7 @@
 #include "thumbnails.h"
 #include <QTranslator>
 #include <QBuffer>
+#include <QDataStream>
 #include <QFile>
 #include <QFileInfo>
 #include <QImage>
@@ -56,6 +57,24 @@ QByteArray makeTga(int w, int h, QRgb fill) {
     out.append(QByteArray(8, '\0'));               // ext + developer area offsets
     out.append(QByteArray("TRUEVISION-XFILE", 16)); // TrueVision 2.0 signature
     out.append(char(0)).append(char(0));           // NUL + padding
+    return out;
+}
+
+// A real PSD header (26 bytes, big-endian "8BPS") so the P-211 sample is a
+// genuine Photoshop file, not an arbitrary blob; a composite follows in a real
+// file but Qt has no PSD codec, so the header is what the signature check sees.
+QByteArray makePsd(int w, int h) {
+    QByteArray out;
+    QDataStream ds(&out, QIODevice::WriteOnly);
+    ds.setByteOrder(QDataStream::BigEndian);
+    ds.writeRawData("8BPS", 4);
+    ds << quint16(1);                    // version
+    ds.writeRawData("\0\0\0\0\0\0", 6);  // reserved
+    ds << quint16(3);                    // channels
+    ds << quint32(h);                    // height
+    ds << quint32(w);                    // width
+    ds << quint16(8);                    // bits per channel
+    ds << quint16(3);                    // color mode: RGB
     return out;
 }
 }
@@ -725,6 +744,34 @@ private slots:
         QVERIFY(!asset.id.isEmpty());
         QCOMPARE(lib.assets().size(), 1);
         QCOMPARE(lib.assets().first().id, asset.id);
+    }
+
+    // P-211: PSD composite preview was evaluated — Qt 6.10.2 has no PSD codec —
+    // so Photoshop files degrade explicitly (no composite claimed), the
+    // signature is detected from content, and the original bytes stay intact.
+    void psdCompositePreviewDegradesAndPreservesFile() {
+        QTemporaryDir dir;
+        const QByteArray psd = makePsd(8, 8);
+        const QString path = dir.filePath("art.psd");
+        put(path, psd);
+        QVERIFY(preview::isPsdSignature(psd));       // content-based detection
+        QVERIFY(!preview::isPsdSignature(QByteArray("not a psd")));
+        QVERIFY(preview::detectedFormat(path).isEmpty()); // no codec claims it
+        QVERIFY(!preview::decode(path, "psd").valid);     // no composite preview
+        QVERIFY(!preview::firstBatchSupported().contains("psd"));
+        // "无法预览时的原文件保留": import keeps every byte and stays visible.
+        Library lib(dir.filePath("lib"));
+        const auto asset = lib.importFile(path);
+        QVERIFY(!asset.id.isEmpty());
+        QCOMPARE(get(path), psd);                      // source file untouched
+        QCOMPARE(lib.readObject(lib.revisions(asset.id).first().hash), psd);
+        QCOMPARE(lib.assets().size(), 1);
+        // A truncated (corrupt) PSD also keeps its bytes and degrades silently.
+        const QString broken = dir.filePath("broken.psd");
+        put(broken, psd.left(10));
+        const auto brokenAsset = lib.importFile(broken);
+        QCOMPARE(lib.readObject(lib.revisions(brokenAsset.id).first().hash), psd.left(10));
+        QVERIFY(preview::isPsdSignature(psd.left(10)));
     }
 };
 QTEST_GUILESS_MAIN(HistoryTest)

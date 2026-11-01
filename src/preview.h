@@ -39,6 +39,11 @@ QString detectedFormat(const QString &path);
 // from a successful decode: a truncated file is recognizable but not decodable.
 bool canDecode(const QString &path);
 
+// True when `content` begins with the PSD signature ("8BPS"); content-based, so
+// the degradation message for Photoshop files never relies on the extension
+// (P-211: composite preview is evaluated, not assumed).
+bool isPsdSignature(const QByteArray &content);
+
 // The V1 first-batch formats (PNG/JPEG/WebP/TGA/BMP) that this Qt build can
 // decode; reports capability honestly instead of claiming support by extension.
 QStringList firstBatchSupported();
