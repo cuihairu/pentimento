@@ -61,6 +61,10 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     toolbar->addAction(listAction);
     connect(gridAction, &QAction::triggered, this, [this] { setAssetViewMode(true); });
     connect(listAction, &QAction::triggered, this, [this] { setAssetViewMode(false); });
+    // P-213: batch tags apply to the visible (filtered) set explicitly, with a
+    // count preview before anything changes.
+    toolbar->addAction(tr("为筛选结果添加标签…"), this, &MainWindow::batchAddTag);
+    toolbar->addAction(tr("从筛选结果移除标签…"), this, &MainWindow::batchRemoveTag);
     // Anti-ransomware Layer 3: one-click rollback to a pre-infection anchor.
     toolbar->addAction(tr("恢复到锚点"), this, &MainWindow::rollbackToSnapshot);
     auto *splitter = new QSplitter;
@@ -79,6 +83,25 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     leftLayout->addWidget(libraryTitle);
     leftLayout->addWidget(search_);
     leftLayout->addWidget(assetsList_);
+    // P-213: tags of the selected asset, add/remove one at a time; the result is
+    // immediately queryable in this list (backed by library.tags()).
+    auto *tagsTitle = new QLabel(tr("标签"));
+    tagsTitle->setStyleSheet("font-size:14px;font-weight:600;");
+    tagsList_ = new QListWidget;
+    tagsList_->setAccessibleName(tr("标签列表"));
+    tagsList_->setMaximumHeight(110);
+    tagsList_->setViewMode(QListView::ListMode);
+    auto *tagRow = new QHBoxLayout;
+    tagInput_ = new QLineEdit;
+    tagInput_->setPlaceholderText(tr("新标签"));
+    tagAddBtn_ = new QPushButton(tr("添加"));
+    tagRemoveBtn_ = new QPushButton(tr("移除"));
+    tagRow->addWidget(tagInput_, 1);
+    tagRow->addWidget(tagAddBtn_);
+    tagRow->addWidget(tagRemoveBtn_);
+    leftLayout->addWidget(tagsTitle);
+    leftLayout->addWidget(tagsList_);
+    leftLayout->addLayout(tagRow);
     auto *center = new QWidget;
     auto *centerLayout = new QVBoxLayout(center);
     details_ = new QLabel(tr("导入第一份素材，开始保留创作历史。"));
@@ -185,6 +208,9 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     });
     connect(assetsList_, &QListWidget::currentRowChanged, this, &MainWindow::reloadHistory);
     connect(historyList_, &QListWidget::currentRowChanged, this, &MainWindow::showRevision);
+    connect(tagAddBtn_, &QPushButton::clicked, this, &MainWindow::addTagToSelected);
+    connect(tagInput_, &QLineEdit::returnPressed, this, &MainWindow::addTagToSelected);
+    connect(tagRemoveBtn_, &QPushButton::clicked, this, &MainWindow::removeSelectedTag);
     connect(restore_, &QPushButton::clicked, this, &MainWindow::restore);
     connect(export_, &QPushButton::clicked, this, &MainWindow::exportFile);
     auto *timer = new QTimer(this);
@@ -312,6 +338,81 @@ void MainWindow::reloadHistory() {
     historyList_->setCurrentRow(revisions_.isEmpty() ? -1 : 0);
     historyList_->blockSignals(false);
     showRevision();
+    reloadTags();
+}
+
+void MainWindow::reloadTags() {
+    tagsList_->blockSignals(true);
+    tagsList_->clear();
+    for (const QString &tag : library_.tags(selected().id))
+        tagsList_->addItem(tag);
+    tagsList_->blockSignals(false);
+}
+
+QStringList MainWindow::visibleAssetIds() const {
+    QStringList ids;
+    for (int i = 0; i < assetsList_->count(); ++i)
+        if (!assetsList_->item(i)->isHidden())
+            ids << assetsList_->item(i)->data(Qt::UserRole).toString();
+    return ids;
+}
+
+void MainWindow::addTagToSelected() {
+    const auto asset = selected();
+    if (asset.id.isEmpty()) return;
+    const QString tag = tagInput_->text().trimmed();
+    if (tag.isEmpty()) { statusBar()->showMessage(tr("标签不能为空")); return; }
+    try {
+        const int changed = library_.addTag(asset.id, tag);
+        statusBar()->showMessage(changed ? tr("已添加标签：%1").arg(tag) : tr("标签已存在：%1").arg(tag));
+        tagInput_->clear();
+        reloadTags();
+    } catch (const std::exception &error) { report(error); }
+}
+
+void MainWindow::removeSelectedTag() {
+    const auto asset = selected();
+    if (asset.id.isEmpty()) return;
+    const int row = tagsList_->currentRow();
+    if (row < 0) { statusBar()->showMessage(tr("请先选择一个标签")); return; }
+    const QString tag = tagsList_->item(row)->text();
+    try {
+        library_.removeTag(asset.id, tag);
+        statusBar()->showMessage(tr("已移除标签：%1").arg(tag));
+        reloadTags();
+    } catch (const std::exception &error) { report(error); }
+}
+
+void MainWindow::batchAddTag() {
+    bool ok = false;
+    const QString tag = QInputDialog::getText(this, tr("为筛选结果添加标签"), tr("标签"), QLineEdit::Normal, QString(), &ok).trimmed();
+    if (!ok || tag.isEmpty()) return;
+    const QStringList ids = visibleAssetIds();
+    const int affected = library_.countAssetsWithoutTag(ids, tag);
+    if (affected == 0) { statusBar()->showMessage(tr("筛选结果中的素材都已带此标签")); return; }
+    if (QMessageBox::question(this, tr("批量添加标签"),
+                              tr("将给 %1 个素材添加标签「%2」（已有该标签的不变）。\n不会覆盖其他标签。").arg(affected).arg(tag)) != QMessageBox::Yes) return;
+    try {
+        const int changed = library_.addTagToAssets(ids, tag);
+        statusBar()->showMessage(tr("已为 %1 个素材添加标签：%2").arg(changed).arg(tag));
+        reloadTags();
+    } catch (const std::exception &error) { report(error); }
+}
+
+void MainWindow::batchRemoveTag() {
+    bool ok = false;
+    const QString tag = QInputDialog::getText(this, tr("从筛选结果移除标签"), tr("标签"), QLineEdit::Normal, QString(), &ok).trimmed();
+    if (!ok || tag.isEmpty()) return;
+    const QStringList ids = visibleAssetIds();
+    const int affected = library_.countAssetsWithTag(ids, tag);
+    if (affected == 0) { statusBar()->showMessage(tr("筛选结果中没有素材带此标签")); return; }
+    if (QMessageBox::question(this, tr("批量移除标签"),
+                              tr("将从 %1 个素材移除标签「%2」。\n只移除这一个标签，不影响其他标签。").arg(affected).arg(tag)) != QMessageBox::Yes) return;
+    try {
+        const int changed = library_.removeTagFromAssets(ids, tag);
+        statusBar()->showMessage(tr("已从 %1 个素材移除标签：%2").arg(changed).arg(tag));
+        reloadTags();
+    } catch (const std::exception &error) { report(error); }
 }
 
 void MainWindow::showRevision() {

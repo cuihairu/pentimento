@@ -89,6 +89,7 @@ void Library::openAndInitialize(const QString &catalog) {
              QStringLiteral("CREATE TABLE IF NOT EXISTS assets(id TEXT PRIMARY KEY,name TEXT NOT NULL,path TEXT NOT NULL)"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS revisions(id INTEGER PRIMARY KEY AUTOINCREMENT,asset_id TEXT NOT NULL REFERENCES assets(id),hash TEXT NOT NULL,created TEXT NOT NULL,note TEXT NOT NULL,size INTEGER NOT NULL)"),
              QStringLiteral("CREATE INDEX IF NOT EXISTS revisions_asset ON revisions(asset_id,id)"),
+             QStringLiteral("CREATE TABLE IF NOT EXISTS tags(asset_id TEXT NOT NULL REFERENCES assets(id),tag TEXT NOT NULL,PRIMARY KEY(asset_id,tag))"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS snapshots(id INTEGER PRIMARY KEY AUTOINCREMENT,created TEXT NOT NULL,note TEXT NOT NULL)"),
              QStringLiteral("CREATE TABLE IF NOT EXISTS snapshot_assets(snapshot_id INTEGER NOT NULL REFERENCES snapshots(id),asset_id TEXT NOT NULL REFERENCES assets(id),revision_id INTEGER NOT NULL,PRIMARY KEY(snapshot_id,asset_id))")}) {
         if (!q.exec(sql)) fail(q.lastError().text());
@@ -128,6 +129,116 @@ QString Library::libraryId() const {
     execute(q);
     if (q.next()) return q.value(0).toString();
     fail(Library::tr("素材库缺少身份标识（library_id），库可能已损坏"));
+}
+
+// --- Tag maintenance (P-213) --------------------------------------------------
+// A tag is trimmed; an empty tag is a no-op rather than an error. Mutators
+// report how many rows actually changed so the caller can show real results.
+
+QStringList Library::tags(const QString &assetId) const {
+    QSqlQuery q(db_);
+    q.prepare("SELECT tag FROM tags WHERE asset_id=? ORDER BY tag");
+    q.addBindValue(assetId);
+    execute(q);
+    QStringList result;
+    while (q.next()) result << q.value(0).toString();
+    return result;
+}
+
+QStringList Library::assetsWithTag(const QString &tag) const {
+    QSqlQuery q(db_);
+    q.prepare("SELECT asset_id FROM tags WHERE tag=? ORDER BY asset_id");
+    q.addBindValue(tag.trimmed());
+    execute(q);
+    QStringList result;
+    while (q.next()) result << q.value(0).toString();
+    return result;
+}
+
+int Library::addTag(const QString &assetId, const QString &tag) {
+    const QString value = tag.trimmed();
+    if (value.isEmpty()) return 0;
+    QSqlQuery q(db_);
+    q.prepare("INSERT OR IGNORE INTO tags(asset_id,tag) VALUES(?,?)");
+    q.addBindValue(assetId);
+    q.addBindValue(value);
+    if (!q.exec()) fail(q.lastError().text());
+    return q.numRowsAffected();
+}
+
+int Library::removeTag(const QString &assetId, const QString &tag) {
+    const QString value = tag.trimmed();
+    if (value.isEmpty()) return 0;
+    QSqlQuery q(db_);
+    q.prepare("DELETE FROM tags WHERE asset_id=? AND tag=?");
+    q.addBindValue(assetId);
+    q.addBindValue(value);
+    execute(q);
+    return q.numRowsAffected();
+}
+
+int Library::addTagToAssets(const QStringList &assetIds, const QString &tag) {
+    const QString value = tag.trimmed();
+    if (value.isEmpty() || assetIds.isEmpty()) return 0;
+    int changed = 0;
+    db_.transaction();
+    for (const QString &id : assetIds) {
+        QSqlQuery q(db_);
+        q.prepare("INSERT OR IGNORE INTO tags(asset_id,tag) VALUES(?,?)");
+        q.addBindValue(id);
+        q.addBindValue(value);
+        if (!q.exec()) { db_.rollback(); fail(q.lastError().text()); }
+        changed += q.numRowsAffected();
+    }
+    db_.commit();
+    return changed;
+}
+
+int Library::removeTagFromAssets(const QStringList &assetIds, const QString &tag) {
+    const QString value = tag.trimmed();
+    if (value.isEmpty() || assetIds.isEmpty()) return 0;
+    int changed = 0;
+    db_.transaction();
+    for (const QString &id : assetIds) {
+        QSqlQuery q(db_);
+        q.prepare("DELETE FROM tags WHERE asset_id=? AND tag=?");
+        q.addBindValue(id);
+        q.addBindValue(value);
+        if (!q.exec()) { db_.rollback(); fail(q.lastError().text()); }
+        changed += q.numRowsAffected();
+    }
+    db_.commit();
+    return changed;
+}
+
+int Library::countAssetsWithoutTag(const QStringList &assetIds, const QString &tag) const {
+    const QString value = tag.trimmed();
+    if (value.isEmpty()) return 0;
+    int count = 0;
+    for (const QString &id : assetIds) {
+        QSqlQuery q(db_);
+        q.prepare("SELECT 1 FROM tags WHERE asset_id=? AND tag=?");
+        q.addBindValue(id);
+        q.addBindValue(value);
+        execute(q);
+        if (!q.next()) ++count;
+    }
+    return count;
+}
+
+int Library::countAssetsWithTag(const QStringList &assetIds, const QString &tag) const {
+    const QString value = tag.trimmed();
+    if (value.isEmpty()) return 0;
+    int count = 0;
+    for (const QString &id : assetIds) {
+        QSqlQuery q(db_);
+        q.prepare("SELECT 1 FROM tags WHERE asset_id=? AND tag=?");
+        q.addBindValue(id);
+        q.addBindValue(value);
+        execute(q);
+        if (q.next()) ++count;
+    }
+    return count;
 }
 
 QString Library::peekLibraryId(const QString &root) {

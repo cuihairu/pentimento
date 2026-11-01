@@ -42,6 +42,13 @@ private:
     QToolButton *zoomInBtn_;
     QLabel *zoomLabel_;
     QCheckBox *checkerCheck_;
+    // P-213: tag maintenance for the selected asset (add/remove, result shown
+    // in a list) plus batch add/remove over the filtered set (explicit, never
+    // a blind "replace all tags").
+    QListWidget *tagsList_;
+    QLineEdit *tagInput_;
+    QPushButton *tagAddBtn_;
+    QPushButton *tagRemoveBtn_;
     QPushButton *restore_;
     QPushButton *export_;
     QMap<QString, QPair<qint64, qint64>> observations_;
@@ -52,6 +59,12 @@ private:
     void pollSentinel();
     void reloadAssets(const QString &selectId = QString());
     void reloadHistory();
+    void reloadTags();
+    void addTagToSelected();
+    void removeSelectedTag();
+    void batchAddTag();
+    void batchRemoveTag();
+    QStringList visibleAssetIds() const;
     // P-208: one shared model, two render modes (grid/list); selection is held by
     // stable asset id so a filter/sort/view change never selects another asset.
     void setAssetViewMode(bool grid);

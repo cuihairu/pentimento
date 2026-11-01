@@ -826,6 +826,58 @@ private slots:
         QCOMPARE(missing.width, 0);
         QCOMPARE(missing.bitsPerChannel, 0);
     }
+
+    // P-213: single and batch tag maintenance; results are queryable, whitespace
+    // is trimmed, empty tags are ignored, and batch is explicit add/remove.
+    void tagMaintenanceSingleAndBatchIsQueryable() {
+        QTemporaryDir dir;
+        Library lib(dir.filePath("lib"));
+        put(dir.filePath("a.png"), "asset-a");
+        put(dir.filePath("b.png"), "asset-b");
+        put(dir.filePath("c.png"), "asset-c");
+        const auto a = lib.importFile(dir.filePath("a.png"));
+        const auto b = lib.importFile(dir.filePath("b.png"));
+        const auto c = lib.importFile(dir.filePath("c.png"));
+
+        // Single add: trimmed, deduplicated (adding twice is a no-op).
+        QCOMPARE(lib.addTag(a.id, "  角色  "), 1);   // stored trimmed
+        QCOMPARE(lib.addTag(a.id, "角色"), 0);       // dedup: already present
+        QCOMPARE(lib.addTag(a.id, "  "), 0);         // empty after trim: ignored
+        QCOMPARE(lib.tags(a.id), QStringList({"角色"}));
+        QCOMPARE(lib.assetsWithTag("角色"), QStringList({a.id}));
+        // Case is preserved; distinct tags coexist.
+        QCOMPARE(lib.addTag(a.id, "角色"), 0);
+        QCOMPARE(lib.addTag(a.id, "立绘"), 1);
+        QCOMPARE(lib.tags(a.id).size(), 2);
+
+        // Single remove: result is immediately queryable.
+        QCOMPARE(lib.removeTag(a.id, "角色"), 1);
+        QCOMPARE(lib.removeTag(a.id, "角色"), 0);
+        QCOMPARE(lib.tags(a.id), QStringList({"立绘"}));
+
+        // Batch add: explicit, affects only assets without the tag (preview).
+        // Asset a already carries 立绘, so only b and c actually change.
+        const QStringList ids = {a.id, b.id, c.id};
+        QCOMPARE(lib.countAssetsWithoutTag(ids, "立绘"), 2);
+        QCOMPARE(lib.addTagToAssets(ids, "立绘"), 2);
+        QCOMPARE(lib.countAssetsWithoutTag(ids, "立绘"), 0);
+        QCOMPARE(lib.countAssetsWithTag(ids, "立绘"), 3);
+        QCOMPARE(lib.assetsWithTag("立绘").size(), 3);
+        QCOMPARE(lib.tags(b.id), QStringList({"立绘"}));
+        QCOMPARE(lib.tags(c.id), QStringList({"立绘"}));
+        // Re-adding the batch is a no-op (returns 0 changes).
+        QCOMPARE(lib.addTagToAssets(ids, "立绘"), 0);
+
+        // Batch remove: explicit removal of one tag only.
+        QCOMPARE(lib.countAssetsWithTag(ids, "立绘"), 3);
+        QCOMPARE(lib.removeTagFromAssets(ids, "立绘"), 3);
+        QCOMPARE(lib.countAssetsWithTag(ids, "立绘"), 0);
+        QVERIFY(lib.tags(b.id).isEmpty());
+        QVERIFY(lib.assetsWithTag("立绘").isEmpty());
+        // No tag was replaced or clobbered: asset a has none left (only 立绘),
+        // and the batch removed exactly the one tag, never a replace-all.
+        QVERIFY(lib.tags(a.id).isEmpty());
+    }
 };
 QTEST_GUILESS_MAIN(HistoryTest)
 #include "library_test.moc"

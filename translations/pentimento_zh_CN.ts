@@ -48,7 +48,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+20"/>
+        <location line="+21"/>
         <source>素材库 schema 版本不兼容（%1），请使用匹配版本打开</source>
         <translation type="unfinished"></translation>
     </message>
@@ -58,7 +58,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+6"/>
+        <location line="+116"/>
         <source>该路径不是有效的素材库（未找到可读的 catalog.sqlite）</source>
         <translation type="unfinished"></translation>
     </message>
@@ -128,12 +128,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+332"/>
+        <location line="+460"/>
         <source>记录版本</source>
         <translation>记录版本</translation>
     </message>
     <message>
-        <location line="-331"/>
+        <location line="-459"/>
         <source>编辑工作副本</source>
         <translation>编辑工作副本</translation>
     </message>
@@ -158,14 +158,24 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+9"/>
-        <location line="+384"/>
+        <location line="+10"/>
+        <source>为筛选结果添加标签…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>从筛选结果移除标签…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <location line="+508"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>恢复到锚点</translation>
     </message>
     <message>
-        <location line="-386"/>
+        <location line="-510"/>
         <source>素材库</source>
         <translation>素材库</translation>
     </message>
@@ -183,6 +193,33 @@
         <location line="+2"/>
         <source>素材列表</source>
         <translation>素材列表</translation>
+    </message>
+    <message>
+        <location line="+9"/>
+        <location line="+300"/>
+        <location line="+16"/>
+        <source>标签</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="-313"/>
+        <source>标签列表</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+5"/>
+        <source>新标签</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>添加</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>移除</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location line="+9"/>
@@ -229,12 +266,12 @@
     </message>
     <message>
         <location line="+3"/>
-        <location line="+164"/>
+        <location line="+260"/>
         <source>历史版本</source>
         <translation>历史版本</translation>
     </message>
     <message>
-        <location line="-161"/>
+        <location line="-257"/>
         <source>恢复此版本</source>
         <translation>恢复此版本</translation>
     </message>
@@ -244,7 +281,7 @@
         <translation>导出此版本…</translation>
     </message>
     <message>
-        <location line="+38"/>
+        <location line="+41"/>
         <source>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</source>
         <translation>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</translation>
     </message>
@@ -254,17 +291,99 @@
         <translation>操作未完成</translation>
     </message>
     <message>
-        <location line="+89"/>
+        <location line="+90"/>
         <source>当前 · </source>
         <translation>当前 · </translation>
     </message>
     <message>
-        <location line="+24"/>
+        <location line="+39"/>
+        <source>标签不能为空</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>已添加标签：%1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>标签已存在：%1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <source>请先选择一个标签</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>已移除标签：%1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+7"/>
+        <source>为筛选结果添加标签</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>筛选结果中的素材都已带此标签</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>批量添加标签</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>将给 %1 个素材添加标签「%2」（已有该标签的不变）。
+不会覆盖其他标签。</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>已为 %1 个素材添加标签：%2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+7"/>
+        <source>从筛选结果移除标签</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>筛选结果中没有素材带此标签</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>批量移除标签</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>将从 %1 个素材移除标签「%2」。
+只移除这一个标签，不影响其他标签。</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>已从 %1 个素材移除标签：%2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+20"/>
+        <source>%1 MiB</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+8"/>
         <source>当前版本</source>
         <translation>当前版本</translation>
     </message>
     <message>
-        <location line="+6"/>
+        <location line="+8"/>
         <source>内容损坏或校验失败
 
 %1
@@ -277,7 +396,15 @@
 原始对象已保留，可导出排查。</translation>
     </message>
     <message>
-        <location line="+9"/>
+        <location line="+15"/>
+        <source>原文件已保留，暂无合成预览（PSD 解析未支持）
+
+Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码插件）。
+原始文件和历史版本已完整保留，可以导出查看。</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+1"/>
         <source>此格式暂不支持画面预览
 
 原始文件和历史版本已完整保留，可以导出查看。</source>

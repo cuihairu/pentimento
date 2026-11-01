@@ -71,6 +71,20 @@ public:
     // Library identity (P-202): a random UUID stamped at creation and persisted
     // in the meta table; used to validate a relocated library before reopening.
     QString libraryId() const;
+    // --- Tag maintenance (P-213) -------------------------------------------------
+    // Tags are stored as (asset_id, tag) rows; a tag is trimmed, and empty tags
+    // are ignored. All mutators return how many rows changed; the batch variants
+    // are explicit add/remove (never a blind "replace all tags"). Metadata
+    // history wiring happens under P-309.
+    QStringList tags(const QString &assetId) const;
+    QStringList assetsWithTag(const QString &tag) const;
+    int addTag(const QString &assetId, const QString &tag);
+    int removeTag(const QString &assetId, const QString &tag);
+    int addTagToAssets(const QStringList &assetIds, const QString &tag);
+    int removeTagFromAssets(const QStringList &assetIds, const QString &tag);
+    // Batch previews (P-213): how many of the given assets would actually change.
+    int countAssetsWithoutTag(const QStringList &assetIds, const QString &tag) const;
+    int countAssetsWithTag(const QStringList &assetIds, const QString &tag) const;
     // Read a library's identity from its catalog WITHOUT taking the write lock.
     // Used when re-locating a missing library: verify this is the same library
     // (same id) before opening it at the new path. Throws when the directory is
