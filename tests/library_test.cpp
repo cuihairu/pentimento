@@ -1263,6 +1263,40 @@ private slots:
         QVERIFY(lib.capture(asset, "retry"));
         QCOMPARE(lib.revisions(asset.id).size(), 2);
     }
+
+    void manualVersionRecordReturnsIdAndUnchangedFlag() {
+        QTemporaryDir dir;
+        put(dir.filePath("a.bin"), "version-one");
+        Library lib(dir.filePath("lib"));
+        const auto asset = lib.importFile(dir.filePath("a.bin"));
+
+        // Working copy still matches the import revision: no duplicate is
+        // written; the CURRENT (import) revision id comes back with
+        // created=false, so the user is told rather than left guessing.
+        bool created = true;
+        const qint64 first = lib.captureRevision(asset, "manual 1", &created);
+        QVERIFY(!created);
+        QCOMPARE(first, lib.revisions(asset.id).first().id);
+        QCOMPARE(lib.revisions(asset.id).size(), 1);
+
+        // Changed content: a fresh revision id, distinct from the previous one.
+        put(asset.path, "version-two");
+        created = false;
+        const qint64 second = lib.captureRevision(asset, "manual 2", &created);
+        QVERIFY(created);
+        QVERIFY(second != first);
+        const auto history = lib.revisions(asset.id);
+        QCOMPARE(history.size(), 2);
+        QCOMPARE(history.first().id, second);
+        QCOMPARE(history.first().note, QStringLiteral("manual 2"));
+
+        // Unchanged again after a new record: the same (new) id comes back.
+        created = true;
+        const qint64 again = lib.captureRevision(asset, "manual 3", &created);
+        QVERIFY(!created);
+        QCOMPARE(again, second);
+        QCOMPARE(lib.revisions(asset.id).size(), 2);
+    }
 };
 QTEST_GUILESS_MAIN(HistoryTest)
 #include "library_test.moc"

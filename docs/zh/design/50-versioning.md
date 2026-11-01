@@ -42,6 +42,7 @@
 - 相同内容：不生成重复版本，返回「内容未变」+ 当前版本 ID（明确反馈，防误以为已保护）。
 - 失败提示：写盘/登记失败明确错误，可重试；不静默。
 - 完成后时间轴定位：新版本置顶并选中；不承诺记录编辑器内未写盘内容。
+- 实现（2026-11-01）：库 API 增 captureRevision(asset,note,created) 返回「代表当前工作副本的版本 ID」——新记录版本 ID，或内容未变时当前（最新）版本 ID（created=false 明确告知，绝不静默）；capture() 委托 captureRevision（bool=created，兼容既有调用）；工具栏「记录版本」(Ctrl+S) 用其 ID 显示「已记录新版本 #N」/「内容未变化（当前版本 #N），无需重复保存」，reloadHistory 置顶并选中新版本（时间轴定位）。测试 manualVersionRecordReturnsIdAndUnchangedFlag：导入后内容未变→created=false 返回当前版本 ID 且不新增版本；改内容→created=true 返回新 ID（≠旧）；再次未变→返回同一新 ID 且不重复。
 
 ## P-304 稳定变化自动记录（启发式与样本）
 

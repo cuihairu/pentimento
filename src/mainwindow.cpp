@@ -839,8 +839,13 @@ void MainWindow::capture() {
     const auto note = QInputDialog::getText(this, tr("记录版本"), tr("版本说明"), QLineEdit::Normal, QStringLiteral("手动快照"), &ok);
     if (!ok) return;
     try {
-        const bool changed = library_.capture(asset, note);
-        statusBar()->showMessage(changed ? tr("已记录新版本") : tr("内容未变化，无需重复保存"));
+        bool changed = false;
+        const qint64 revisionId = library_.captureRevision(asset, note, &changed);
+        // P-303: surface the version id either way, so an unchanged capture is
+        // an explicit answer ("current version #N") rather than a silent no-op.
+        statusBar()->showMessage(changed
+            ? tr("已记录新版本 #%1").arg(revisionId)
+            : tr("内容未变化（当前版本 #%1），无需重复保存").arg(revisionId));
         reloadHistory();
     } catch (const std::exception &error) { report(error); }
 }

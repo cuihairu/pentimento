@@ -656,7 +656,7 @@ QString Library::tempObjectPath() const {
     return dir + "/" + QUuid::createUuid().toString(QUuid::WithoutBraces);
 }
 
-void Library::recordRevision(const Asset &asset, const QString &hash, qint64 size, const QString &note) {
+qint64 Library::recordRevision(const Asset &asset, const QString &hash, qint64 size, const QString &note) {
     QSqlQuery q(db_);
     q.prepare("INSERT INTO revisions(asset_id,hash,created,note,size) VALUES(?,?,?,?,?)");
     q.addBindValue(asset.id);
@@ -665,6 +665,7 @@ void Library::recordRevision(const Asset &asset, const QString &hash, qint64 siz
     q.addBindValue(note.isEmpty() ? QStringLiteral("手动快照") : note);
     q.addBindValue(size);
     execute(q);
+    const qint64 revisionId = q.lastInsertId().toLongLong();
     // P-217: refresh the asset's filtering facts from this new revision. Header
     // only; an undecodable content leaves the format empty and size 0 (unknown).
     // Content detection is authoritative (no name-extension hint): the asset
@@ -679,6 +680,7 @@ void Library::recordRevision(const Asset &asset, const QString &hash, qint64 siz
     facts.addBindValue(meta.height);
     facts.addBindValue(asset.id);
     execute(facts);
+    return revisionId;
 }
 
 Asset Library::importFile(const QString &source) {
@@ -717,15 +719,27 @@ Asset Library::importFile(const QString &source) {
 }
 
 bool Library::capture(const Asset &asset, const QString &note) {
+    bool created = false;
+    captureRevision(asset, note, &created);
+    return created;
+}
+
+qint64 Library::captureRevision(const Asset &asset, const QString &note, bool *created) {
     // P-302: stream the working copy straight into the object store so a large
     // file never sits whole in memory; the content hash is computed once and
     // reused for the dedup check and the staged-object verification.
     const QString hash = digestFile(asset.path);
     const auto history = revisions(asset.id);
-    if (!history.isEmpty() && history.first().hash == hash) return false;
+    if (!history.isEmpty() && history.first().hash == hash) {
+        // Same content (P-303): no duplicate revision; report the current one
+        // so the user gets an explicit "content unchanged" answer.
+        if (created) *created = false;
+        return history.first().id;
+    }
     storeObjectFromFile(asset.path, hash);
-    recordRevision(asset, hash, QFileInfo(asset.path).size(), note);
-    return true;
+    const qint64 revisionId = recordRevision(asset, hash, QFileInfo(asset.path).size(), note);
+    if (created) *created = true;
+    return revisionId;
 }
 
 void Library::restore(const Asset &asset, qint64 revisionId) {

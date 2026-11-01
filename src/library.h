@@ -72,6 +72,12 @@ public:
     QVector<Revision> revisions(const QString &assetId) const;
     Asset importFile(const QString &source);
     bool capture(const Asset &asset, const QString &note = QString());
+    // P-303 manual version record: always returns the version id that now
+    // represents the working copy — the newly recorded revision, or the current
+    // (latest) revision id when the content is unchanged so no duplicate is
+    // written. `created` reports which happened; a caller can surface the id to
+    // give the user an explicit "content unchanged" answer instead of silence.
+    qint64 captureRevision(const Asset &asset, const QString &note = QString(), bool *created = nullptr);
     void restore(const Asset &asset, qint64 revisionId);
     void exportRevision(const QString &assetId, qint64 revisionId, const QString &destination) const;
     QString objectPath(const QString &hash) const;
@@ -167,6 +173,7 @@ private:
     QString storeObjectFromFile(const QString &sourcePath, const QString &hash);
     void publishObject(const QString &tempPath, const QString &hash);
     QString tempObjectPath() const;
-    // Record one revision row and refresh the asset's P-217 facts.
-    void recordRevision(const Asset &asset, const QString &hash, qint64 size, const QString &note);
+    // Record one revision row and refresh the asset's P-217 facts; returns the
+    // new revision id.
+    qint64 recordRevision(const Asset &asset, const QString &hash, qint64 size, const QString &note);
 };

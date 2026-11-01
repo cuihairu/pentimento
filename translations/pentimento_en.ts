@@ -155,12 +155,12 @@
         <translation>Cannot create the object staging directory</translation>
     </message>
     <message>
-        <location line="+40"/>
+        <location line="+42"/>
         <source>无法创建工作目录</source>
         <translation>Cannot create working directory</translation>
     </message>
     <message>
-        <location line="+51"/>
+        <location line="+63"/>
         <source>无法创建恢复目录</source>
         <translation>Cannot create restore directory</translation>
     </message>
@@ -170,8 +170,8 @@
         <translation>No revision found for this asset</translation>
     </message>
     <message>
-        <location line="-338"/>
-        <location line="+347"/>
+        <location line="-352"/>
+        <location line="+361"/>
         <source>请导出到素材库之外的现有目录</source>
         <translation>Export to an existing directory outside the library</translation>
     </message>
@@ -241,13 +241,13 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+840"/>
+        <location line="+845"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>Restore to anchor</translation>
     </message>
     <message>
-        <location line="-842"/>
+        <location line="-847"/>
         <source>素材库</source>
         <translation>Library</translation>
     </message>
@@ -779,14 +779,22 @@ The original file and history are fully preserved and can be exported.</translat
         <translation>Version note</translation>
     </message>
     <message>
-        <location line="+4"/>
-        <source>已记录新版本</source>
-        <translation>New version recorded</translation>
+        <location line="+8"/>
+        <source>已记录新版本 #%1</source>
+        <translation>Recorded new version #%1</translation>
     </message>
     <message>
-        <location line="+0"/>
+        <location line="+1"/>
+        <source>内容未变化（当前版本 #%1），无需重复保存</source>
+        <translation>Content unchanged (current version #%1); nothing to save again</translation>
+    </message>
+    <message>
+        <source>已记录新版本</source>
+        <translation type="vanished">New version recorded</translation>
+    </message>
+    <message>
         <source>内容未变化，无需重复保存</source>
-        <translation>Content unchanged; nothing to save</translation>
+        <translation type="vanished">Content unchanged; nothing to save</translation>
     </message>
     <message>
         <location line="+8"/>
