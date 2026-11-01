@@ -201,7 +201,27 @@
         <translation>检测到外部编辑正在写入，请关闭外部编辑器后重试</translation>
     </message>
     <message>
-        <location line="+138"/>
+        <location line="+36"/>
+        <source>不在该快照中，跳过</source>
+        <translation>不在该快照中，跳过</translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <source>快照中该素材被排除，跳过</source>
+        <translation>快照中该素材被排除，跳过</translation>
+    </message>
+    <message>
+        <location line="+7"/>
+        <source>该素材已在快照后删除（历史保留，不自动复活）</source>
+        <translation>该素材已在快照后删除（历史保留，不自动复活）</translation>
+    </message>
+    <message>
+        <location line="+7"/>
+        <source>素材不存在，跳过</source>
+        <translation>素材不存在，跳过</translation>
+    </message>
+    <message>
+        <location line="+174"/>
         <source>无法发布一致快照，以下文件仍在写入：%1</source>
         <translation>无法发布一致快照，以下文件仍在写入：%1</translation>
     </message>
@@ -216,7 +236,7 @@
         <translation>无法发布一致快照，文件写入未稳定：%1</translation>
     </message>
     <message>
-        <location line="-820"/>
+        <location line="-916"/>
         <source>历史对象内容不一致</source>
         <translation>历史对象内容不一致</translation>
     </message>
@@ -255,12 +275,13 @@
     </message>
     <message>
         <location line="-580"/>
-        <location line="+693"/>
+        <location line="+789"/>
         <source>请导出到素材库之外的现有目录</source>
         <translation>请导出到素材库之外的现有目录</translation>
     </message>
     <message>
-        <location line="-67"/>
+        <location line="-89"/>
+        <location line="+22"/>
         <source>素材不存在</source>
         <translation>素材不存在</translation>
     </message>
@@ -340,13 +361,13 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+1437"/>
+        <location line="+1498"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>恢复到锚点</translation>
     </message>
     <message>
-        <location line="-1437"/>
+        <location line="-1498"/>
         <source>素材库</source>
         <translation>素材库</translation>
     </message>
@@ -610,12 +631,12 @@
         <location line="+3"/>
         <location line="+860"/>
         <location line="+223"/>
-        <location line="+91"/>
+        <location line="+152"/>
         <source>关闭</source>
         <translation>关闭</translation>
     </message>
     <message>
-        <location line="-1173"/>
+        <location line="-1234"/>
         <source>每 15 分钟</source>
         <translation>每 15 分钟</translation>
     </message>
@@ -916,11 +937,12 @@
     <message>
         <location line="+1"/>
         <location line="+257"/>
+        <location line="+443"/>
         <source>取消</source>
         <translation>取消</translation>
     </message>
     <message>
-        <location line="-252"/>
+        <location line="-695"/>
         <source>已删除：%1（历史与对象保留，可从时间线恢复）</source>
         <translation>已删除：%1（历史与对象保留，可从时间线恢复）</translation>
     </message>
@@ -1128,16 +1150,18 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
     </message>
     <message>
         <location line="+4"/>
+        <location line="+447"/>
         <source>恢复预演</source>
         <translation>恢复预演</translation>
     </message>
     <message>
-        <location line="+8"/>
+        <location line="-439"/>
+        <location line="+443"/>
         <source>确认恢复</source>
         <translation>确认恢复</translation>
     </message>
     <message>
-        <location line="+42"/>
+        <location line="-401"/>
         <source>双版对比</source>
         <translation>双版对比</translation>
     </message>
@@ -1198,13 +1222,13 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
     </message>
     <message>
         <location line="+6"/>
-        <location line="+63"/>
+        <location line="+124"/>
         <source>（%1 个被排除）</source>
         <translation>（%1 个被排除）</translation>
     </message>
     <message>
-        <location line="-62"/>
-        <location line="+63"/>
+        <location line="-123"/>
+        <location line="+124"/>
         <source>#%1 %2 · %3 个素材%4</source>
         <translation>#%1 %2 · %3 个素材%4</translation>
     </message>
@@ -1227,7 +1251,7 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
 未记录的当前内容会先保存。请先在外部编辑器中关闭此文件。</translation>
     </message>
     <message>
-        <location line="-402"/>
+        <location line="-463"/>
         <source>导出历史版本</source>
         <translation>导出历史版本</translation>
     </message>
@@ -1382,6 +1406,82 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <location line="+10"/>
         <source>（此快照没有条目）</source>
         <translation>（此快照没有条目）</translation>
+    </message>
+    <message>
+        <location line="+7"/>
+        <source>恢复选中项…</source>
+        <translation>恢复选中项…</translation>
+    </message>
+    <message>
+        <location line="+16"/>
+        <source>恢复选中项</source>
+        <translation>恢复选中项</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>请选择快照中存在的素材（已排除或已删除的条目不可恢复）。</source>
+        <translation>请选择快照中存在的素材（已排除或已删除的条目不可恢复）。</translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <source>覆盖</source>
+        <translation>覆盖</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>新增</source>
+        <translation>新增</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>跳过：%1</source>
+        <translation>跳过：%1</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>冲突：%1</source>
+        <translation>冲突：%1</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>· %1 —— %2</source>
+        <translation>· %1 —— %2</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>空间需求：约 %1 KiB</source>
+        <translation>空间需求：约 %1 KiB</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>将恢复以下选中项（写入前预演）：
+%1
+
+保护的是磁盘已保存内容；外部编辑器未写盘内容不受保护。</source>
+        <translation>将恢复以下选中项（写入前预演）：
+%1
+
+保护的是磁盘已保存内容；外部编辑器未写盘内容不受保护。</translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <source>· %1 —— 成功</source>
+        <translation>· %1 —— 成功</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>· %1 —— 跳过：%2</source>
+        <translation>· %1 —— 跳过：%2</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>· %1 —— 失败：%2</source>
+        <translation>· %1 —— 失败：%2</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>恢复结果</source>
+        <translation>恢复结果</translation>
     </message>
     <message>
         <location line="+13"/>

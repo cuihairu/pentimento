@@ -306,6 +306,53 @@ private slots:
         QCOMPARE(get(dir.filePath("c.dat")), QByteArray("A"));
         QCOMPARE(library.revisions(asset.id).at(0).note, QStringLiteral("恢复历史版本 #%1").arg(revA));
     }
+    // P-318: selective snapshot restore touches ONLY the reviewed assets, one
+    // outcome each; assets created after the snapshot and tombstoned entries are
+    // skipped with a reason, never silently restored or removed.
+    void snapshotSelectiveRestoreTouchesOnlyReviewedItems() {
+        QTemporaryDir dir;
+        Library library(dir.filePath("library"));
+        put(dir.filePath("a.dat"), "a1");
+        put(dir.filePath("b.dat"), "b1");
+        put(dir.filePath("c.dat"), "c1");
+        const auto a = library.importFile(dir.filePath("a.dat"));
+        const auto b = library.importFile(dir.filePath("b.dat"));
+        const auto c = library.importFile(dir.filePath("c.dat"));
+        const qint64 anchor = library.snapshotAll("anchor");
+        // Evolve all three, then create an asset that is NOT in the snapshot.
+        put(a.path, "a2"); QVERIFY(library.capture(a, "a2"));
+        put(b.path, "b2"); QVERIFY(library.capture(b, "b2"));
+        put(c.path, "c2"); QVERIFY(library.capture(c, "c2"));
+        put(dir.filePath("d.dat"), "d1");
+        const auto d = library.importFile(dir.filePath("d.dat"));
+
+        const auto items = library.planSnapshotRestore(anchor, {a.id, c.id, d.id});
+        QCOMPARE(items.size(), 3);
+        QCOMPARE(items.at(0).plan.action, QStringLiteral("overwrite"));
+        QCOMPARE(items.at(2).plan.action, QStringLiteral("skip")); // d: not in snapshot
+        const auto outcomes = library.restoreFromSnapshot(anchor, items);
+        QCOMPARE(outcomes.size(), 3);
+        QCOMPARE(outcomes.at(0).outcome, QStringLiteral("success"));
+        QCOMPARE(outcomes.at(1).outcome, QStringLiteral("success"));
+        QCOMPARE(outcomes.at(2).outcome, QStringLiteral("skipped"));
+        // Only a and c were restored; b and the post-snapshot d are untouched.
+        QCOMPARE(get(a.path), QByteArray("a1"));
+        QCOMPARE(get(c.path), QByteArray("c1"));
+        QCOMPARE(get(b.path), QByteArray("b2"));
+        QCOMPARE(get(d.path), QByteArray("d1"));
+
+        // A snapshot taken after a deletion records the entry as tombstone; a
+        // selective restore of it is skipped (history stays, no auto-revival).
+        put(dir.filePath("e.dat"), "e1");
+        const auto e = library.importFile(dir.filePath("e.dat"));
+        library.deleteAsset(e.id);
+        const qint64 afterDelete = library.snapshotAll("after delete");
+        const auto tombstoneItems = library.planSnapshotRestore(afterDelete, {e.id});
+        QCOMPARE(tombstoneItems.size(), 1);
+        QCOMPARE(tombstoneItems.at(0).plan.action, QStringLiteral("skip"));
+        const auto tombstoneOutcomes = library.restoreFromSnapshot(afterDelete, tombstoneItems);
+        QCOMPARE(tombstoneOutcomes.at(0).outcome, QStringLiteral("skipped"));
+    }
     void readObjectIsPublicAndVerifiesHash() {
         QTemporaryDir dir;
         const auto source = dir.filePath("asset.dat");

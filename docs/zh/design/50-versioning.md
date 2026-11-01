@@ -217,6 +217,13 @@
 - 原子性能力不足 → 明确逐项完成状态（不宣称跨文件系统整体原子操作）。
 - 不做：默认全库镜像覆盖；删除快照之外新素材。
 
+**实现（2026-11-01）**
+- 设计：`planSnapshotRestore(snapshotId, assetIds)` 逐项预演（每项绑定快照锚点 revision，走 P-315 planRestore）；`restoreFromSnapshot(snapshotId, items)` 只执行预演确认项，逐项 try/catch 产出 success|failed|skipped（单项失败不中断批次，不宣称整体原子）。
+- 只处理预演确认项：excluded/tombstone/不在快照/素材不存在 → 逐项 skip 带原因（绝不静默恢复、绝不复活已删除素材、绝不动快照之后新建的素材）。
+- 接线：快照浏览对话框（P-312）加「恢复选中项…」：选中 present|missing 条目 → 预演清单（动作+空间需求+保护说明）→ 确认 → 逐项结果对话框。
+- 测试：`snapshotSelectiveRestoreTouchesOnlyReviewedItems`（a/c 恢复、b 与快照后新增 d 不动、tombstone 条目 skip）。
+- 验证：ctest 2/2 绿；离线烟雾运行无崩溃。
+
 ## P-319 历史副本导出
 
 - 校验（版本归属+对象哈希）后输出到库外；复用对象读取校验。

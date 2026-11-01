@@ -158,6 +158,29 @@ public:
     // is protected as a version BEFORE any overwrite; a failed protect stops
     // the restore (nothing is overwritten unprotected).
     void restore(const Asset &asset, const RestorePlan &plan);
+    // P-318: selective restore from a snapshot. The preview phase produces one
+    // bound plan per requested asset (each against its snapshot anchor); the
+    // execution phase applies ONLY those reviewed items and reports a per-item
+    // outcome (success | failed | skipped) — a failure on one item never aborts
+    // the rest, and the batch is never claimed to be a cross-filesystem atomic
+    // operation. Excluded/tombstone/unknown entries are reported as skipped
+    // with a reason (never silently restored). Assets created after the
+    // snapshot are out of scope and never touched.
+    struct SnapshotRestoreItem {
+        QString assetId;
+        QString name;      // display name as of the snapshot
+        RestorePlan plan;
+    };
+    struct RestoreOutcome {
+        QString assetId;
+        QString name;
+        QString outcome;   // "success" | "failed" | "skipped"
+        QString error;     // set when failed (or a skip reason)
+    };
+    QVector<SnapshotRestoreItem> planSnapshotRestore(qint64 snapshotId,
+                                                     const QStringList &assetIds) const;
+    QVector<RestoreOutcome> restoreFromSnapshot(qint64 snapshotId,
+                                                const QVector<SnapshotRestoreItem> &items);
     // P-310: in-app confirmed deletion. Writes a tombstone revision (history
     // and objects stay intact — the timeline still finds the asset) and removes
     // the working copy. Throws when the asset is unknown or already deleted.

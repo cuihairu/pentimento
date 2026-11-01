@@ -1486,6 +1486,67 @@ void MainWindow::browseSnapshot() {
         empty->setFlags(empty->flags() & ~Qt::ItemIsEnabled);
     }
     layout->addWidget(list, 1);
+    // P-318: selective restore. Only the assets the user reviewed in the preview
+    // are touched (excluded/tombstone entries are skipped with a reason), each
+    // item reports its own outcome, and the batch is never claimed atomic.
+    auto *restoreBtn = new QPushButton(tr("恢复选中项…"), &dialog);
+    restoreBtn->setEnabled(false);
+    connect(list, &QListWidget::itemSelectionChanged, restoreBtn, [restoreBtn, list]() {
+        restoreBtn->setEnabled(!list->selectedItems().isEmpty());
+    });
+    connect(restoreBtn, &QPushButton::clicked, &dialog,
+            [&dialog, &snapshot, &entries, &list, this]() {
+        QStringList assetIds;
+        for (auto *sel : list->selectedItems()) {
+            const int idx = list->row(sel);
+            if (idx < 0 || idx >= entries.size()) continue;
+            const auto &entry = entries.at(idx);
+            if (entry.state != QLatin1String("excluded") && entry.state != QLatin1String("tombstone"))
+                assetIds << entry.assetId;
+        }
+        if (assetIds.isEmpty()) {
+            QMessageBox::information(&dialog, tr("恢复选中项"),
+                                     tr("请选择快照中存在的素材（已排除或已删除的条目不可恢复）。"));
+            return;
+        }
+        QVector<Library::SnapshotRestoreItem> items;
+        try { items = library_.planSnapshotRestore(snapshot.id, assetIds); }
+        catch (const std::exception &error) { report(error); return; }
+        QStringList lines;
+        qint64 space = 0;
+        for (const auto &item : items) {
+            QString action;
+            if (item.plan.action == QStringLiteral("overwrite")) action = tr("覆盖");
+            else if (item.plan.action == QStringLiteral("create")) action = tr("新增");
+            else if (item.plan.action == QStringLiteral("skip")) action = tr("跳过：%1").arg(item.plan.conflictReason);
+            else action = tr("冲突：%1").arg(item.plan.conflictReason);
+            space += item.plan.spaceNeeded;
+            lines << tr("· %1 —— %2").arg(item.name).arg(action);
+        }
+        if (space > 0) lines << tr("空间需求：约 %1 KiB").arg(space / 1024.0, 0, 'f', 1);
+        QMessageBox box(&dialog);
+        box.setWindowTitle(tr("恢复预演"));
+        box.setIcon(QMessageBox::Question);
+        box.setText(tr("将恢复以下选中项（写入前预演）：\n%1\n\n保护的是磁盘已保存内容；外部编辑器未写盘内容不受保护。")
+                        .arg(lines.join(QLatin1Char('\n'))));
+        QAbstractButton *confirm = box.addButton(tr("确认恢复"), QMessageBox::YesRole);
+        box.addButton(tr("取消"), QMessageBox::NoRole);
+        box.exec();
+        if (box.clickedButton() != confirm) return;
+        const auto outcomes = library_.restoreFromSnapshot(snapshot.id, items);
+        QStringList result;
+        for (const auto &outcome : outcomes) {
+            if (outcome.outcome == QStringLiteral("success"))
+                result << tr("· %1 —— 成功").arg(outcome.name);
+            else if (outcome.outcome == QStringLiteral("skipped"))
+                result << tr("· %1 —— 跳过：%2").arg(outcome.name, outcome.error);
+            else
+                result << tr("· %1 —— 失败：%2").arg(outcome.name, outcome.error);
+        }
+        QMessageBox::information(&dialog, tr("恢复结果"), result.join(QLatin1Char('\n')));
+        reloadAssets();
+    });
+    layout->addWidget(restoreBtn);
     auto *closeBtn = new QPushButton(tr("关闭"), &dialog);
     connect(closeBtn, &QPushButton::clicked, &dialog, &QDialog::accept);
     layout->addWidget(closeBtn);

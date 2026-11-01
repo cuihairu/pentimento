@@ -1138,6 +1138,102 @@ void Library::restore(const Asset &asset, const RestorePlan &plan) {
     }
 }
 
+// P-318 preview: one bound plan per requested asset, each against its snapshot
+// anchor. Excluded / tombstone / unknown entries are reported as skip with a
+// reason — the UI never claims they will be restored. Nothing is written here.
+QVector<Library::SnapshotRestoreItem> Library::planSnapshotRestore(
+    qint64 snapshotId, const QStringList &assetIds) const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
+    QVector<SnapshotRestoreItem> result;
+    QHash<QString, Asset> byId;
+    for (const auto &asset : assets()) byId.insert(asset.id, asset);
+    for (const QString &assetId : assetIds) {
+        SnapshotRestoreItem item;
+        item.assetId = assetId;
+        QSqlQuery entry(db_);
+        entry.prepare("SELECT name,state,revision_id FROM snapshot_assets "
+                      "WHERE snapshot_id=? AND asset_id=?");
+        entry.addBindValue(snapshotId);
+        entry.addBindValue(assetId);
+        execute(entry);
+        const auto it = byId.constFind(assetId);
+        if (!entry.next()) {
+            item.name = assetId;
+            item.plan.action = QStringLiteral("skip");
+            item.plan.revisionId = 0;
+            item.plan.conflictReason = Library::tr("不在该快照中，跳过");
+            result.append(item);
+            continue;
+        }
+        item.name = entry.value(0).toString();
+        const QString state = entry.value(1).toString();
+        const qint64 anchorId = entry.value(2).toLongLong();
+        if (state == QLatin1String("excluded")) {
+            item.plan.action = QStringLiteral("skip");
+            item.plan.revisionId = 0;
+            item.plan.conflictReason = Library::tr("快照中该素材被排除，跳过");
+            result.append(item);
+            continue;
+        }
+        if (state == QLatin1String("tombstone")) {
+            item.plan.action = QStringLiteral("skip");
+            item.plan.revisionId = 0;
+            item.plan.conflictReason = Library::tr("该素材已在快照后删除（历史保留，不自动复活）");
+            result.append(item);
+            continue;
+        }
+        if (it == byId.constEnd()) {
+            item.plan.action = QStringLiteral("skip");
+            item.plan.revisionId = 0;
+            item.plan.conflictReason = Library::tr("素材不存在，跳过");
+            result.append(item);
+            continue;
+        }
+        // present or missing: plan against the anchor revision. A missing
+        // working copy is recoverable (P-310) — the plan is "create".
+        item.plan = planRestore(it.value(), anchorId);
+        result.append(item);
+    }
+    return result;
+}
+
+// P-318 execution: applies ONLY the reviewed items, one outcome each. A failed
+// item records "failed" and the batch continues — no cross-item atomic claim.
+QVector<Library::RestoreOutcome> Library::restoreFromSnapshot(
+    qint64 snapshotId, const QVector<SnapshotRestoreItem> &items) {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
+    QVector<RestoreOutcome> outcomes;
+    QHash<QString, Asset> byId;
+    for (const auto &asset : assets()) byId.insert(asset.id, asset);
+    for (const auto &item : items) {
+        RestoreOutcome outcome;
+        outcome.assetId = item.assetId;
+        outcome.name = item.name;
+        if (item.plan.action == QStringLiteral("skip")) {
+            outcome.outcome = QStringLiteral("skipped");
+            outcome.error = item.plan.conflictReason;
+            outcomes.append(outcome);
+            continue;
+        }
+        const auto it = byId.constFind(item.assetId);
+        if (it == byId.constEnd()) {
+            outcome.outcome = QStringLiteral("failed");
+            outcome.error = Library::tr("素材不存在");
+            outcomes.append(outcome);
+            continue;
+        }
+        try {
+            restore(it.value(), item.plan);
+            outcome.outcome = QStringLiteral("success");
+        } catch (const std::exception &error) {
+            outcome.outcome = QStringLiteral("failed");
+            outcome.error = QString::fromUtf8(error.what());
+        }
+        outcomes.append(outcome);
+    }
+    return outcomes;
+}
+
 void Library::deleteAsset(const QString &assetId) {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
     QSqlQuery find(db_);
