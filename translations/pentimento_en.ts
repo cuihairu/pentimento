@@ -255,12 +255,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+977"/>
+        <location line="+979"/>
         <source>记录版本</source>
         <translation>Record version</translation>
     </message>
     <message>
-        <location line="-976"/>
+        <location line="-978"/>
         <source>编辑工作副本</source>
         <translation>Edit working copy</translation>
     </message>
@@ -296,13 +296,13 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+1253"/>
+        <location line="+1317"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>Restore to anchor</translation>
     </message>
     <message>
-        <location line="-1255"/>
+        <location line="-1317"/>
         <source>素材库</source>
         <translation>Library</translation>
     </message>
@@ -362,7 +362,12 @@
         <translation>No rating</translation>
     </message>
     <message>
-        <location line="-66"/>
+        <location line="-85"/>
+        <source>浏览快照…</source>
+        <translation>Browse snapshot…</translation>
+    </message>
+    <message>
+        <location line="+19"/>
         <source>筛选</source>
         <translation>Filter</translation>
     </message>
@@ -555,11 +560,12 @@ Restoring appends a new version; existing history is always kept.</translation>
     <message>
         <location line="+3"/>
         <location line="+968"/>
+        <location line="+91"/>
         <source>关闭</source>
         <translation>Off</translation>
     </message>
     <message>
-        <location line="-967"/>
+        <location line="-1058"/>
         <source>每 15 分钟</source>
         <translation>Every 15 minutes</translation>
     </message>
@@ -1064,12 +1070,19 @@ The original file and history are fully preserved and can be exported.</translat
         <translation>(empty)</translation>
     </message>
     <message>
-        <location line="+34"/>
+        <location line="+27"/>
+        <source>还没有快照</source>
+        <translation>No snapshots yet</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <location line="+63"/>
         <source>（%1 个被排除）</source>
         <translation>(%1 excluded)</translation>
     </message>
     <message>
-        <location line="+1"/>
+        <location line="-62"/>
+        <location line="+63"/>
         <source>#%1 %2 · %3 个素材%4</source>
         <translation>#%1 %2 · %3 assets%4</translation>
     </message>
@@ -1082,7 +1095,7 @@ The original file and history are fully preserved and can be exported.</translat
         <translation type="vanished">Content unchanged; nothing to save</translation>
     </message>
     <message>
-        <location line="-279"/>
+        <location line="-341"/>
         <source>恢复历史版本</source>
         <translation>Restore revision</translation>
     </message>
@@ -1211,7 +1224,47 @@ Unrecorded current content is saved first. Close the file in external editors.</
 Close external editors, then roll back via &quot;Restore revision&quot; or &quot;Restore to anchor&quot;.</translation>
     </message>
     <message>
-        <location line="+6"/>
+        <location line="+17"/>
+        <source>浏览快照</source>
+        <translation>Browse snapshot</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>选择要浏览的快照（只读，不修改任何内容）</source>
+        <translation>Choose the snapshot to browse (read-only, changes nothing)</translation>
+    </message>
+    <message>
+        <location line="+12"/>
+        <source>时间点目录浏览（只读）</source>
+        <translation>Point-in-time directory browse (read-only)</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>#%1 · %2 · %3 个素材（只读）</source>
+        <translation>#%1 · %2 · %3 assets (read-only)</translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <source>已删除（历史保留）</source>
+        <translation>Deleted (history retained)</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>工作副本缺失（可恢复）</source>
+        <translation>Working copy missing (recoverable)</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>已排除：%1</source>
+        <translation>Excluded: %1</translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <source>（此快照没有条目）</source>
+        <translation>(this snapshot has no entries)</translation>
+    </message>
+    <message>
+        <location line="+13"/>
         <source>还没有紧急快照锚点</source>
         <translation>No emergency snapshot anchor yet</translation>
     </message>

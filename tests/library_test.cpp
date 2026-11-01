@@ -1803,6 +1803,42 @@ private slots:
         // An incomplete candidate is never published as a successful snapshot.
         QVERIFY(lib.snapshots().isEmpty());
     }
+    void snapshotBrowsingShowsPathsPerBoundary() {
+        QTemporaryDir dir;
+        put(dir.filePath("a.png"), "png-a");
+        Library lib(dir.filePath("lib"));
+        const auto a = lib.importFile(dir.filePath("a.png"));
+        // Snapshot 1: at the root under the original name.
+        const qint64 snap1 = lib.snapshotAll(QStringLiteral("初始"));
+        // Rename + move, then a second snapshot.
+        lib.renameAsset(a.id, QStringLiteral("hero.png"));
+        lib.moveAsset(a.id, QStringLiteral("scenes"));
+        const qint64 snap2 = lib.snapshotAll(QStringLiteral("移动后"));
+        // In-app delete, then a third snapshot (the asset is a tombstone).
+        lib.deleteAsset(a.id);
+        const qint64 snap3 = lib.snapshotAll(QStringLiteral("删除后"));
+
+        const auto at = [](const QVector<SnapshotEntry> &entries) {
+            return entries.isEmpty() ? SnapshotEntry{} : entries.first();
+        };
+        // Each boundary shows its own directory state; later changes never
+        // rewrite an earlier manifest (10-prototype#P-009 two-snapshot example).
+        const auto e1 = at(lib.snapshotEntries(snap1));
+        QCOMPARE(e1.name, QStringLiteral("a.png"));
+        QCOMPARE(e1.folder, QString());
+        QCOMPARE(e1.state, QStringLiteral("present"));
+        const auto e2 = at(lib.snapshotEntries(snap2));
+        QCOMPARE(e2.name, QStringLiteral("hero.png"));
+        QCOMPARE(e2.folder, QStringLiteral("scenes"));
+        QCOMPARE(e2.state, QStringLiteral("present"));
+        const auto e3 = at(lib.snapshotEntries(snap3));
+        QCOMPARE(e3.name, QStringLiteral("hero.png"));
+        QCOMPARE(e3.folder, QStringLiteral("scenes"));
+        QCOMPARE(e3.state, QStringLiteral("tombstone"));
+        // The current live index no longer has the asset at all — the browse
+        // view and the current index are never mixed.
+        QVERIFY(lib.assets().isEmpty());
+    }
 };
 QTEST_GUILESS_MAIN(HistoryTest)
 #include "library_test.moc"

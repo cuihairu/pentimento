@@ -255,12 +255,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+977"/>
+        <location line="+979"/>
         <source>记录版本</source>
         <translation>记录版本</translation>
     </message>
     <message>
-        <location line="-976"/>
+        <location line="-978"/>
         <source>编辑工作副本</source>
         <translation>编辑工作副本</translation>
     </message>
@@ -296,13 +296,13 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+1253"/>
+        <location line="+1317"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>恢复到锚点</translation>
     </message>
     <message>
-        <location line="-1255"/>
+        <location line="-1317"/>
         <source>素材库</source>
         <translation>素材库</translation>
     </message>
@@ -362,7 +362,12 @@
         <translation>无评分</translation>
     </message>
     <message>
-        <location line="-66"/>
+        <location line="-85"/>
+        <source>浏览快照…</source>
+        <translation>浏览快照…</translation>
+    </message>
+    <message>
+        <location line="+19"/>
         <source>筛选</source>
         <translation>筛选</translation>
     </message>
@@ -555,11 +560,12 @@
     <message>
         <location line="+3"/>
         <location line="+968"/>
+        <location line="+91"/>
         <source>关闭</source>
         <translation>关闭</translation>
     </message>
     <message>
-        <location line="-967"/>
+        <location line="-1058"/>
         <source>每 15 分钟</source>
         <translation>每 15 分钟</translation>
     </message>
@@ -1064,12 +1070,19 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation>（空）</translation>
     </message>
     <message>
-        <location line="+34"/>
+        <location line="+27"/>
+        <source>还没有快照</source>
+        <translation>还没有快照</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <location line="+63"/>
         <source>（%1 个被排除）</source>
         <translation>（%1 个被排除）</translation>
     </message>
     <message>
-        <location line="+1"/>
+        <location line="-62"/>
+        <location line="+63"/>
         <source>#%1 %2 · %3 个素材%4</source>
         <translation>#%1 %2 · %3 个素材%4</translation>
     </message>
@@ -1082,7 +1095,7 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation type="vanished">内容未变化，无需重复保存</translation>
     </message>
     <message>
-        <location line="-279"/>
+        <location line="-341"/>
         <source>恢复历史版本</source>
         <translation>恢复历史版本</translation>
     </message>
@@ -1211,7 +1224,47 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
 可先关闭外部编辑器，再通过「恢复历史版本」或「恢复到锚点」回退。</translation>
     </message>
     <message>
-        <location line="+6"/>
+        <location line="+17"/>
+        <source>浏览快照</source>
+        <translation>浏览快照</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>选择要浏览的快照（只读，不修改任何内容）</source>
+        <translation>选择要浏览的快照（只读，不修改任何内容）</translation>
+    </message>
+    <message>
+        <location line="+12"/>
+        <source>时间点目录浏览（只读）</source>
+        <translation>时间点目录浏览（只读）</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>#%1 · %2 · %3 个素材（只读）</source>
+        <translation>#%1 · %2 · %3 个素材（只读）</translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <source>已删除（历史保留）</source>
+        <translation>已删除（历史保留）</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>工作副本缺失（可恢复）</source>
+        <translation>工作副本缺失（可恢复）</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>已排除：%1</source>
+        <translation>已排除：%1</translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <source>（此快照没有条目）</source>
+        <translation>（此快照没有条目）</translation>
+    </message>
+    <message>
+        <location line="+13"/>
         <source>还没有紧急快照锚点</source>
         <translation>还没有紧急快照锚点</translation>
     </message>

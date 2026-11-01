@@ -173,6 +173,7 @@ private:
     void submitScheduledSnapshot();
     void manageExclusions();
     void showFieldHistory();
+    void browseSnapshot();
     void rollbackToSnapshot();
     void report(const std::exception &error);
 };

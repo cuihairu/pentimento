@@ -73,6 +73,8 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     toolbar->addAction(tr("从筛选结果移除标签…"), this, &MainWindow::batchRemoveTag);
     // Anti-ransomware Layer 3: one-click rollback to a pre-infection anchor.
     toolbar->addAction(tr("恢复到锚点"), this, &MainWindow::rollbackToSnapshot);
+    // P-312: read-only point-in-time directory browse of a snapshot manifest.
+    toolbar->addAction(tr("浏览快照…"), this, &MainWindow::browseSnapshot);
     auto *splitter = new QSplitter;
     auto *left = new QWidget;
     auto *leftLayout = new QVBoxLayout(left);
@@ -1305,6 +1307,68 @@ void MainWindow::pollSentinel() {
     }
     QMessageBox::warning(this, tr("疑似勒索批量写入"),
                          tr("工作区检测到异常批量写入，已自动建立紧急快照锚点。\n\n%1\n\n可先关闭外部编辑器，再通过「恢复历史版本」或「恢复到锚点」回退。").arg(alert.reason));
+}
+
+void MainWindow::browseSnapshot() {
+    const auto snapshots = library_.snapshots();
+    if (snapshots.isEmpty()) {
+        statusBar()->showMessage(tr("还没有快照"));
+        return;
+    }
+    QStringList labels;
+    for (const auto &snapshot : snapshots) {
+        const QString excluded = snapshot.excluded > 0
+            ? tr("（%1 个被排除）").arg(snapshot.excluded) : QString();
+        labels << tr("#%1 %2 · %3 个素材%4")
+                      .arg(snapshot.id).arg(snapshot.created).arg(snapshot.assets).arg(excluded);
+    }
+    bool ok = false;
+    const auto choice = QInputDialog::getItem(this, tr("浏览快照"),
+                                              tr("选择要浏览的快照（只读，不修改任何内容）"),
+                                              labels, 0, false, &ok);
+    if (!ok) return;
+    const int index = labels.indexOf(choice);
+    if (index < 0) return;
+    const auto snapshot = snapshots.at(index);
+    const auto entries = library_.snapshotEntries(snapshot.id);
+
+    // P-312: read-only point-in-time directory listing built from the snapshot
+    // manifest (path and states frozen at the snapshot boundary — never mixed
+    // with the current index). No write-back, no completeness claim.
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("时间点目录浏览（只读）"));
+    dialog.resize(560, 420);
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *hint = new QLabel(tr("#%1 · %2 · %3 个素材（只读）")
+        .arg(snapshot.id).arg(snapshot.created).arg(snapshot.assets));
+    hint->setStyleSheet("color:#888;");
+    layout->addWidget(hint);
+    auto *list = new QListWidget(&dialog);
+    for (const auto &entry : entries) {
+        // Manifest path as of the snapshot (folder/name frozen at the boundary).
+        const QString path = entry.folder.isEmpty() ? entry.name
+                                                    : entry.folder + QLatin1Char('/') + entry.name;
+        QStringList parts{path};
+        if (entry.state == QLatin1String("tombstone")) parts << tr("已删除（历史保留）");
+        else if (entry.state == QLatin1String("missing")) parts << tr("工作副本缺失（可恢复）");
+        else if (entry.state == QLatin1String("excluded")) parts << tr("已排除：%1").arg(entry.reason);
+        auto *item = new QListWidgetItem(parts.join(QStringLiteral("  ·  ")), list);
+        if (entry.state == QLatin1String("tombstone"))
+            item->setIcon(style()->standardIcon(QStyle::SP_DialogDiscardButton));
+        else if (entry.state == QLatin1String("missing"))
+            item->setIcon(style()->standardIcon(QStyle::SP_MessageBoxWarning));
+        else if (entry.state == QLatin1String("excluded"))
+            item->setIcon(style()->standardIcon(QStyle::SP_MessageBoxInformation));
+    }
+    if (entries.isEmpty()) {
+        auto *empty = new QListWidgetItem(tr("（此快照没有条目）"), list);
+        empty->setFlags(empty->flags() & ~Qt::ItemIsEnabled);
+    }
+    layout->addWidget(list, 1);
+    auto *closeBtn = new QPushButton(tr("关闭"), &dialog);
+    connect(closeBtn, &QPushButton::clicked, &dialog, &QDialog::accept);
+    layout->addWidget(closeBtn);
+    dialog.exec();
 }
 
 void MainWindow::rollbackToSnapshot() {
