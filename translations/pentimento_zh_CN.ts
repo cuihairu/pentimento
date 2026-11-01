@@ -12,7 +12,7 @@
 <context>
     <name>Library</name>
     <message>
-        <location filename="../src/library.cpp" line="+28"/>
+        <location filename="../src/library.cpp" line="+31"/>
         <location line="+19"/>
         <location line="+6"/>
         <location line="+7"/>
@@ -276,7 +276,63 @@
         <translation>无法发布一致快照，文件写入未稳定：%1</translation>
     </message>
     <message>
-        <location line="-1106"/>
+        <location line="+125"/>
+        <source>备份目标目录不能为空</source>
+        <translation>备份目标目录不能为空</translation>
+    </message>
+    <message>
+        <location line="+5"/>
+        <source>备份目标已存在且不为空：%1（不静默覆盖既有备份，请选择新目录）</source>
+        <translation>备份目标已存在且不为空：%1（不静默覆盖既有备份，请选择新目录）</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>无法创建备份目标目录：%1</source>
+        <translation>无法创建备份目标目录：%1</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>无法创建备份对象目录：%1</source>
+        <translation>无法创建备份对象目录：%1</translation>
+    </message>
+    <message>
+        <location line="+13"/>
+        <source>备份对象校验失败：素材 %1 的版本内容缺失</source>
+        <translation>备份对象校验失败：素材 %1 的版本内容缺失</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <location line="+10"/>
+        <source>备份对象校验失败：%1</source>
+        <translation>备份对象校验失败：%1</translation>
+    </message>
+    <message>
+        <location line="+35"/>
+        <source>备份包不完整（缺少完成标记）：%1</source>
+        <translation>备份包不完整（缺少完成标记）：%1</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>备份包缺少清单：%1</source>
+        <translation>备份包缺少清单：%1</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>备份包清单无法识别：%1</source>
+        <translation>备份包清单无法识别：%1</translation>
+    </message>
+    <message>
+        <location line="+21"/>
+        <source>备份包对象缺失或尺寸不符：%1</source>
+        <translation>备份包对象缺失或尺寸不符：%1</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>备份包对象校验失败：%1</source>
+        <translation>备份包对象校验失败：%1</translation>
+    </message>
+    <message>
+        <location line="-1332"/>
         <source>历史对象内容不一致</source>
         <translation>历史对象内容不一致</translation>
     </message>
@@ -360,12 +416,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+996"/>
+        <location line="+999"/>
         <source>记录版本</source>
         <translation>记录版本</translation>
     </message>
     <message>
-        <location line="-995"/>
+        <location line="-998"/>
         <source>编辑工作副本</source>
         <translation>编辑工作副本</translation>
     </message>
@@ -401,7 +457,7 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+1518"/>
+        <location line="+1521"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>恢复到锚点</translation>
@@ -467,7 +523,7 @@
         <translation>无评分</translation>
     </message>
     <message>
-        <location line="-88"/>
+        <location line="-91"/>
         <source>浏览快照…</source>
         <translation>浏览快照…</translation>
     </message>
@@ -475,6 +531,11 @@
         <location line="+3"/>
         <source>挂载来源状态…</source>
         <translation>挂载来源状态…</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>导出备份包…</source>
+        <translation>导出备份包…</translation>
     </message>
     <message>
         <location line="+19"/>
@@ -677,12 +738,12 @@
         <location line="+877"/>
         <location line="+223"/>
         <location line="+152"/>
-        <location line="+92"/>
+        <location line="+135"/>
         <source>关闭</source>
         <translation>关闭</translation>
     </message>
     <message>
-        <location line="-1343"/>
+        <location line="-1386"/>
         <source>每 15 分钟</source>
         <translation>每 15 分钟</translation>
     </message>
@@ -1286,7 +1347,47 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation>#%1 %2 · %3 个素材%4</translation>
     </message>
     <message>
-        <location line="+34"/>
+        <location line="+33"/>
+        <source>选择备份目标目录（须为空或新目录）</source>
+        <translation>选择备份目标目录（须为空或新目录）</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>导出备份包</source>
+        <translation>导出备份包</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>将导出一致备份包到：
+%1
+
+导出期间暂停写入；清单与对象全部校验通过后才写入完成标记。
+目标目录必须为空（不静默覆盖既有备份）。
+备份包不共享运行中索引，可移植到其他机器。</source>
+        <translation>将导出一致备份包到：
+%1
+
+导出期间暂停写入；清单与对象全部校验通过后才写入完成标记。
+目标目录必须为空（不静默覆盖既有备份）。
+备份包不共享运行中索引，可移植到其他机器。</translation>
+    </message>
+    <message>
+        <location line="+7"/>
+        <source>正在导出备份包（后台进行，界面可继续操作）…</source>
+        <translation>正在导出备份包（后台进行，界面可继续操作）…</translation>
+    </message>
+    <message>
+        <location line="+15"/>
+        <source>备份包导出失败：%1</source>
+        <translation>备份包导出失败：%1</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>备份包已导出：%1（%2 个素材，%3 个对象，约 %4 KiB；完成标记已写入）</source>
+        <translation>备份包已导出：%1（%2 个素材，%3 个对象，约 %4 KiB；完成标记已写入）</translation>
+    </message>
+    <message>
+        <location line="+16"/>
         <source>挂载来源状态</source>
         <translation>挂载来源状态</translation>
     </message>
@@ -1443,7 +1544,7 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
 未记录的当前内容会先保存。请先在外部编辑器中关闭此文件。</translation>
     </message>
     <message>
-        <location line="-651"/>
+        <location line="-694"/>
         <location line="+5"/>
         <source>导出历史版本</source>
         <translation>导出历史版本</translation>

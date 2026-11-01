@@ -94,3 +94,9 @@
 - 流程：短暂暂停写入 → 复制清单与引用对象 → 校验 → 写完成标记（不共享运行中索引、不半包标成功）。
 - 覆盖最关键数据保护用途（异盘备份）。
 - **V1 不做**：共享运行中索引；默认直连协议；静默覆盖既有备份（此范围变化须批准）。
+
+**实现（2026-11-01）**
+- 设计：`Library::exportBackupPackage(dest)`——持互斥锁为「短暂暂停写入」（应用本就单写者串行队列，导入/记录/恢复不交叠）；清单由已完成修订构建（与 snapshotAll 同一一致性模型），逐对象复制后**校验复制件尺寸+内容哈希**才信任；全部通过后写 `manifest.json`，最后写 `COMPLETE` 完成标记——半包无标记，绝不标成功；`catalog.sqlite` 从不复制（清单是自包含快照=不共享运行中索引，可移植）。目标非空即拒绝（不静默覆盖）。`verifyBackupPackage(dir)` 校验标记+清单+对象，缺失/损坏即抛。
+- 接线：「导出备份包…」工具栏动作——选目录（须空/新）→ 确认 → 后台写者队列导出（NAS 慢也不阻塞界面）→ 状态栏报 素材/对象/KiB。
+- 测试：`backupPackageExportsConsistentManifestAndObjects`（清单+对象+标记；无 catalog.sqlite；重校验通过；二次导出非空目标拒绝）、`backupPackageVerifyRejectsHalfPackage`（删标记→拒绝；删对象→拒绝）。
+- 验证：ctest 2/2 绿；离线烟雾运行无崩溃；lupdate/lrelease 340/340 双语言完成。

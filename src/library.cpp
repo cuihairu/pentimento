@@ -10,6 +10,9 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QHash>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLockFile>
 #include <QSaveFile>
 #include <QSqlError>
@@ -1739,6 +1742,120 @@ QVector<SnapshotEntry> Library::snapshotEntries(qint64 snapshotId) const {
         result.push_back(entry);
     }
     return result;
+}
+
+// P-516: export a consistent full backup package. The mutex is held for the
+// whole export — that IS the brief write pause (the app runs one writer on a
+// serial queue, so no import/capture/restore can interleave).
+Library::BackupPackage Library::exportBackupPackage(const QString &destinationDir) const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
+    if (destinationDir.trimmed().isEmpty())
+        fail(Library::tr("备份目标目录不能为空"));
+    const QDir dest(destinationDir);
+    // No silent overwrite: an existing target is refused; the caller picks a
+    // fresh directory (or clears the old package themselves).
+    if (dest.exists() && !QDir(destinationDir).entryList(QDir::AllEntries | QDir::NoDotAndDotDot).isEmpty())
+        fail(Library::tr("备份目标已存在且不为空：%1（不静默覆盖既有备份，请选择新目录）").arg(destinationDir));
+    if (!dest.mkpath(QStringLiteral(".")))
+        fail(Library::tr("无法创建备份目标目录：%1").arg(destinationDir));
+    const QString objectsDir = dest.filePath(QStringLiteral("objects"));
+    if (!QDir().mkpath(objectsDir))
+        fail(Library::tr("无法创建备份对象目录：%1").arg(objectsDir));
+
+    BackupPackage out;
+    out.packageDir = dest.absolutePath();
+    // The manifest is built from completed revisions (the same consistency
+    // model as snapshotAll): latest revision per live asset, object verified
+    // before it is trusted. Deleted assets are not part of a live backup.
+    QSet<QString> uniqueHashes;
+    for (const auto &asset : assets()) {
+        const auto history = revisions(asset.id);
+        if (history.isEmpty()) continue;
+        const auto &latest = history.first(); // newest-first
+        if (latest.hash.size() != 64)
+            fail(Library::tr("备份对象校验失败：素材 %1 的版本内容缺失").arg(asset.logicalPath()));
+        const QFileInfo object(objectPath(latest.hash));
+        if (!object.exists() || object.size() != latest.size)
+            fail(Library::tr("备份对象校验失败：%1").arg(asset.logicalPath()));
+        BackupEntry entry{asset.id, asset.name, asset.folder, latest.hash, latest.size, latest.id};
+        out.entries.push_back(entry);
+        if (uniqueHashes.contains(latest.hash)) continue; // content dedup: copy once
+        uniqueHashes.insert(latest.hash);
+        const QString target = objectsDir + QLatin1Char('/') + latest.hash;
+        // Copy then verify the COPY (size + content hash) before trusting it:
+        // a half-copied object must never end up in a package marked complete.
+        copyFileStreaming(object.absoluteFilePath(), target);
+        if (QFileInfo(target).size() != latest.size || digestFile(target) != latest.hash)
+            fail(Library::tr("备份对象校验失败：%1").arg(asset.logicalPath()));
+        ++out.objects;
+        out.bytes += latest.size;
+    }
+
+    QJsonArray entries;
+    for (const auto &e : out.entries)
+        entries.append(QJsonObject{{QStringLiteral("assetId"), e.assetId},
+                                   {QStringLiteral("name"), e.name},
+                                   {QStringLiteral("folder"), e.folder},
+                                   {QStringLiteral("hash"), e.hash},
+                                   {QStringLiteral("size"), static_cast<double>(e.size)},
+                                   {QStringLiteral("revisionId"), static_cast<double>(e.revisionId)}});
+    QJsonObject manifest;
+    manifest.insert(QStringLiteral("format"), QStringLiteral("pentimento-backup-v1"));
+    const QString exported = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+    manifest.insert(QStringLiteral("exported"), exported);
+    manifest.insert(QStringLiteral("entries"), entries);
+    const QString manifestPath = dest.filePath(QStringLiteral("manifest.json"));
+    writeFile(manifestPath, QJsonDocument(manifest).toJson(QJsonDocument::Indented));
+    out.manifestPath = manifestPath;
+    // Completion marker LAST: a package without it is a half-package and is
+    // never reported as success (verifyBackupPackage refuses it).
+    const QString markerPath = dest.filePath(QStringLiteral("COMPLETE"));
+    writeFile(markerPath, exported.toUtf8());
+    out.markerPath = markerPath;
+    return out;
+}
+
+QVector<Library::BackupEntry> Library::verifyBackupPackage(const QString &packageDir) const {
+    const QDir dir(packageDir);
+    // The completion marker decides "success": a half-package (interrupted
+    // export, disk-full) has no marker and is reported incomplete, never
+    // silently accepted.
+    if (!QFileInfo::exists(dir.filePath(QStringLiteral("COMPLETE"))))
+        fail(Library::tr("备份包不完整（缺少完成标记）：%1").arg(packageDir));
+    QFile manifestFile(dir.filePath(QStringLiteral("manifest.json")));
+    if (!manifestFile.open(QIODevice::ReadOnly))
+        fail(Library::tr("备份包缺少清单：%1").arg(packageDir));
+    const QJsonDocument doc = QJsonDocument::fromJson(manifestFile.readAll());
+    if (!doc.isObject() || doc.object().value(QStringLiteral("format")).toString()
+                                != QStringLiteral("pentimento-backup-v1"))
+        fail(Library::tr("备份包清单无法识别：%1").arg(packageDir));
+    const auto arr = doc.object().value(QStringLiteral("entries")).toArray();
+    QVector<BackupEntry> entries;
+    QSet<QString> verified;
+    for (const auto v : arr) {
+        const QJsonObject o = v.toObject();
+        BackupEntry entry;
+        entry.assetId = o.value(QStringLiteral("assetId")).toString();
+        entry.name = o.value(QStringLiteral("name")).toString();
+        entry.folder = o.value(QStringLiteral("folder")).toString();
+        entry.hash = o.value(QStringLiteral("hash")).toString();
+        entry.size = static_cast<qint64>(o.value(QStringLiteral("size")).toDouble());
+        entry.revisionId = static_cast<qint64>(o.value(QStringLiteral("revisionId")).toDouble());
+        // A package object must exist with the declared size and the exact
+        // content hash — anything else is a corrupt/half package, reported, not
+        // accepted.
+        if (!verified.contains(entry.hash)) {
+            verified.insert(entry.hash);
+            const QString objectPath = dir.filePath(QStringLiteral("objects/") + entry.hash);
+            const QFileInfo object(objectPath);
+            if (!object.exists() || object.size() != entry.size)
+                fail(Library::tr("备份包对象缺失或尺寸不符：%1").arg(entry.name));
+            if (digestFile(objectPath) != entry.hash)
+                fail(Library::tr("备份包对象校验失败：%1").arg(entry.name));
+        }
+        entries.push_back(entry);
+    }
+    return entries;
 }
 
 int Library::rollbackAll(qint64 snapshotId) {

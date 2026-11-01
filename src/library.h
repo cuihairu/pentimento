@@ -229,6 +229,42 @@ public:
     // Anti-ransomware: freeze current working state of every asset as one anchor.
     qint64 snapshotAll(const QString &note);
     QVector<Snapshot> snapshots() const;
+    // P-516: one entry of a consistent backup package manifest. The manifest is
+    // built from completed revisions, so it is self-contained — it never
+    // references the live catalog, and a package is portable to another machine.
+    struct BackupEntry {
+        QString assetId;
+        QString name;
+        QString folder;
+        QString hash;       // content hash of the referenced revision
+        qint64 size = 0;
+        qint64 revisionId = 0;
+    };
+    struct BackupPackage {
+        QString packageDir;
+        QVector<BackupEntry> entries;
+        int objects = 0;        // distinct objects copied (content deduped)
+        qint64 bytes = 0;       // total object bytes copied
+        QString manifestPath;
+        QString markerPath;     // COMPLETE, written last
+    };
+    // P-516: export a consistent full backup package to `destinationDir` (a
+    // local path or a user-mounted NAS target; never WebDAV/SFTP). Flow per the
+    // design: enumerate live assets' latest completed revisions → copy each
+    // referenced object → verify every copy (size + content hash) → write the
+    // manifest, then a COMPLETE marker. A half-package is never marked
+    // successful (no marker until every object verifies), and the live
+    // catalog.sqlite is never copied — the manifest is a separate snapshot, so
+    // a running index is never shared. `destinationDir` must not already hold a
+    // package (no silent overwrite); the caller picks a fresh directory. Throws
+    // on any unreadable/missing object or copy failure.
+    BackupPackage exportBackupPackage(const QString &destinationDir) const;
+    // P-516: verify an existing package — the COMPLETE marker must exist and
+    // every manifest entry's object must be present with the declared size and
+    // content hash. Returns the verified entries; throws (with a reason) when
+    // the package is incomplete or corrupt, so a half-export is never reported
+    // as success.
+    QVector<BackupEntry> verifyBackupPackage(const QString &packageDir) const;
     // P-311: the manifest of a consistent snapshot — assetId, path-as-of-
     // snapshot, content hash and state per entry. Older snapshots (written
     // before the manifest carried path/hash) fall back to the asset's current

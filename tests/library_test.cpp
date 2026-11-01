@@ -811,6 +811,69 @@ private slots:
         }(), 10000);
         QCOMPARE(library.assets().size(), asRoot ? 3 : 2); // adds only what was fresh
     }
+    void backupPackageExportsConsistentManifestAndObjects() {
+        QTemporaryDir dir;
+        QTemporaryDir target;
+        put(dir.filePath("a.png"), "bytes-a");
+        put(dir.filePath("b.png"), "bytes-b");
+        Library library(dir.filePath("library"));
+        QVERIFY(!library.importFile(dir.filePath("a.png")).id.isEmpty());
+        QVERIFY(!library.importFile(dir.filePath("b.png")).id.isEmpty());
+
+        // P-516: export a consistent package — manifest + referenced objects.
+        const auto package = library.exportBackupPackage(target.path());
+        QCOMPARE(package.entries.size(), 2);
+        QVERIFY(QFileInfo::exists(package.markerPath));   // COMPLETE, written last
+        QVERIFY(QFileInfo::exists(package.manifestPath));
+        // The live index is never shared: no catalog inside the package.
+        QVERIFY(!QFileInfo::exists(target.filePath("catalog.sqlite")));
+        // Every referenced object is present with the declared size and content.
+        for (const auto &e : package.entries) {
+            const QFileInfo obj(target.filePath("objects/" + e.hash));
+            QVERIFY(obj.exists());
+            QCOMPARE(obj.size(), e.size);
+            QCOMPARE(QByteArray::fromHex(e.hash.toLatin1()),
+                     QCryptographicHash::hash(get(target.filePath("objects/" + e.hash)),
+                                              QCryptographicHash::Sha256));
+        }
+        // Re-verification of the package succeeds (marker + manifest + objects).
+        const auto verified = library.verifyBackupPackage(target.path());
+        QCOMPARE(verified.size(), 2);
+        QStringList names;
+        for (const auto &e : verified) names << e.name;
+        QVERIFY(names.contains(QStringLiteral("a.png")));
+        QVERIFY(names.contains(QStringLiteral("b.png")));
+        // A second export to the now non-empty target is refused (no silent
+        // overwrite of an existing package).
+        bool refused = false;
+        try { library.exportBackupPackage(target.path()); }
+        catch (const std::exception &) { refused = true; }
+        QVERIFY(refused);
+    }
+    void backupPackageVerifyRejectsHalfPackage() {
+        QTemporaryDir dir;
+        QTemporaryDir target;
+        put(dir.filePath("a.png"), "bytes-a");
+        Library library(dir.filePath("library"));
+        QVERIFY(!library.importFile(dir.filePath("a.png")).id.isEmpty());
+        const auto package = library.exportBackupPackage(target.path());
+        QVERIFY(!package.entries.isEmpty());
+        // A package missing the COMPLETE marker is a half-package: never
+        // reported as success.
+        QVERIFY(QFile::remove(package.markerPath));
+        bool rejected = false;
+        try { library.verifyBackupPackage(target.path()); }
+        catch (const std::exception &) { rejected = true; }
+        QVERIFY(rejected);
+        // Restore the marker but corrupt one object → still rejected.
+        put(package.markerPath, "ok");
+        const QString objPath = target.filePath("objects/" + package.entries.first().hash);
+        QVERIFY(QFile::remove(objPath));
+        bool corruptRejected = false;
+        try { library.verifyBackupPackage(target.path()); }
+        catch (const std::exception &) { corruptRejected = true; }
+        QVERIFY(corruptRejected);
+    }
     void storageInterfaceReportsConsistentLocalInfo() {
         QTemporaryDir dir;
         put(dir.filePath("a.png"), "image-bytes");

@@ -178,5 +178,6 @@ private:
     void browseSnapshot();
     void rollbackToSnapshot();
     void showSourceState();
+    void exportBackup();
     void report(const std::exception &error);
 };

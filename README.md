@@ -1,5 +1,7 @@
 # pentimento · 画迹
 
+<p align="center"><a href="https://cuihairu.github.io/pentimento//"><img src="https://img.shields.io/badge/docs-blue" alt="docs"></a></p>
+
 ![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)
 ![Qt 6](https://img.shields.io/badge/Qt-6-41CD52?logo=qt&logoColor=white)
 ![CMake](https://img.shields.io/badge/CMake-3.24+-064F8C?logo=cmake&logoColor=white)
@@ -10,7 +12,6 @@
 面向游戏美术素材的本地桌面资源管理器，以历史版本浏览与恢复为核心。参考 Eagle 的素材整理习惯和 macOS 时光机的版本回溯体验，自行实现代码与界面。
 
 **技术栈：C++17、Qt 6 Widgets、Qt SQL/SQLite，CMake 管理。** 不使用 WebView。
-
 ## 当前可用
 
 - 创建/打开本地素材库，批量导入文件（复制导入，不修改原始文件）。
@@ -22,7 +23,7 @@
 
 ## 构建与运行
 
-需要 CMake 3.24+、Ninja、支持 C++17 的编译器及 Qt 6.4+（Core、Gui、Widgets、Sql、Test），运行时需要 Qt SQLite 驱动。已在本地 Qt 6.10.2/Linux 构建验证；macOS/Windows 尚待实际构建验证。
+需要 CMake 3.21+、Ninja、支持 C++17 的编译器及 Qt 6.4+（Core、Gui、Widgets、Sql、Test），运行时需要 Qt SQLite 驱动。已在本地 Qt 6.10.2/Linux 构建验证；macOS/Windows 尚待实际构建验证。
 
 ```sh
 cmake --preset dev
@@ -50,10 +51,6 @@ When a local asset library is encrypted or tampered by ransomware, the product m
 - **Layer 1: Immutable version store** (implemented) — history objects are content-addressed and append-only, then set read-only after write (Linux `chattr +i` when permitted, else clear write bits; Windows/macOS read-only attribute abstracted to the platform layer, real-machine verification TODO). Version store is separate from the workspace; restore is one-way store→workspace. Encrypting the workspace leaves history objects readable and restorable.
 - **Layer 2: Batch-modification sentinel** (implemented) — watches the workspace for anomalous batch writes; three signals (many files changed / extension churn .png→.enc / abnormally high content entropy) trip an alert at threshold, and an emergency snapshot anchor is taken automatically. Normal small edits stay quiet (threshold test).
 - **Layer 3: Whole-tree rollback** (implemented) — "Restore to anchor" restores the workspace to the pre-infection anchor in one action, using the existing "restore forms a new version" semantics; later history (including encrypted versions) is not destroyed.
-
-## 对标调研
-
-对齐 7 款对标产品（Alienbrain、Anchorpoint、Perforce、Eagle、Billfish、Adobe Bridge+Lr、Time Machine/File History）的调研已落库：[docs/zh/design/90-benchmark.md](docs/zh/design/90-benchmark.md)（16 条可借鉴做法逐条复核 V1采纳/V2候选/排除，14 条功能缺口逐条复核登记至 [todo.md](todo.md)「对标缺口复核」）。
 
 ## 首版边界
 

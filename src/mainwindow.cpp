@@ -83,6 +83,9 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     // P-513: mounted-source reconnection state (connect/online/offline/failed)
     // with a user-paced retry; the probe always runs off the UI thread.
     toolbar->addAction(tr("挂载来源状态…"), this, &MainWindow::showSourceState);
+    // P-516: consistent full backup package export (local or mounted target);
+    // writes a COMPLETE marker only after every object verifies.
+    toolbar->addAction(tr("导出备份包…"), this, &MainWindow::exportBackup);
     auto *splitter = new QSplitter;
     auto *left = new QWidget;
     auto *leftLayout = new QVBoxLayout(left);
@@ -1613,6 +1616,49 @@ void MainWindow::rollbackToSnapshot() {
 }
 
 void MainWindow::saveScreenshot(const QString &path) { grab().save(path); }
+
+// P-516: export a consistent full backup package to a local or user-mounted
+// NAS directory. The export runs on the background writer queue — that is the
+// brief write pause (no import/capture/restore can interleave), and a slow NAS
+// never blocks the UI. A COMPLETE marker is written only after every manifest
+// object copied and verified, so a half-package is never reported as success;
+// the live catalog is never copied (the manifest is a self-contained snapshot).
+void MainWindow::exportBackup() {
+    const QString dir = QFileDialog::getExistingDirectory(this, tr("选择备份目标目录（须为空或新目录）"));
+    if (dir.isEmpty()) return;
+    if (QMessageBox::question(this, tr("导出备份包"),
+                              tr("将导出一致备份包到：\n%1\n\n"
+                                 "导出期间暂停写入；清单与对象全部校验通过后才写入完成标记。\n"
+                                 "目标目录必须为空（不静默覆盖既有备份）。\n"
+                                 "备份包不共享运行中索引，可移植到其他机器。")
+                                  .arg(dir))
+        != QMessageBox::Yes)
+        return;
+    statusBar()->showMessage(tr("正在导出备份包（后台进行，界面可继续操作）…"));
+    auto result = std::make_shared<Library::BackupPackage>();
+    auto error = std::make_shared<QString>();
+    const qint64 id = captureQueue_->submit(QStringLiteral("导出备份包"),
+        [this, dir, result, error](TaskQueue::Progress &) {
+            try {
+                *result = library_.exportBackupPackage(dir);
+            } catch (const std::exception &e) {
+                *error = QString::fromUtf8(e.what());
+            }
+        });
+    QObject::connect(captureQueue_.get(), &TaskQueue::taskFinished, this,
+        [this, id, result, error](qint64 finished, bool, const QString &) {
+            if (finished != id) return;
+            if (!error->isEmpty()) {
+                statusBar()->showMessage(tr("备份包导出失败：%1").arg(*error));
+                return;
+            }
+            statusBar()->showMessage(tr("备份包已导出：%1（%2 个素材，%3 个对象，约 %4 KiB；完成标记已写入）")
+                                         .arg(result->packageDir)
+                                         .arg(result->entries.size())
+                                         .arg(result->objects)
+                                         .arg(result->bytes / 1024));
+        });
+}
 
 // P-513: mounted-source reconnection state machine, made visible. The user
 // enters (or browses) a mounted SMB/NFS path and watches the live state

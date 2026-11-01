@@ -12,7 +12,7 @@
 <context>
     <name>Library</name>
     <message>
-        <location filename="../src/library.cpp" line="+28"/>
+        <location filename="../src/library.cpp" line="+31"/>
         <location line="+19"/>
         <location line="+6"/>
         <location line="+7"/>
@@ -276,7 +276,63 @@
         <translation>Cannot publish a consistent snapshot, write not settled: %1</translation>
     </message>
     <message>
-        <location line="-1106"/>
+        <location line="+125"/>
+        <source>备份目标目录不能为空</source>
+        <translation>Backup target directory must not be empty</translation>
+    </message>
+    <message>
+        <location line="+5"/>
+        <source>备份目标已存在且不为空：%1（不静默覆盖既有备份，请选择新目录）</source>
+        <translation>Backup target exists and is not empty: %1 (existing backups are never silently overwritten; choose a new directory)</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>无法创建备份目标目录：%1</source>
+        <translation>Cannot create backup target directory: %1</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>无法创建备份对象目录：%1</source>
+        <translation>Cannot create backup objects directory: %1</translation>
+    </message>
+    <message>
+        <location line="+13"/>
+        <source>备份对象校验失败：素材 %1 的版本内容缺失</source>
+        <translation>Backup object verification failed: asset %1 has no version content</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <location line="+10"/>
+        <source>备份对象校验失败：%1</source>
+        <translation>Backup object verification failed: %1</translation>
+    </message>
+    <message>
+        <location line="+35"/>
+        <source>备份包不完整（缺少完成标记）：%1</source>
+        <translation>Backup package incomplete (missing completion marker): %1</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>备份包缺少清单：%1</source>
+        <translation>Backup package has no manifest: %1</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>备份包清单无法识别：%1</source>
+        <translation>Backup package manifest unrecognized: %1</translation>
+    </message>
+    <message>
+        <location line="+21"/>
+        <source>备份包对象缺失或尺寸不符：%1</source>
+        <translation>Backup package object missing or wrong size: %1</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>备份包对象校验失败：%1</source>
+        <translation>Backup package object verification failed: %1</translation>
+    </message>
+    <message>
+        <location line="-1332"/>
         <source>历史对象内容不一致</source>
         <translation>History object content mismatch</translation>
     </message>
@@ -360,12 +416,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+996"/>
+        <location line="+999"/>
         <source>记录版本</source>
         <translation>Record version</translation>
     </message>
     <message>
-        <location line="-995"/>
+        <location line="-998"/>
         <source>编辑工作副本</source>
         <translation>Edit working copy</translation>
     </message>
@@ -401,7 +457,7 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+1518"/>
+        <location line="+1521"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>Restore to anchor</translation>
@@ -467,7 +523,7 @@
         <translation>No rating</translation>
     </message>
     <message>
-        <location line="-88"/>
+        <location line="-91"/>
         <source>浏览快照…</source>
         <translation>Browse snapshot…</translation>
     </message>
@@ -475,6 +531,11 @@
         <location line="+3"/>
         <source>挂载来源状态…</source>
         <translation>Mounted Source Status…</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>导出备份包…</source>
+        <translation>Export Backup Package…</translation>
     </message>
     <message>
         <location line="+19"/>
@@ -677,12 +738,12 @@ Restoring appends a new version; existing history is always kept.</translation>
         <location line="+877"/>
         <location line="+223"/>
         <location line="+152"/>
-        <location line="+92"/>
+        <location line="+135"/>
         <source>关闭</source>
         <translation>Off</translation>
     </message>
     <message>
-        <location line="-1343"/>
+        <location line="-1386"/>
         <source>每 15 分钟</source>
         <translation>Every 15 minutes</translation>
     </message>
@@ -1286,7 +1347,47 @@ The original file and history are fully preserved and can be exported.</translat
         <translation>#%1 %2 · %3 assets%4</translation>
     </message>
     <message>
-        <location line="+34"/>
+        <location line="+33"/>
+        <source>选择备份目标目录（须为空或新目录）</source>
+        <translation>Choose a backup target directory (must be empty or new)</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>导出备份包</source>
+        <translation>Export Backup Package</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>将导出一致备份包到：
+%1
+
+导出期间暂停写入；清单与对象全部校验通过后才写入完成标记。
+目标目录必须为空（不静默覆盖既有备份）。
+备份包不共享运行中索引，可移植到其他机器。</source>
+        <translation>Will export a consistent backup package to:
+%1
+
+Writes are paused during the export; the completion marker is written only after every manifest object is copied and verified.
+The target directory must be empty (existing backups are never silently overwritten).
+The package does not share the running index and is portable to another machine.</translation>
+    </message>
+    <message>
+        <location line="+7"/>
+        <source>正在导出备份包（后台进行，界面可继续操作）…</source>
+        <translation>Exporting backup package (in background; the UI stays usable)…</translation>
+    </message>
+    <message>
+        <location line="+15"/>
+        <source>备份包导出失败：%1</source>
+        <translation>Backup package export failed: %1</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>备份包已导出：%1（%2 个素材，%3 个对象，约 %4 KiB；完成标记已写入）</source>
+        <translation>Backup package exported: %1 (%2 assets, %3 objects, about %4 KiB; completion marker written)</translation>
+    </message>
+    <message>
+        <location line="+16"/>
         <source>挂载来源状态</source>
         <translation>Mounted Source Status</translation>
     </message>
@@ -1443,7 +1544,7 @@ The original file and history are fully preserved and can be exported.</translat
 Unrecorded current content is saved first. Close the file in external editors.</translation>
     </message>
     <message>
-        <location line="-651"/>
+        <location line="-694"/>
         <location line="+5"/>
         <source>导出历史版本</source>
         <translation>Export revision</translation>
