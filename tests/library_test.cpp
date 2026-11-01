@@ -773,6 +773,59 @@ private slots:
         QCOMPARE(lib.readObject(lib.revisions(brokenAsset.id).first().hash), psd.left(10));
         QVERIFY(preview::isPsdSignature(psd.left(10)));
     }
+
+    // P-212: technical metadata reports format/size/fileSize/channels from the
+    // header only, and leaves unknown fields empty instead of fabricating them.
+    void metadataReportsFormatSizeAndChannels() {
+        QTemporaryDir dir;
+        // PNG: format, exact size, file size, RGBA channels + 8bit depth.
+        QImage rgba(64, 48, QImage::Format_ARGB32);
+        rgba.fill(Qt::transparent);
+        const QString png = dir.filePath("a.png");
+        QVERIFY(rgba.save(png));
+        const auto mp = preview::metadata(png, "png");
+        QVERIFY(mp.ok);
+        QCOMPARE(mp.format, QString("png"));
+        QCOMPARE(mp.width, 64);
+        QCOMPARE(mp.height, 48);
+        QVERIFY(mp.fileSize > 0);
+        QCOMPARE(mp.channels, QString("RGBA"));
+        QCOMPARE(mp.bitsPerChannel, 8);
+        QVERIFY(mp.hasAlpha);
+        // JPEG: no alpha channel.
+        QImage rgb(32, 32, QImage::Format_RGB32);
+        rgb.fill(Qt::red);
+        const QString jpg = dir.filePath("b.jpg");
+        QVERIFY(rgb.save(jpg));
+        const auto mj = preview::metadata(jpg, "jpg");
+        QVERIFY(mj.ok);
+        QCOMPARE(mj.channels, QString("RGB"));
+        QVERIFY(!mj.hasAlpha);
+        // TGA (hand-written, read-only codec): RGBA + exact pixel depth.
+        const QString tga = dir.filePath("c.tga");
+        put(tga, makeTga(64, 48, qRgba(10, 200, 30, 200)));
+        const auto mt = preview::metadata(tga, "tga");
+        QVERIFY(mt.ok);
+        QCOMPARE(mt.channels, QString("RGBA"));
+        QVERIFY(mt.hasAlpha);
+        // PSD: format named by content signature, channels left unknown (no
+        // codec to confirm them) — never fabricated.
+        const QString psd = dir.filePath("d.psd");
+        put(psd, makePsd(8, 8));
+        const auto mpsd = preview::metadata(psd, "psd");
+        QVERIFY(mpsd.ok);
+        QCOMPARE(mpsd.format, QString("psd"));
+        QVERIFY(mpsd.channels.isEmpty());   // unknown, not guessed
+        QCOMPARE(mpsd.bitsPerChannel, 0);   // unknown, not filled with zero-truth
+        QVERIFY(mpsd.fileSize > 0);
+        // An uninspectable path reports not-ok with empty fields (no fabrication).
+        const auto missing = preview::metadata(dir.filePath("nope.png"));
+        QVERIFY(!missing.ok);
+        QCOMPARE(missing.format, QString());
+        QCOMPARE(missing.channels, QString());
+        QCOMPARE(missing.width, 0);
+        QCOMPARE(missing.bitsPerChannel, 0);
+    }
 };
 QTEST_GUILESS_MAIN(HistoryTest)
 #include "library_test.moc"

@@ -1,5 +1,7 @@
 #include "preview.h"
 
+#include <QFile>
+#include <QFileInfo>
 #include <QImageReader>
 #include <QtGlobal>
 #include <QtMath>
@@ -60,6 +62,91 @@ bool canDecode(const QString &path) {
 
 bool isPsdSignature(const QByteArray &content) {
     return content.startsWith(kPsdSignature);
+}
+
+Metadata metadata(const QString &path, const QString &formatHint) {
+    Metadata m;
+    const QFileInfo info(path);
+    if (!info.exists() || !info.isFile()) return m; // nothing to inspect
+    m.ok = true;
+    m.fileSize = info.size();
+    QImageReader reader(path);
+    if (!formatHint.isEmpty() &&
+        QImageReader::supportedImageFormats().contains(formatHint.toLatin1())) {
+        reader.setFormat(formatHint.toLatin1());
+    } else {
+        reader.setDecideFormatFromContent(true);
+    }
+    const QSize size = reader.size();
+    if (!size.isValid()) {
+        // Header unreadable (e.g. no PSD codec): still name it by content
+        // signature; size/channels stay unknown rather than fabricated.
+        QFile file(path);
+        if (file.open(QIODevice::ReadOnly) && file.read(4) == kPsdSignature)
+            m.format = QStringLiteral("psd");
+        return m;
+    }
+    m.width = size.width();
+    m.height = size.height();
+    m.format = reader.format().toLower();
+    // Channels and per-channel depth come from the header format, never guessed.
+    switch (reader.imageFormat()) {
+    case QImage::Format_ARGB32:
+    case QImage::Format_ARGB32_Premultiplied:
+    case QImage::Format_RGBA8888:
+    case QImage::Format_RGBA64:
+    case QImage::Format_RGBA64_Premultiplied:
+    case QImage::Format_ARGB8565_Premultiplied:
+    case QImage::Format_ARGB6666_Premultiplied:
+    case QImage::Format_ARGB4444_Premultiplied:
+        m.channels = QStringLiteral("RGBA");
+        m.hasAlpha = true;
+        break;
+    case QImage::Format_RGB32:
+    case QImage::Format_RGB888:
+    case QImage::Format_RGBX64:
+        m.channels = QStringLiteral("RGB");
+        break;
+    case QImage::Format_Grayscale8:
+    case QImage::Format_Grayscale16:
+        m.channels = QStringLiteral("灰度");
+        break;
+    case QImage::Format_Indexed8:
+        m.channels = QStringLiteral("调色板");
+        break;
+    case QImage::Format_Alpha8:
+        m.channels = QStringLiteral("Alpha");
+        m.hasAlpha = true;
+        break;
+    default:
+        break; // unknown (incl. CMYK, which Qt 6 dropped): leave channels empty
+    }
+    switch (reader.imageFormat()) {
+    case QImage::Format_RGBA64:
+    case QImage::Format_RGBA64_Premultiplied:
+    case QImage::Format_RGBX64:
+    case QImage::Format_Grayscale16:
+        m.bitsPerChannel = 16;
+        break;
+    case QImage::Format_ARGB32:
+    case QImage::Format_ARGB32_Premultiplied:
+    case QImage::Format_RGB32:
+    case QImage::Format_RGB888:
+    case QImage::Format_RGBA8888:
+    case QImage::Format_Indexed8:
+    case QImage::Format_Alpha8:
+        m.bitsPerChannel = 8;
+        break;
+    default:
+        break; // unknown depth: 0, never filled with a guess
+    }
+    // PSD has no Qt codec: name it by content signature, keep channels unknown.
+    if (m.format.isEmpty()) {
+        QFile file(path);
+        if (file.open(QIODevice::ReadOnly) && file.read(4) == kPsdSignature)
+            m.format = QStringLiteral("psd");
+    }
+    return m;
 }
 
 QStringList firstBatchSupported() {

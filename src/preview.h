@@ -17,6 +17,20 @@ struct Decoded {
     bool valid = false;   // true: a decodable image was produced
 };
 
+// Technical metadata (P-212). Only confirmed facts are filled; unknown fields
+// stay empty/zero — nothing is invented (no author/license/content semantics,
+// no fabricated color space or channel counts).
+struct Metadata {
+    bool ok = false;      // the file header could be inspected
+    QString format;       // "png", "jpeg", "psd", ... (content-based), empty=unknown
+    int width = 0;
+    int height = 0;
+    qint64 fileSize = 0;
+    QString channels;     // "RGBA"/"RGB"/"灰度"/"调色板"/"CMYK", empty=unknown
+    int bitsPerChannel = 0; // 8 or 16 for known formats, 0=unknown
+    bool hasAlpha = false;  // meaningful only when channels is known
+};
+
 // Uniform scale fitting `imageSize` inside `viewportSize` minus `margin` on each
 // side, preserving aspect ratio; clamped to [1/32, 8] so pathological ratios
 // still land in a usable range. Returns 1 when either size is empty.
@@ -47,5 +61,11 @@ bool isPsdSignature(const QByteArray &content);
 // The V1 first-batch formats (PNG/JPEG/WebP/TGA/BMP) that this Qt build can
 // decode; reports capability honestly instead of claiming support by extension.
 QStringList firstBatchSupported();
+
+// Technical metadata from the header only (no full decode, so a huge image
+// costs no memory). `formatHint` mirrors decode(). A PSD is recognized by its
+// content signature even though Qt has no codec for it; its channels stay
+// unknown rather than guessed.
+Metadata metadata(const QString &path, const QString &formatHint = QString());
 
 } // namespace preview

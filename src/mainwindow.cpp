@@ -320,10 +320,27 @@ void MainWindow::showRevision() {
     restore_->setEnabled(valid); export_->setEnabled(valid);
     if (!valid) return;
     const auto &revision = revisions_.at(row);
-    details_->setText(QStringLiteral("%1\n%2 · %3 · #%4")
-        .arg(selected().name, row == 0 ? tr("当前版本") : tr("历史版本"),
-             QDateTime::fromString(revision.created, Qt::ISODateWithMs).toLocalTime().toString("yyyy-MM-dd HH:mm:ss"))
-        .arg(revision.id));
+    // P-212: technical metadata (format/size/fileSize/channels) from the header;
+    // unknown fields are omitted, never invented.
+    const auto meta = preview::metadata(library_.objectPath(revision.hash),
+                                        QFileInfo(selected().name).suffix().toLower());
+    QStringList facts;
+    if (!meta.format.isEmpty()) facts << meta.format.toUpper();
+    if (meta.width > 0 && meta.height > 0)
+        facts << QStringLiteral("%1×%2").arg(meta.width).arg(meta.height);
+    if (meta.fileSize > 0)
+        facts << tr("%1 MiB").arg(meta.fileSize / 1048576.0, 0, 'f', 1);
+    if (!meta.channels.isEmpty()) {
+        QString ch = meta.channels;
+        if (meta.bitsPerChannel > 0) ch += QStringLiteral(" %1bit").arg(meta.bitsPerChannel);
+        facts << ch;
+    }
+    details_->setText(QStringLiteral("%1\n%2 · %3 · #%4%5")
+        .arg(selected().name)
+        .arg(row == 0 ? tr("当前版本") : tr("历史版本"))
+        .arg(QDateTime::fromString(revision.created, Qt::ISODateWithMs).toLocalTime().toString("yyyy-MM-dd HH:mm:ss"))
+        .arg(revision.id)
+        .arg(facts.isEmpty() ? QString() : QStringLiteral(" · ") + facts.join(QStringLiteral(" · "))));
     QByteArray content;
     try {
         content = library_.readObject(revision.hash);
