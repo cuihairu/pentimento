@@ -21,37 +21,37 @@
 #include <QUrl>
 
 MainWindow::MainWindow(Library &library) : library_(library) {
-    setWindowTitle(QStringLiteral("pentimento · 画迹"));
+    setWindowTitle(tr("pentimento · 画迹"));
     resize(1240, 790);
     setMinimumSize(860, 540);
-    auto *toolbar = addToolBar(QStringLiteral("素材操作"));
+    auto *toolbar = addToolBar(tr("素材操作"));
     toolbar->setMovable(false);
     auto *brand = new QLabel(QStringLiteral("  pentimento   "));
     brand->setStyleSheet("font-size:20px;font-weight:600;padding:8px;");
     toolbar->addWidget(brand);
-    auto *importAction = toolbar->addAction(QStringLiteral("导入素材"), this, &MainWindow::importFiles);
+    auto *importAction = toolbar->addAction(tr("导入素材"), this, &MainWindow::importFiles);
     importAction->setShortcut(QKeySequence("Ctrl+O"));
-    toolbar->addAction(QStringLiteral("记录版本"), this, &MainWindow::capture)->setShortcut(QKeySequence("Ctrl+S"));
-    toolbar->addAction(QStringLiteral("编辑工作副本"), this, [this] {
+    toolbar->addAction(tr("记录版本"), this, &MainWindow::capture)->setShortcut(QKeySequence("Ctrl+S"));
+    toolbar->addAction(tr("编辑工作副本"), this, [this] {
         const auto asset = selected();
         if (!asset.id.isEmpty() && !QDesktopServices::openUrl(QUrl::fromLocalFile(asset.path)))
-            statusBar()->showMessage(QStringLiteral("无法打开默认编辑器；可通过素材库目录打开工作副本"));
+            statusBar()->showMessage(tr("无法打开默认编辑器；可通过素材库目录打开工作副本"));
     });
-    toolbar->addAction(QStringLiteral("打开素材库"), this, [this] {
+    toolbar->addAction(tr("打开素材库"), this, [this] {
         QDesktopServices::openUrl(QUrl::fromLocalFile(library_.root()));
     });
     // Anti-ransomware Layer 3: one-click rollback to a pre-infection anchor.
-    toolbar->addAction(QStringLiteral("恢复到锚点"), this, &MainWindow::rollbackToSnapshot);
+    toolbar->addAction(tr("恢复到锚点"), this, &MainWindow::rollbackToSnapshot);
     auto *splitter = new QSplitter;
     auto *left = new QWidget;
     auto *leftLayout = new QVBoxLayout(left);
-    auto *libraryTitle = new QLabel(QStringLiteral("素材库"));
+    auto *libraryTitle = new QLabel(tr("素材库"));
     libraryTitle->setStyleSheet("font-size:16px;font-weight:600;");
     search_ = new QLineEdit;
-    search_->setPlaceholderText(QStringLiteral("搜索素材名称"));
-    search_->setAccessibleName(QStringLiteral("搜索素材"));
+    search_->setPlaceholderText(tr("搜索素材名称"));
+    search_->setAccessibleName(tr("搜索素材"));
     assetsList_ = new QListWidget;
-    assetsList_->setAccessibleName(QStringLiteral("素材列表"));
+    assetsList_->setAccessibleName(tr("素材列表"));
     assetsList_->setIconSize(QSize(48, 48));
     assetsList_->setSpacing(5);
     leftLayout->addWidget(libraryTitle);
@@ -59,10 +59,10 @@ MainWindow::MainWindow(Library &library) : library_(library) {
     leftLayout->addWidget(assetsList_);
     auto *center = new QWidget;
     auto *centerLayout = new QVBoxLayout(center);
-    details_ = new QLabel(QStringLiteral("导入第一份素材，开始保留创作历史。"));
+    details_ = new QLabel(tr("导入第一份素材，开始保留创作历史。"));
     details_->setWordWrap(true);
     details_->setTextFormat(Qt::PlainText);
-    preview_ = new QLabel(QStringLiteral("素材预览\n\n支持 PNG、JPEG、WebP 等已安装的 Qt 图像格式\n其他文件保留原始内容，暂不提供画面预览"));
+    preview_ = new QLabel(tr("素材预览\n\n支持 PNG、JPEG、WebP 等已安装的 Qt 图像格式\n其他文件保留原始内容，暂不提供画面预览"));
     preview_->setAlignment(Qt::AlignCenter);
     preview_->setMinimumSize(240, 200);
     preview_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
@@ -71,16 +71,16 @@ MainWindow::MainWindow(Library &library) : library_(library) {
     centerLayout->addWidget(preview_, 1);
     auto *right = new QWidget;
     auto *rightLayout = new QVBoxLayout(right);
-    auto *historyTitle = new QLabel(QStringLiteral("版本时间轴"));
+    auto *historyTitle = new QLabel(tr("版本时间轴"));
     historyTitle->setStyleSheet("font-size:16px;font-weight:600;");
-    auto *hint = new QLabel(QStringLiteral("选择历史版本预览\n恢复会新增版本，原有历史始终保留。"));
+    auto *hint = new QLabel(tr("选择历史版本预览\n恢复会新增版本，原有历史始终保留。"));
     hint->setWordWrap(true);
     historyList_ = new QListWidget;
-    historyList_->setAccessibleName(QStringLiteral("历史版本"));
+    historyList_->setAccessibleName(tr("历史版本"));
     historyList_->setIconSize(QSize(48, 48));
     historyList_->setSpacing(5);
-    restore_ = new QPushButton(QStringLiteral("恢复此版本"));
-    export_ = new QPushButton(QStringLiteral("导出此版本…"));
+    restore_ = new QPushButton(tr("恢复此版本"));
+    export_ = new QPushButton(tr("导出此版本…"));
     rightLayout->addWidget(historyTitle);
     rightLayout->addWidget(hint);
     rightLayout->addWidget(historyList_, 1);
@@ -107,7 +107,7 @@ MainWindow::MainWindow(Library &library) : library_(library) {
     connect(sentinelTimer, &QTimer::timeout, this, &MainWindow::pollSentinel);
     sentinelTimer->start(5000);
     reloadAssets();
-    statusBar()->showMessage(QStringLiteral("本地素材库：%1 · 编辑工作副本后自动记录稳定变化").arg(library_.root()));
+    statusBar()->showMessage(tr("本地素材库：%1 · 编辑工作副本后自动记录稳定变化").arg(library_.root()));
 }
 
 Asset MainWindow::selected() const {
@@ -116,7 +116,7 @@ Asset MainWindow::selected() const {
 }
 
 void MainWindow::report(const std::exception &error) {
-    QMessageBox::warning(this, QStringLiteral("操作未完成"), QString::fromUtf8(error.what()));
+    QMessageBox::warning(this, tr("操作未完成"), QString::fromUtf8(error.what()));
 }
 
 void MainWindow::reloadAssets(const QString &selectId) {
@@ -148,7 +148,7 @@ void MainWindow::reloadHistory() {
         const auto &revision = revisions_.at(i);
         const auto date = QDateTime::fromString(revision.created, Qt::ISODateWithMs).toLocalTime();
         auto *item = new QListWidgetItem(QStringLiteral("%1%2\n%3\n%4")
-            .arg(i == 0 ? QStringLiteral("当前 · ") : QString(), date.toString("MM-dd HH:mm:ss"), revision.note,
+            .arg(i == 0 ? tr("当前 · ") : QString(), date.toString("MM-dd HH:mm:ss"), revision.note,
                  QStringLiteral("%1 KiB").arg(revision.size / 1024.0, 0, 'f', 1)), historyList_);
         QIcon icon;
         try {
@@ -174,14 +174,14 @@ void MainWindow::showRevision() {
     if (!valid) return;
     const auto &revision = revisions_.at(row);
     details_->setText(QStringLiteral("%1\n%2 · %3 · #%4")
-        .arg(selected().name, row == 0 ? QStringLiteral("当前版本") : QStringLiteral("历史版本"),
+        .arg(selected().name, row == 0 ? tr("当前版本") : tr("历史版本"),
              QDateTime::fromString(revision.created, Qt::ISODateWithMs).toLocalTime().toString("yyyy-MM-dd HH:mm:ss"))
         .arg(revision.id));
     try {
         library_.readObject(revision.hash);
     } catch (const std::exception &error) {
         preview_->setPixmap(QPixmap());
-        preview_->setText(QStringLiteral("内容损坏或校验失败\n\n%1\n\n原始对象已保留，可导出排查。")
+        preview_->setText(tr("内容损坏或校验失败\n\n%1\n\n原始对象已保留，可导出排查。")
             .arg(QString::fromUtf8(error.what())));
         return;
     }
@@ -193,12 +193,12 @@ void MainWindow::showRevision() {
     const QImage image = reader.read();
     if (image.isNull()) {
         preview_->setPixmap(QPixmap());
-        preview_->setText(QStringLiteral("此格式暂不支持画面预览\n\n原始文件和历史版本已完整保留，可以导出查看。"));
+        preview_->setText(tr("此格式暂不支持画面预览\n\n原始文件和历史版本已完整保留，可以导出查看。"));
     } else preview_->setPixmap(QPixmap::fromImage(image));
 }
 
 void MainWindow::importFiles() {
-    const auto files = QFileDialog::getOpenFileNames(this, QStringLiteral("导入素材（保留原文件，创建工作副本）"));
+    const auto files = QFileDialog::getOpenFileNames(this, tr("导入素材（保留原文件，创建工作副本）"));
     QString last;
     for (const auto &file : files) {
         try { last = library_.importFile(file).id; }
@@ -213,11 +213,11 @@ void MainWindow::capture() {
     const auto asset = selected();
     if (asset.id.isEmpty()) return;
     bool ok = false;
-    const auto note = QInputDialog::getText(this, QStringLiteral("记录版本"), QStringLiteral("版本说明"), QLineEdit::Normal, QStringLiteral("手动快照"), &ok);
+    const auto note = QInputDialog::getText(this, tr("记录版本"), tr("版本说明"), QLineEdit::Normal, QStringLiteral("手动快照"), &ok);
     if (!ok) return;
     try {
         const bool changed = library_.capture(asset, note);
-        statusBar()->showMessage(changed ? QStringLiteral("已记录新版本") : QStringLiteral("内容未变化，无需重复保存"));
+        statusBar()->showMessage(changed ? tr("已记录新版本") : tr("内容未变化，无需重复保存"));
         reloadHistory();
     } catch (const std::exception &error) { report(error); }
 }
@@ -225,7 +225,7 @@ void MainWindow::capture() {
 void MainWindow::restore() {
     const int row = historyList_->currentRow();
     if (row < 0) return;
-    if (QMessageBox::question(this, QStringLiteral("恢复历史版本"), QStringLiteral("将历史内容恢复为当前工作副本，并新增一个版本。\n未记录的当前内容会先保存。请先在外部编辑器中关闭此文件。")) != QMessageBox::Yes) return;
+    if (QMessageBox::question(this, tr("恢复历史版本"), tr("将历史内容恢复为当前工作副本，并新增一个版本。\n未记录的当前内容会先保存。请先在外部编辑器中关闭此文件。")) != QMessageBox::Yes) return;
     try { library_.restore(selected(), revisions_.at(row).id); reloadAssets(selected().id); }
     catch (const std::exception &error) { report(error); }
     // Re-arm the sentinel: restore is an app-initiated write, not ransomware.
@@ -235,7 +235,7 @@ void MainWindow::restore() {
 void MainWindow::exportFile() {
     const int row = historyList_->currentRow();
     if (row < 0) return;
-    const auto path = QFileDialog::getSaveFileName(this, QStringLiteral("导出历史版本"), selected().name);
+    const auto path = QFileDialog::getSaveFileName(this, tr("导出历史版本"), selected().name);
     if (path.isEmpty()) return;
     try { library_.exportRevision(selected().id, revisions_.at(row).id, path); }
     catch (const std::exception &error) { report(error); }
@@ -255,7 +255,7 @@ void MainWindow::scanChanges() {
             if (library_.capture(asset, QStringLiteral("自动记录")) && selected().id == asset.id) reloadHistory();
             recorded_[asset.id] = signature;
         } catch (const std::exception &error) {
-            statusBar()->showMessage(QStringLiteral("自动记录失败：%1").arg(QString::fromUtf8(error.what())));
+            statusBar()->showMessage(tr("自动记录失败：%1").arg(QString::fromUtf8(error.what())));
         }
     }
 }
@@ -269,39 +269,39 @@ void MainWindow::pollSentinel() {
     // the workspace is later rolled back or overwritten.
     try { library_.snapshotAll(QStringLiteral("紧急快照：疑似勒索批量写入")); }
     catch (const std::exception &error) {
-        statusBar()->showMessage(QStringLiteral("紧急快照失败：%1").arg(QString::fromUtf8(error.what())));
+        statusBar()->showMessage(tr("紧急快照失败：%1").arg(QString::fromUtf8(error.what())));
     }
-    QMessageBox::warning(this, QStringLiteral("疑似勒索批量写入"),
-                         QStringLiteral("工作区检测到异常批量写入，已自动建立紧急快照锚点。\n\n%1\n\n可先关闭外部编辑器，再通过「恢复历史版本」或「恢复到锚点」回退。").arg(alert.reason));
+    QMessageBox::warning(this, tr("疑似勒索批量写入"),
+                         tr("工作区检测到异常批量写入，已自动建立紧急快照锚点。\n\n%1\n\n可先关闭外部编辑器，再通过「恢复历史版本」或「恢复到锚点」回退。").arg(alert.reason));
 }
 
 void MainWindow::rollbackToSnapshot() {
     const auto snapshots = library_.snapshots();
     if (snapshots.isEmpty()) {
-        statusBar()->showMessage(QStringLiteral("还没有紧急快照锚点"));
+        statusBar()->showMessage(tr("还没有紧急快照锚点"));
         return;
     }
     QStringList labels;
     for (const auto &snapshot : snapshots)
-        labels << QStringLiteral("#%1 %2 · %3 个素材")
+        labels << tr("#%1 %2 · %3 个素材")
                       .arg(snapshot.id)
                       .arg(snapshot.created)
                       .arg(snapshot.assets);
     bool ok = false;
-    const auto choice = QInputDialog::getItem(this, QStringLiteral("恢复到锚点"),
-                                              QStringLiteral("选择感染前锚点（回滚形成新版本，不销毁后续历史）"), labels, 0, false, &ok);
+    const auto choice = QInputDialog::getItem(this, tr("恢复到锚点"),
+                                              tr("选择感染前锚点（回滚形成新版本，不销毁后续历史）"), labels, 0, false, &ok);
     if (!ok) return;
     const int index = labels.indexOf(choice);
     if (index < 0) return;
     const qint64 snapshotId = snapshots.at(index).id;
-    if (QMessageBox::question(this, QStringLiteral("恢复到锚点"),
-                              QStringLiteral("将整个工作区恢复到该锚点。\n未记录的当前内容会先保存，后续历史（含被加密版本）保留。\n请先关闭所有外部编辑器。")) != QMessageBox::Yes) return;
+    if (QMessageBox::question(this, tr("恢复到锚点"),
+                              tr("将整个工作区恢复到该锚点。\n未记录的当前内容会先保存，后续历史（含被加密版本）保留。\n请先关闭所有外部编辑器。")) != QMessageBox::Yes) return;
     try {
         const int restored = library_.rollbackAll(snapshotId);
         reloadAssets();
         // Re-arm the sentinel: rollback is an app-initiated write, not ransomware.
         if (sentinel_) sentinel_->resetBaseline();
-        statusBar()->showMessage(QStringLiteral("已恢复到锚点 #%1（%2 个素材回滚）").arg(snapshotId).arg(restored));
+        statusBar()->showMessage(tr("已恢复到锚点 #%1（%2 个素材回滚）").arg(snapshotId).arg(restored));
     } catch (const std::exception &error) { report(error); }
 }
 

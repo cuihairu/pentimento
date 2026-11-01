@@ -2,6 +2,7 @@
 
 #include "backend.h"
 
+#include <QCoreApplication>
 #include <QSqlDatabase>
 #include <QString>
 #include <QVector>
@@ -35,6 +36,7 @@ struct Snapshot {
 
 // One library, one writer. Original imports are never modified.
 class Library {
+    Q_DECLARE_TR_FUNCTIONS(Library)
 public:
     explicit Library(const QString &root);
     ~Library();

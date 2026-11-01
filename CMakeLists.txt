@@ -47,12 +47,21 @@ endfunction()
 #   GIT_REPOSITORY https://github.com/richgel999/miniz.git
 #   GIT_TAG        3.0.2)
 
-add_library(pentimento_core src/backend.cpp src/backend.h src/library.cpp src/library.h src/platform_immutable.cpp src/platform_immutable.h src/sentinel.cpp src/sentinel.h src/storage.cpp src/storage.h src/taskqueue.cpp src/taskqueue.h)
+add_library(pentimento_core src/backend.cpp src/backend.h src/i18n.cpp src/i18n.h src/library.cpp src/library.h src/platform_immutable.cpp src/platform_immutable.h src/sentinel.cpp src/sentinel.h src/storage.cpp src/storage.h src/taskqueue.cpp src/taskqueue.h)
 target_include_directories(pentimento_core PUBLIC src)
+target_compile_definitions(pentimento_core PRIVATE PENTIMENTO_SOURCE_TRANSLATIONS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/translations")
 target_link_libraries(pentimento_core PUBLIC Qt6::Core Qt6::Sql)
 add_executable(pentimento WIN32 MACOSX_BUNDLE src/main.cpp src/mainwindow.cpp src/mainwindow.h)
 target_link_libraries(pentimento PRIVATE pentimento_core Qt6::Widgets)
 set_target_properties(pentimento PROPERTIES MACOSX_BUNDLE_GUI_IDENTIFIER org.pentimento.desktop)
+# Copy the compiled translations next to the dev binary so `pentimento --library ...`
+# loads them from applicationDirPath()/translations (P-107).
+add_custom_command(TARGET pentimento POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:pentimento>/translations
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${CMAKE_CURRENT_SOURCE_DIR}/translations/pentimento_zh_CN.qm
+        ${CMAKE_CURRENT_SOURCE_DIR}/translations/pentimento_en.qm
+        $<TARGET_FILE_DIR:pentimento>/translations/)
 
 include(CTest)
 if(BUILD_TESTING)

@@ -1,8 +1,10 @@
 #include "library.h"
 #include "backend.h"
+#include "i18n.h"
 #include "platform_immutable.h"
 #include "storage.h"
 #include "taskqueue.h"
+#include <QTranslator>
 #include <QFile>
 #include <QFileInfo>
 #include <QTemporaryDir>
@@ -277,6 +279,22 @@ private slots:
         QVERIFY(s2 != all.end());
         QCOMPARE(s2->items.size(), 3);
         QVERIFY(s2->done);
+    }
+    void translationMechanismLoadsAndTranslates() {
+        // English: a known Library-context source string must translate.
+        QTranslator en;
+        QVERIFY(i18n::loadTranslator(en, "en"));
+        QCOMPARE(en.translate("Library", "无法读取文件：%1"), QString("Cannot read file: %1"));
+        QCOMPARE(en.translate("MainWindow", "导入素材"), QString("Import assets"));
+        // Chinese is the source language: identity.
+        QTranslator zh;
+        QVERIFY(i18n::loadTranslator(zh, "zh_CN"));
+        QCOMPARE(zh.translate("Library", "无法读取文件：%1"), QString("无法读取文件：%1"));
+        // Language preference persists; Chinese is the default.
+        i18n::setLanguagePreference("en");
+        QCOMPARE(i18n::languagePreference(), QString("en"));
+        i18n::setLanguagePreference("zh_CN");
+        QCOMPARE(i18n::languagePreference(), QString("zh_CN"));
     }
     void historyObjectsSurviveWorkspaceEncryption() {
         QTemporaryDir dir;

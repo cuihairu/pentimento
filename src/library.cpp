@@ -22,9 +22,9 @@ QString digest(const QByteArray &bytes) {
 }
 QByteArray readFile(const QString &path) {
     QFile file(path);
-    if (!file.open(QIODevice::ReadOnly)) fail(QStringLiteral("无法读取文件：%1").arg(path));
+    if (!file.open(QIODevice::ReadOnly)) fail(Library::tr("无法读取文件：%1").arg(path));
     // Bounded in-memory first release; do not attempt huge PSD/model imports.
-    if (file.size() > 256LL * 1024 * 1024) fail(QStringLiteral("首版单文件上限为 256 MiB：%1").arg(path));
+    if (file.size() > 256LL * 1024 * 1024) fail(Library::tr("首版单文件上限为 256 MiB：%1").arg(path));
     const auto bytes = file.readAll();
     if (file.error() != QFileDevice::NoError) fail(file.errorString());
     return bytes;
@@ -32,7 +32,7 @@ QByteArray readFile(const QString &path) {
 void writeFile(const QString &path, const QByteArray &bytes) {
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit())
-        fail(QStringLiteral("无法安全写入文件：%1；%2").arg(path, file.errorString()));
+        fail(Library::tr("无法安全写入文件：%1；%2").arg(path, file.errorString()));
 }
 void execute(QSqlQuery &query) {
     if (!query.exec()) fail(query.lastError().text());
@@ -42,9 +42,9 @@ void execute(QSqlQuery &query) {
 Library::Library(const QString &root)
     : root_(QDir(root).absolutePath()), connection_(QUuid::createUuid().toString()) {
     if (!QDir().mkpath(root_ + "/objects") || !QDir().mkpath(root_ + "/working"))
-        fail(QStringLiteral("无法创建素材库目录"));
+        fail(Library::tr("无法创建素材库目录"));
     lock_ = std::make_unique<QLockFile>(root_ + "/library.lock");
-    if (!lock_->tryLock(0)) fail(QStringLiteral("素材库正在被另一个进程使用"));
+    if (!lock_->tryLock(0)) fail(Library::tr("素材库正在被另一个进程使用"));
     db_ = QSqlDatabase::addDatabase("QSQLITE", connection_);
     db_.setDatabaseName(root_ + "/catalog.sqlite");
     if (!db_.open()) {
@@ -102,15 +102,15 @@ QVector<Revision> Library::revisions(const QString &assetId) const {
 }
 
 QString Library::objectPath(const QString &hash) const {
-    if (hash.size() != 64) fail(QStringLiteral("无效的对象哈希"));
+    if (hash.size() != 64) fail(Library::tr("无效的对象哈希"));
     for (const auto c : hash)
-        if (!QStringLiteral("0123456789abcdef").contains(c)) fail(QStringLiteral("无效的对象哈希"));
+        if (!QStringLiteral("0123456789abcdef").contains(c)) fail(Library::tr("无效的对象哈希"));
     return root_ + "/objects/" + hash;
 }
 
 QByteArray Library::readObject(const QString &hash) const {
     const auto bytes = readFile(objectPath(hash));
-    if (digest(bytes) != hash) fail(QStringLiteral("历史对象校验失败；已停止操作"));
+    if (digest(bytes) != hash) fail(Library::tr("历史对象校验失败；已停止操作"));
     return bytes;
 }
 
@@ -120,7 +120,7 @@ void Library::append(const Asset &asset, const QByteArray &bytes, const QString 
     if (!QFileInfo::exists(path)) {
         writeFile(path, bytes);
     } else if (readObject(hash) != bytes) {
-        fail(QStringLiteral("历史对象内容不一致"));
+        fail(Library::tr("历史对象内容不一致"));
     }
     // The version store is append-only: once an object lands it must resist
     // later tampering by a same-user ransomware process. Best-effort + idempotent
@@ -141,7 +141,7 @@ Asset Library::importFile(const QString &source) {
     const QFileInfo info(source);
     const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     Asset asset{id, info.fileName(), root_ + "/working/" + id + "/" + info.fileName()};
-    if (!QDir().mkpath(QFileInfo(asset.path).absolutePath())) fail(QStringLiteral("无法创建工作目录"));
+    if (!QDir().mkpath(QFileInfo(asset.path).absolutePath())) fail(Library::tr("无法创建工作目录"));
     writeFile(asset.path, bytes);
     if (!db_.transaction()) fail(db_.lastError().text());
     try {
@@ -178,7 +178,7 @@ void Library::restore(const Asset &asset, qint64 revisionId) {
             if (existed && (currentHistory.isEmpty() || currentHistory.first().hash != digest(previous)))
                 append(asset, previous, QStringLiteral("恢复前自动保存"));
             append(asset, bytes, QStringLiteral("恢复历史版本 #%1").arg(revisionId));
-            if (!QDir().mkpath(QFileInfo(asset.path).absolutePath())) fail(QStringLiteral("无法创建恢复目录"));
+            if (!QDir().mkpath(QFileInfo(asset.path).absolutePath())) fail(Library::tr("无法创建恢复目录"));
             writeFile(asset.path, bytes);
             replaced = true;
             if (!db_.commit()) fail(db_.lastError().text());
@@ -190,7 +190,7 @@ void Library::restore(const Asset &asset, qint64 revisionId) {
         }
         return;
     }
-    fail(QStringLiteral("找不到属于当前素材的历史版本"));
+    fail(Library::tr("找不到属于当前素材的历史版本"));
 }
 
 void Library::exportRevision(const QString &assetId, qint64 revisionId, const QString &destination) const {
@@ -199,11 +199,11 @@ void Library::exportRevision(const QString &assetId, qint64 revisionId, const QS
     const QString parent = QFileInfo(dest).dir().canonicalPath();
     const QString canonicalRoot = QDir(root_).canonicalPath();
     if (parent.isEmpty() || parent == canonicalRoot || parent.startsWith(canonicalRoot + '/'))
-        fail(QStringLiteral("请导出到素材库之外的现有目录"));
+        fail(Library::tr("请导出到素材库之外的现有目录"));
     for (const auto &revision : revisions(assetId)) {
         if (revision.id == revisionId) { writeFile(dest, readObject(revision.hash)); return; }
     }
-    fail(QStringLiteral("找不到历史版本"));
+    fail(Library::tr("找不到历史版本"));
 }
 
 int Library::hardenObjects() {

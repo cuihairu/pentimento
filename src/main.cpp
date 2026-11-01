@@ -1,3 +1,4 @@
+#include "i18n.h"
 #include "mainwindow.h"
 #include <QApplication>
 #include <QCommandLineParser>
@@ -5,12 +6,18 @@
 #include <QMessageBox>
 #include <QStandardPaths>
 #include <QTimer>
+#include <QTranslator>
 
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     QApplication::setApplicationName("pentimento");
     QApplication::setApplicationVersion("0.1.0");
     QApplication::setOrganizationName("pentimento");
+    // Translation mechanism (P-107): install the translator for the saved
+    // language preference; switching language takes effect after restart.
+    QTranslator translator;
+    if (i18n::loadTranslator(translator, i18n::languagePreference()))
+        app.installTranslator(&translator);
     QCommandLineParser parser;
     parser.setApplicationDescription(QStringLiteral("pentimento · 带版本历史的本地美术资源管理器"));
     parser.addHelpOption(); parser.addVersionOption();
