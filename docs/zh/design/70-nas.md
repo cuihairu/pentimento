@@ -64,6 +64,13 @@
 - 验证：中途失联；重试不覆盖远端内容。
 - **V1 不做**：自动重新挂载；无限快速重试；来源变化写回远端。
 
+**实现（2026-11-01）**
+- 设计：`SourceConnection`（src/source_connection）——`ConnectionState{Connecting,Reachable,Unreachable,Failed}`；`connectionStateFor` 把 `statSource` 结果映射为连接状态（只读挂载仍算可达，可写性是备份目标问题，不是连接状态）；`open(path)`→Connecting→探测，`retry()` 在探测进行中忽略（一次一个探测=V1 退避，无定时器无自动重连）。
+- 接线：探测经内部 TaskQueue 后台线程执行（stat 可能卡死，绝不在界面线程）；`statSource` 只读——重试只重新探测，结构性不可能写回远端。路径变更时旧探测结果按陈旧丢弃（只应用当前路径的结果）。
+- UI：「挂载来源状态…」对话框（路径输入/浏览、状态词 连接中/在线/离线/失败 着色显示、重试按钮）。
+- 测试：`connectionStateMapsStorageProbeStates`、`sourceConnectionTracksReachabilityWithUserRetry`（改名模拟卸载/重挂载，重试后来源目录内容/mtime 不变=不覆盖远端）、`sourceConnectionAllowsOneProbeAtATime`（阻塞探测验证一次一个探测+陈旧结果丢弃）。
+- 验证：ctest 2/2 绿；离线烟雾运行无崩溃；lupdate/lrelease 308/308 双语言完成。
+
 ## P-514 离线缓存浏览（延后）
 
 远端离线缓存延后；V1 本地副本与缩略图照常可用。未来状态：本地已导入 / 仅缩略图 / 远端未缓存（整理）；V1 帮助明确本地副本含义。**V1 不做**：远端完整离线保证；缩略图代替原内容对象（会高估保护）。

@@ -3,6 +3,7 @@
 #include "preview.h"
 #include "preview_canvas.h"
 #include "sentinel.h"
+#include "source_connection.h"
 #include <QAction>
 #include <QActionGroup>
 #include <QApplication>
@@ -11,7 +12,9 @@
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDesktopServices>
+#include <QDialog>
 #include <QFileDialog>
+#include <QVBoxLayout>
 #include <QFileInfo>
 #include <QFrame>
 #include <QHBoxLayout>
@@ -76,6 +79,9 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     toolbar->addAction(tr("恢复到锚点"), this, &MainWindow::rollbackToSnapshot);
     // P-312: read-only point-in-time directory browse of a snapshot manifest.
     toolbar->addAction(tr("浏览快照…"), this, &MainWindow::browseSnapshot);
+    // P-513: mounted-source reconnection state (connect/online/offline/failed)
+    // with a user-paced retry; the probe always runs off the UI thread.
+    toolbar->addAction(tr("挂载来源状态…"), this, &MainWindow::showSourceState);
     auto *splitter = new QSplitter;
     auto *left = new QWidget;
     auto *leftLayout = new QVBoxLayout(left);
@@ -1606,3 +1612,85 @@ void MainWindow::rollbackToSnapshot() {
 }
 
 void MainWindow::saveScreenshot(const QString &path) { grab().save(path); }
+
+// P-513: mounted-source reconnection state machine, made visible. The user
+// enters (or browses) a mounted SMB/NFS path and watches the live state
+// 连接中 / 可达 / 不可达 / 失败; a retry re-probes off the UI thread (a dead
+// mount can block a stat, so the dialog itself never hangs). Retrying never
+// touches the source content — it only re-probes reachability, so a reconnect
+// cannot overwrite anything on the remote (P-515 keeps the rescan read-only).
+void MainWindow::showSourceState() {
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("挂载来源状态"));
+    dialog.setMinimumWidth(560);
+    auto *layout = new QVBoxLayout(&dialog);
+
+    auto *pathRow = new QHBoxLayout;
+    auto *pathEdit = new QLineEdit(&dialog);
+    pathEdit->setPlaceholderText(tr("已挂载的来源目录（SMB/NFS 挂载点）"));
+    pathEdit->setAccessibleName(tr("挂载来源路径"));
+    auto *browseBtn = new QPushButton(tr("浏览…"), &dialog);
+    pathRow->addWidget(pathEdit, 1);
+    pathRow->addWidget(browseBtn);
+    layout->addLayout(pathRow);
+
+    auto *stateLabel = new QLabel(tr("未选择来源"), &dialog);
+    stateLabel->setWordWrap(true);
+    stateLabel->setAccessibleName(tr("来源连接状态"));
+    layout->addWidget(stateLabel);
+    auto *hint = new QLabel(tr("来源只读探测；重试只重新检查可达性，不写入、不覆盖远端内容。"), &dialog);
+    hint->setStyleSheet("color:#888;");
+    hint->setWordWrap(true);
+    layout->addWidget(hint);
+
+    auto *buttonRow = new QHBoxLayout;
+    auto *retryBtn = new QPushButton(tr("重试"), &dialog);
+    retryBtn->setEnabled(false);
+    auto *closeBtn = new QPushButton(tr("关闭"), &dialog);
+    buttonRow->addWidget(retryBtn);
+    buttonRow->addStretch();
+    buttonRow->addWidget(closeBtn);
+    layout->addLayout(buttonRow);
+
+    SourceConnection connection; // lives on the UI thread; probes run in the background
+    auto render = [&](ConnectionState state, const QString &reason) {
+        switch (state) {
+        case ConnectionState::Connecting:
+            stateLabel->setText(tr("连接中：%1").arg(reason));
+            stateLabel->setStyleSheet("color:#666;");
+            retryBtn->setEnabled(false);
+            break;
+        case ConnectionState::Reachable:
+            stateLabel->setText(tr("在线：来源可达%1")
+                                    .arg(reason.isEmpty() ? QString() : tr("（%1）").arg(reason)));
+            stateLabel->setStyleSheet("color:#2e7d32;");
+            retryBtn->setEnabled(false);
+            break;
+        case ConnectionState::Unreachable:
+            stateLabel->setText(tr("离线：来源不可达%1")
+                                    .arg(reason.isEmpty() ? QString() : tr("（%1）").arg(reason)));
+            stateLabel->setStyleSheet("color:#b26a00;");
+            retryBtn->setEnabled(true);
+            break;
+        case ConnectionState::Failed:
+            stateLabel->setText(tr("失败：来源探测失败%1")
+                                    .arg(reason.isEmpty() ? QString() : tr("（%1）").arg(reason)));
+            stateLabel->setStyleSheet("color:#c62828;");
+            retryBtn->setEnabled(true);
+            break;
+        }
+    };
+    QObject::connect(&connection, &SourceConnection::stateChanged, &dialog, render);
+    QObject::connect(pathEdit, &QLineEdit::returnPressed, &dialog, [&] {
+        if (!pathEdit->text().trimmed().isEmpty()) connection.open(pathEdit->text());
+    });
+    QObject::connect(browseBtn, &QPushButton::clicked, &dialog, [&] {
+        const QString path = QFileDialog::getExistingDirectory(&dialog, tr("选择已挂载来源目录"));
+        if (path.isEmpty()) return;
+        pathEdit->setText(path);
+        connection.open(path);
+    });
+    QObject::connect(retryBtn, &QPushButton::clicked, &connection, &SourceConnection::retry);
+    QObject::connect(closeBtn, &QPushButton::clicked, &dialog, &QDialog::accept);
+    dialog.exec();
+}

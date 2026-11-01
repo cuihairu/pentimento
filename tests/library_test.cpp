@@ -9,6 +9,7 @@
 #include "preview.h"
 #include "recent.h"
 #include "snapshot_schedule.h"
+#include "source_connection.h"
 #include "storage.h"
 #include "taskqueue.h"
 #include "thumbnails.h"
@@ -624,6 +625,115 @@ private slots:
         QVERIFY(!none.extract);
         QVERIFY(none.restoreReason.isEmpty());
         QVERIFY(none.extractReason.isEmpty());
+    }
+    void connectionStateMapsStorageProbeStates() {
+        // P-513 mapping: a read-only mount is still connected (writability is a
+        // backup-target concern, not a connection state); a missing path is
+        // unreachable, never "deleted"; an unreadable path is a failed probe.
+        QCOMPARE(connectionStateFor(SourceState::Reachable), ConnectionState::Reachable);
+        QCOMPARE(connectionStateFor(SourceState::ReadOnly), ConnectionState::Reachable);
+        QCOMPARE(connectionStateFor(SourceState::Unreachable), ConnectionState::Unreachable);
+        QCOMPARE(connectionStateFor(SourceState::PermissionDenied), ConnectionState::Failed);
+        // The four visible state words stay distinct (连接中/可达/不可达/失败).
+        const QVector<ConnectionState> all = {
+            ConnectionState::Connecting, ConnectionState::Reachable,
+            ConnectionState::Unreachable, ConnectionState::Failed};
+        QStringList words;
+        for (const auto s : all) {
+            const QString word = connectionStateText(s);
+            QVERIFY(!word.isEmpty());
+            QVERIFY(!words.contains(word));
+            words << word;
+        }
+    }
+    void sourceConnectionTracksReachabilityWithUserRetry() {
+        QTemporaryDir dir;
+        const QString source = dir.filePath("share");
+        QVERIFY(QDir().mkpath(source));
+        put(source + "/a.png", "share-bytes");
+        const qint64 originalMtime = QFileInfo(source + "/a.png").lastModified().toMSecsSinceEpoch();
+
+        SourceConnection conn;
+        conn.open(source);
+        QCOMPARE(conn.state(), ConnectionState::Connecting); // visible pre-probe state
+        QTRY_COMPARE(conn.state(), ConnectionState::Reachable);
+        QVERIFY(!conn.probing());
+        QVERIFY(conn.reason().isEmpty());
+
+        // "Unmount" the share: the directory disappears → unreachable. This is
+        // never treated as a deletion; a retry only re-probes.
+        QVERIFY(QDir(dir.path()).rename(QStringLiteral("share"), QStringLiteral("share-gone")));
+        conn.retry();
+        QCOMPARE(conn.state(), ConnectionState::Connecting);
+        QTRY_COMPARE(conn.state(), ConnectionState::Unreachable);
+        QVERIFY(!conn.reason().isEmpty());
+
+        // "Remount" the same path: retry reaches it again.
+        QVERIFY(QDir(dir.path()).rename(QStringLiteral("share-gone"), QStringLiteral("share")));
+        conn.retry();
+        QTRY_COMPARE(conn.state(), ConnectionState::Reachable);
+        QVERIFY(conn.reason().isEmpty());
+
+        // The source directory holds exactly what it held before the retries:
+        // no reconnect artifact, no content/metadata churn (the probe is
+        // read-only — a retry never overwrites remote content).
+        const auto entries = listDirectory(source);
+        QCOMPARE(entries.size(), 1);
+        QCOMPARE(entries.first().path, QFileInfo(source + "/a.png").absoluteFilePath());
+        QCOMPARE(get(source + "/a.png"), QByteArray("share-bytes"));
+        QCOMPARE(QFileInfo(source + "/a.png").lastModified().toMSecsSinceEpoch(), originalMtime);
+    }
+    void sourceConnectionAllowsOneProbeAtATime() {
+        QTemporaryDir dir;
+        QVERIFY(QDir().mkpath(dir.filePath("share")));
+        put(dir.filePath("share/a.png"), "x");
+
+        SourceConnection conn;
+        std::atomic_int calls = 0;
+        QSemaphore gate;
+        conn.setProbeFn([&](const QString &path) {
+            if (++calls == 1) gate.acquire(); // hold the first probe (slow mount)
+            return statSource(path);
+        });
+        conn.open(dir.filePath("share"));
+        // Wait for the probe to actually start (it is now held open by the
+        // gate), so a later assertion cannot fail before the probe is released.
+        QTRY_COMPARE(calls.load(), 1);
+        QTRY_VERIFY(conn.probing());
+        // Retry while a probe is in flight is a no-op: one probe at a time (the
+        // V1 backoff), no fast retry loop piling up probes.
+        conn.retry();
+        QTest::qWait(50);
+        QCOMPARE(calls.load(), 1);
+        gate.release();
+        QTRY_COMPARE(conn.state(), ConnectionState::Reachable);
+        QTest::qWait(50); // a wrongly-queued retry would now surface
+        QCOMPARE(calls.load(), 1);
+        QVERIFY(!conn.probing());
+
+        // A path change while a probe is in flight queues a new probe; the stale
+        // result (old path) must be dropped, never applied to the new path.
+        QSignalSpy spy(&conn, &SourceConnection::stateChanged);
+        QSemaphore gate2;
+        conn.setProbeFn([&](const QString &path) {
+            if (++calls == 2) gate2.acquire(); // hold the stale probe
+            return statSource(path);
+        });
+        conn.open(dir.filePath("share"));    // probe #2 (stale: reports Reachable)
+        conn.open(dir.filePath("missing"));  // probe #3 (current path)
+        QTRY_COMPARE(calls.load(), 2);       // stale probe started (now held open)
+        gate2.release();
+        QTRY_COMPARE(conn.state(), ConnectionState::Unreachable);
+        QCOMPARE(conn.path(), QFileInfo(dir.filePath("missing")).absoluteFilePath());
+        // After the last Connecting (open of the new path), the only applied
+        // state is Unreachable — the stale Reachable never leaked through.
+        int lastConnecting = -1;
+        for (int i = 0; i < spy.size(); ++i)
+            if (qvariant_cast<ConnectionState>(spy.at(i).at(0)) == ConnectionState::Connecting)
+                lastConnecting = i;
+        QVERIFY(lastConnecting >= 0);
+        for (int i = lastConnecting + 1; i < spy.size(); ++i)
+            QCOMPARE(qvariant_cast<ConnectionState>(spy.at(i).at(0)), ConnectionState::Unreachable);
     }
     void storageInterfaceReportsConsistentLocalInfo() {
         QTemporaryDir dir;

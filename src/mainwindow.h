@@ -177,5 +177,6 @@ private:
     void showFieldHistory();
     void browseSnapshot();
     void rollbackToSnapshot();
+    void showSourceState();
     void report(const std::exception &error);
 };

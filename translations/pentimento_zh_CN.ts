@@ -344,7 +344,7 @@
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../src/mainwindow.cpp" line="+39"/>
+        <location filename="../src/mainwindow.cpp" line="+42"/>
         <source>pentimento · 画迹</source>
         <translation>pentimento · 画迹</translation>
     </message>
@@ -360,12 +360,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+984"/>
+        <location line="+996"/>
         <source>记录版本</source>
         <translation>记录版本</translation>
     </message>
     <message>
-        <location line="-983"/>
+        <location line="-995"/>
         <source>编辑工作副本</source>
         <translation>编辑工作副本</translation>
     </message>
@@ -401,13 +401,13 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+1506"/>
+        <location line="+1518"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>恢复到锚点</translation>
     </message>
     <message>
-        <location line="-1506"/>
+        <location line="-1515"/>
         <source>素材库</source>
         <translation>素材库</translation>
     </message>
@@ -445,12 +445,12 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+1197"/>
+        <location line="+1206"/>
         <source>添加</source>
         <translation>添加</translation>
     </message>
     <message>
-        <location line="-1196"/>
+        <location line="-1205"/>
         <source>移除</source>
         <translation>移除</translation>
     </message>
@@ -467,9 +467,14 @@
         <translation>无评分</translation>
     </message>
     <message>
-        <location line="-85"/>
+        <location line="-88"/>
         <source>浏览快照…</source>
         <translation>浏览快照…</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>挂载来源状态…</source>
+        <translation>挂载来源状态…</translation>
     </message>
     <message>
         <location line="+19"/>
@@ -597,12 +602,12 @@
     </message>
     <message>
         <location line="+3"/>
-        <location line="+714"/>
+        <location line="+723"/>
         <source>历史版本</source>
         <translation>历史版本</translation>
     </message>
     <message>
-        <location line="-711"/>
+        <location line="-720"/>
         <source>恢复此版本</source>
         <translation>恢复此版本</translation>
     </message>
@@ -669,14 +674,15 @@
     </message>
     <message>
         <location line="+3"/>
-        <location line="+868"/>
+        <location line="+877"/>
         <location line="+223"/>
         <location line="+152"/>
+        <location line="+76"/>
         <source>关闭</source>
         <translation>关闭</translation>
     </message>
     <message>
-        <location line="-1242"/>
+        <location line="-1327"/>
         <source>每 15 分钟</source>
         <translation>每 15 分钟</translation>
     </message>
@@ -692,20 +698,20 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+953"/>
+        <location line="+962"/>
         <source>定时快照未启用</source>
         <translation>定时快照未启用</translation>
     </message>
     <message>
-        <location line="-950"/>
+        <location line="-959"/>
         <location line="+114"/>
-        <location line="+811"/>
+        <location line="+820"/>
         <location line="+11"/>
         <source>暂停</source>
         <translation>暂停</translation>
     </message>
     <message>
-        <location line="-934"/>
+        <location line="-943"/>
         <source>仅应用运行时生效；退出应用期间不算持续备份。</source>
         <translation>仅应用运行时生效；退出应用期间不算持续备份。</translation>
     </message>
@@ -772,12 +778,12 @@
     <message>
         <location line="+1"/>
         <location line="+238"/>
-        <location line="+596"/>
+        <location line="+605"/>
         <source>恢复</source>
         <translation>恢复</translation>
     </message>
     <message>
-        <location line="-810"/>
+        <location line="-819"/>
         <source>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</source>
         <translation>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</translation>
     </message>
@@ -976,13 +982,13 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+257"/>
+        <location line="+266"/>
         <location line="+451"/>
         <source>取消</source>
         <translation>取消</translation>
     </message>
     <message>
-        <location line="-703"/>
+        <location line="-712"/>
         <source>已删除：%1（历史与对象保留，可从时间线恢复）</source>
         <translation>已删除：%1（历史与对象保留，可从时间线恢复）</translation>
     </message>
@@ -1081,7 +1087,7 @@
         <translation>已从 %1 个素材移除标签：%2</translation>
     </message>
     <message>
-        <location line="+20"/>
+        <location line="+29"/>
         <source>%1 MiB</source>
         <translation>%1 MiB</translation>
     </message>
@@ -1280,6 +1286,78 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation>#%1 %2 · %3 个素材%4</translation>
     </message>
     <message>
+        <location line="+34"/>
+        <source>挂载来源状态</source>
+        <translation>挂载来源状态</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>已挂载的来源目录（SMB/NFS 挂载点）</source>
+        <translation>已挂载的来源目录（SMB/NFS 挂载点）</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>挂载来源路径</source>
+        <translation>挂载来源路径</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>浏览…</source>
+        <translation>浏览…</translation>
+    </message>
+    <message>
+        <location line="+5"/>
+        <source>未选择来源</source>
+        <translation>未选择来源</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>来源连接状态</source>
+        <translation>来源连接状态</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>来源只读探测；重试只重新检查可达性，不写入、不覆盖远端内容。</source>
+        <translation>来源只读探测；重试只重新检查可达性，不写入、不覆盖远端内容。</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>重试</source>
+        <translation>重试</translation>
+    </message>
+    <message>
+        <location line="+12"/>
+        <source>连接中：%1</source>
+        <translation>连接中：%1</translation>
+    </message>
+    <message>
+        <location line="+5"/>
+        <source>在线：来源可达%1</source>
+        <translation>在线：来源可达%1</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <location line="+6"/>
+        <location line="+6"/>
+        <source>（%1）</source>
+        <translation>（%1）</translation>
+    </message>
+    <message>
+        <location line="-7"/>
+        <source>离线：来源不可达%1</source>
+        <translation>离线：来源不可达%1</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>失败：来源探测失败%1</source>
+        <translation>失败：来源探测失败%1</translation>
+    </message>
+    <message>
+        <location line="+12"/>
+        <source>选择已挂载来源目录</source>
+        <translation>选择已挂载来源目录</translation>
+    </message>
+    <message>
         <source>已记录新版本</source>
         <translation type="vanished">已记录新版本</translation>
     </message>
@@ -1298,7 +1376,7 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
 未记录的当前内容会先保存。请先在外部编辑器中关闭此文件。</translation>
     </message>
     <message>
-        <location line="-471"/>
+        <location line="-569"/>
         <location line="+5"/>
         <source>导出历史版本</source>
         <translation>导出历史版本</translation>
@@ -1576,6 +1654,47 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <location line="+14"/>
         <source>不可读（跳过，可重试）：%1</source>
         <translation>不可读（跳过，可重试）：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/source_connection.cpp" line="+22"/>
+        <source>连接中</source>
+        <translation>连接中</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>可达</source>
+        <translation>可达</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>不可达</source>
+        <translation>不可达</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <location line="+2"/>
+        <source>失败</source>
+        <translation>失败</translation>
+    </message>
+    <message>
+        <location line="+5"/>
+        <source>正在探测来源连接；长时间无响应说明挂载可能已卡住。</source>
+        <translation>正在探测来源连接；长时间无响应说明挂载可能已卡住。</translation>
+    </message>
+    <message>
+        <location line="+58"/>
+        <source>来源探测</source>
+        <translation>来源探测</translation>
+    </message>
+    <message>
+        <location line="+21"/>
+        <source>来源当前不可达（可能断网或挂载已卸载）；不会被视为删除，重试只重新探测、不改动来源内容。</source>
+        <translation>来源当前不可达（可能断网或挂载已卸载）；不会被视为删除，重试只重新探测、不改动来源内容。</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>来源存在但当前不可读（权限不足或挂载异常）。</source>
+        <translation>来源存在但当前不可读（权限不足或挂载异常）。</translation>
     </message>
 </context>
 </TS>
