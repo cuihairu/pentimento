@@ -52,7 +52,7 @@
         <translation>Library is corrupt or the index cannot be opened: %1</translation>
     </message>
     <message>
-        <location line="+83"/>
+        <location line="+90"/>
         <source>素材库 schema 版本不兼容（%1），请使用匹配版本打开</source>
         <translation>Library schema version is incompatible (%1); open with a matching version</translation>
     </message>
@@ -143,7 +143,7 @@
         <translation>This asset library is missing its identity (library_id); the library may be corrupt</translation>
     </message>
     <message>
-        <location line="+36"/>
+        <location line="+39"/>
         <location line="+2"/>
         <source>无效的对象哈希</source>
         <translation>Invalid object hash</translation>
@@ -158,19 +158,19 @@
         <translation>History object verification failed; operation stopped</translation>
     </message>
     <message>
-        <location line="-373"/>
+        <location line="-376"/>
         <source>历史对象内容不一致</source>
         <translation>History object content mismatch</translation>
     </message>
     <message>
-        <location line="-434"/>
+        <location line="-441"/>
         <location line="+7"/>
         <location line="+4"/>
         <source>无法写入暂存对象：%1</source>
         <translation>Cannot write the staged object: %1</translation>
     </message>
     <message>
-        <location line="+799"/>
+        <location line="+809"/>
         <source>无法发布历史对象</source>
         <translation>Cannot publish the history object</translation>
     </message>
@@ -195,13 +195,28 @@
         <translation>No revision found for this asset</translation>
     </message>
     <message>
-        <location line="-516"/>
-        <location line="+526"/>
+        <location line="-519"/>
+        <location line="+595"/>
         <source>请导出到素材库之外的现有目录</source>
         <translation>Export to an existing directory outside the library</translation>
     </message>
     <message>
-        <location line="+4"/>
+        <location line="-67"/>
+        <source>素材不存在</source>
+        <translation>Asset not found</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>素材已删除</source>
+        <translation>Asset already deleted</translation>
+    </message>
+    <message>
+        <location line="+11"/>
+        <source>无法删除工作副本：%1（请关闭占用该文件的程序）</source>
+        <translation>Cannot remove the working copy: %1 (close the program using this file)</translation>
+    </message>
+    <message>
+        <location line="+57"/>
         <source>找不到历史版本</source>
         <translation>Revision not found</translation>
     </message>
@@ -225,12 +240,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+929"/>
+        <location line="+977"/>
         <source>记录版本</source>
         <translation>Record version</translation>
     </message>
     <message>
-        <location line="-928"/>
+        <location line="-976"/>
         <source>编辑工作副本</source>
         <translation>Edit working copy</translation>
     </message>
@@ -266,13 +281,13 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+1205"/>
+        <location line="+1253"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>Restore to anchor</translation>
     </message>
     <message>
-        <location line="-1207"/>
+        <location line="-1255"/>
         <source>素材库</source>
         <translation>Library</translation>
     </message>
@@ -293,13 +308,13 @@
     </message>
     <message>
         <location line="+51"/>
-        <location line="+727"/>
+        <location line="+764"/>
         <location line="+16"/>
         <source>标签</source>
         <translation>Tags</translation>
     </message>
     <message>
-        <location line="-740"/>
+        <location line="-777"/>
         <source>标签列表</source>
         <translation>Tag list</translation>
     </message>
@@ -310,12 +325,12 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+1021"/>
+        <location line="+1069"/>
         <source>添加</source>
         <translation>Add</translation>
     </message>
     <message>
-        <location line="-1020"/>
+        <location line="-1068"/>
         <source>移除</source>
         <translation>Remove</translation>
     </message>
@@ -457,12 +472,12 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+3"/>
-        <location line="+662"/>
+        <location line="+709"/>
         <source>历史版本</source>
         <translation>Historical version</translation>
     </message>
     <message>
-        <location line="-659"/>
+        <location line="-706"/>
         <source>恢复此版本</source>
         <translation>Restore this version</translation>
     </message>
@@ -503,12 +518,12 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location line="+446"/>
+        <location line="+456"/>
         <source>未附加证据</source>
         <translation>No evidence attached</translation>
     </message>
     <message>
-        <location line="-441"/>
+        <location line="-451"/>
         <source>记录（旧记录可回看）</source>
         <translation>Records (old entries stay viewable)</translation>
     </message>
@@ -524,12 +539,12 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+3"/>
-        <location line="+920"/>
+        <location line="+968"/>
         <source>关闭</source>
         <translation>Off</translation>
     </message>
     <message>
-        <location line="-919"/>
+        <location line="-967"/>
         <source>每 15 分钟</source>
         <translation>Every 15 minutes</translation>
     </message>
@@ -545,20 +560,20 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location line="+782"/>
+        <location line="+830"/>
         <source>定时快照未启用</source>
         <translation>Scheduled snapshots off</translation>
     </message>
     <message>
-        <location line="-779"/>
-        <location line="+109"/>
-        <location line="+645"/>
+        <location line="-827"/>
+        <location line="+114"/>
+        <location line="+688"/>
         <location line="+11"/>
         <source>暂停</source>
         <translation>Pause</translation>
     </message>
     <message>
-        <location line="-763"/>
+        <location line="-811"/>
         <source>仅应用运行时生效；退出应用期间不算持续备份。</source>
         <translation>Active only while the app runs; exiting is never counted as continuous backup.</translation>
     </message>
@@ -581,6 +596,11 @@ Restoring appends a new version; existing history is always kept.</translation>
         <location line="+1"/>
         <source>移动到文件夹…</source>
         <translation>Move to folder…</translation>
+    </message>
+    <message>
+        <location line="+5"/>
+        <source>删除素材…</source>
+        <translation>Delete asset…</translation>
     </message>
     <message>
         <location line="+14"/>
@@ -619,13 +639,13 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location line="+233"/>
-        <location line="+435"/>
+        <location line="+238"/>
+        <location line="+473"/>
         <source>恢复</source>
         <translation>Resume</translation>
     </message>
     <message>
-        <location line="-644"/>
+        <location line="-687"/>
         <source>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</source>
         <translation>Local library: %1 · stable changes to working copies are recorded automatically</translation>
     </message>
@@ -682,6 +702,11 @@ Restoring appends a new version; existing history is always kept.</translation>
         <location line="+1"/>
         <source>已固定</source>
         <translation>Pinned</translation>
+    </message>
+    <message>
+        <location line="+5"/>
+        <source>墓碑</source>
+        <translation>Tombstone</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -788,7 +813,47 @@ Restoring appends a new version; existing history is always kept.</translation>
         <translation>Moved to: %1</translation>
     </message>
     <message>
-        <location line="+10"/>
+        <location line="+13"/>
+        <source>名称：%1</source>
+        <translation>Name: %1</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>路径：%1</source>
+        <translation>Path: %1</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>版本：%1 个</source>
+        <translation>%1 versions</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>工作副本将被移除；历史与对象保留，可从时间线恢复。</source>
+        <translation>The working copy will be removed; history and objects are retained and restorable from the timeline.</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>删除素材</source>
+        <translation>Delete asset</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>确认删除</source>
+        <translation>Delete</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>取消</source>
+        <translation>Cancel</translation>
+    </message>
+    <message>
+        <location line="+5"/>
+        <source>已删除：%1（历史与对象保留，可从时间线恢复）</source>
+        <translation>Deleted: %1 (history and objects retained, restorable from the timeline)</translation>
+    </message>
+    <message>
+        <location line="+12"/>
         <source>导出授权证据</source>
         <translation>Export license evidence</translation>
     </message>
@@ -887,12 +952,26 @@ Only this tag is removed; other tags are not affected.</translation>
         <translation>%1 MiB</translation>
     </message>
     <message>
-        <location line="+8"/>
+        <location line="+13"/>
+        <source>
+工作副本缺失（可从历史恢复，不视为删除）</source>
+        <translation>
+Working copy missing (restorable from history; not treated as a deletion)</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>
+存储不可达（拔盘或断网不算删除；恢复挂载后自动恢复）</source>
+        <translation>
+Storage unreachable (unplugging or a network drop is not a deletion; recovers once the mount is back)</translation>
+    </message>
+    <message>
+        <location line="+3"/>
         <source>当前版本</source>
         <translation>Current version</translation>
     </message>
     <message>
-        <location line="+8"/>
+        <location line="+9"/>
         <source>内容损坏或校验失败
 
 %1

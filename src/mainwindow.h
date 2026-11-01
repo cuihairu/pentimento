@@ -146,6 +146,7 @@ private:
     void exportEvidenceFile();
     void renameSelected();
     void moveSelected();
+    void deleteSelected();
     void applyFilter();
     void clearFilter();
     AssetFilter currentFilter() const;

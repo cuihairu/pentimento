@@ -1624,6 +1624,78 @@ private slots:
         QVERIFY(!lib.captureIfStable(asset));
         QCOMPARE(lib.revisions(asset.id).size(), 4);
     }
+    void deletionTombstoneRetainsHistoryAndHidesLiveAsset() {
+        QTemporaryDir dir;
+        const QString source = dir.filePath("asset.png");
+        put(source, "content-one");
+        QString id;
+        QString lastHash;
+        {
+            Library library(dir.filePath("library"));
+            auto asset = library.importFile(source);
+            id = asset.id;
+            put(asset.path, "content-two");
+            QVERIFY(library.capture(asset, "second"));
+            lastHash = library.revisions(id).first().hash;
+
+            // In-app confirmed delete: the live list drops the asset...
+            library.deleteAsset(id);
+            bool live = false;
+            for (const auto &entry : library.assets()) if (entry.id == id) live = true;
+            QVERIFY(!live);
+            // ...but history is retained: the newest revision is the tombstone,
+            // reusing the last content hash so the object stays browsable.
+            const auto history = library.revisions(id);
+            QCOMPARE(history.size(), 3);
+            QVERIFY(history.first().tombstone);
+            QCOMPARE(history.first().hash, lastHash);
+            QCOMPARE(get(library.objectPath(lastHash)), QByteArray("content-two"));
+            // The working copy is removed by the confirmed delete.
+            QVERIFY(!QFileInfo::exists(asset.path));
+            // A second delete of the same asset is rejected, not idempotent.
+            QVERIFY_EXCEPTION_THROWN(library.deleteAsset(id), std::runtime_error);
+            QVERIFY_EXCEPTION_THROWN(library.deleteAsset("missing-id"), std::runtime_error);
+            // Later snapshots skip the deleted asset (live list excludes it).
+            library.snapshotAll("after delete");
+            const auto snapshots = library.snapshots();
+            QCOMPARE(snapshots.first().assets, 0);
+        }
+        // Tombstone and the asset row survive a restart; history stays findable.
+        Library reopened(dir.filePath("library"));
+        QVERIFY(reopened.assets().isEmpty());
+        const auto history = reopened.revisions(id);
+        QCOMPARE(history.size(), 3);
+        QVERIFY(history.first().tombstone);
+    }
+    void workingCopyHealthDistinguishesMissingFromUnreachable() {
+        QTemporaryDir dir;
+        const QString source = dir.filePath("asset.dat");
+        put(source, "body");
+        Library library(dir.filePath("library"));
+        const auto asset = library.importFile(source);
+        QCOMPARE(library.workingCopyHealth(asset), Library::Health::Healthy);
+
+        // Externally removed working copy: "missing" (recoverable), never a
+        // deletion — no tombstone is written and the live asset stays.
+        QFile::remove(asset.path);
+        QCOMPARE(library.workingCopyHealth(asset), Library::Health::Missing);
+        QCOMPARE(library.revisions(asset.id).size(), 1);
+        QVERIFY(!library.revisions(asset.id).first().tombstone);
+        QCOMPARE(library.assets().size(), 1);
+
+        // A readable copy reappears → healthy again, still no tombstone.
+        put(asset.path, "body");
+        QCOMPARE(library.workingCopyHealth(asset), Library::Health::Healthy);
+
+        // Unreadable working copy (lost mount/permissions): "unreachable" —
+        // explicitly not a deletion, so still no tombstone. Write-only (no read
+        // bit) makes it unreadable for a non-root owner.
+        QFile::setPermissions(asset.path, QFileDevice::WriteOwner);
+        QCOMPARE(library.workingCopyHealth(asset), Library::Health::Unreachable);
+        QCOMPARE(library.revisions(asset.id).size(), 1);
+        QVERIFY(!library.revisions(asset.id).first().tombstone);
+        QFile::setPermissions(asset.path, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+    }
 };
 QTEST_GUILESS_MAIN(HistoryTest)
 #include "library_test.moc"

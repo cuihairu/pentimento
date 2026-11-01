@@ -160,6 +160,10 @@ void Library::openAndInitialize(const QString &catalog) {
     ensureColumn(QStringLiteral("format"), QStringLiteral("format TEXT NOT NULL DEFAULT ''"));
     ensureColumn(QStringLiteral("width"), QStringLiteral("width INTEGER NOT NULL DEFAULT 0"));
     ensureColumn(QStringLiteral("height"), QStringLiteral("height INTEGER NOT NULL DEFAULT 0"));
+    // P-310: an in-app confirmed deletion sets deleted=1. The asset row (and
+    // its tags/meta/provenance) stays for history queries; a tombstone revision
+    // marks the deletion point in the timeline.
+    ensureColumn(QStringLiteral("deleted"), QStringLiteral("deleted INTEGER NOT NULL DEFAULT 0"));
     // P-306: snapshot entries carry a state (present|excluded; tombstone|missing
     // arrive with P-310/P-311) plus the exclusion reason that produced it.
     const auto ensureSnapshotColumn = [&](const QString &name, const QString &ddl) {
@@ -189,6 +193,9 @@ void Library::openAndInitialize(const QString &catalog) {
     };
     ensureRevisionColumn(QStringLiteral("pinned"), QStringLiteral("pinned INTEGER NOT NULL DEFAULT 0"));
     ensureRevisionColumn(QStringLiteral("pin_reason"), QStringLiteral("pin_reason TEXT NOT NULL DEFAULT ''"));
+    // P-310: a tombstone revision marks an in-app confirmed deletion. Only
+    // deleteAsset writes one; a missing or unreachable working copy never does.
+    ensureRevisionColumn(QStringLiteral("tombstone"), QStringLiteral("tombstone INTEGER NOT NULL DEFAULT 0"));
     // Schema/identity metadata. A library predating the meta table, or with an
     // unknown schema version, must not be silently treated as current (P-201).
     QSqlQuery meta(db_);
@@ -773,7 +780,10 @@ QString Library::peekLibraryId(const QString &root) {
 QVector<Asset> Library::assets() const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
     QSqlQuery q(db_);
-    q.prepare("SELECT id,name,path,folder FROM assets ORDER BY name,id");
+    // P-310: live assets only. A deleted asset keeps its row (and history) for
+    // timeline queries but is never listed as a live entry; it stays reachable
+    // through the tombstone revision's asset_id.
+    q.prepare("SELECT id,name,path,folder FROM assets WHERE deleted=0 ORDER BY name,id");
     execute(q);
     QVector<Asset> result;
     while (q.next()) {
@@ -790,13 +800,13 @@ QVector<Asset> Library::assets() const {
 QVector<Revision> Library::revisions(const QString &assetId) const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
     QSqlQuery q(db_);
-    q.prepare("SELECT id,hash,created,note,size,pinned,pin_reason FROM revisions WHERE asset_id=? ORDER BY id DESC");
+    q.prepare("SELECT id,hash,created,note,size,pinned,pin_reason,tombstone FROM revisions WHERE asset_id=? ORDER BY id DESC");
     q.addBindValue(assetId);
     execute(q);
     QVector<Revision> result;
     while (q.next()) result.push_back({q.value(0).toLongLong(), q.value(1).toString(),
         q.value(2).toString(), q.value(3).toString(), q.value(4).toLongLong(),
-        q.value(5).toInt() != 0, q.value(6).toString()});
+        q.value(5).toInt() != 0, q.value(6).toString(), q.value(7).toInt() != 0});
     return result;
 }
 
@@ -1022,6 +1032,72 @@ void Library::restore(const Asset &asset, qint64 revisionId) {
     fail(Library::tr("找不到属于当前素材的历史版本"));
 }
 
+void Library::deleteAsset(const QString &assetId) {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
+    QSqlQuery find(db_);
+    find.prepare("SELECT name,deleted,path FROM assets WHERE id=?");
+    find.addBindValue(assetId);
+    execute(find);
+    if (!find.next()) fail(Library::tr("素材不存在"));
+    const QString name = find.value(0).toString();
+    const bool alreadyDeleted = find.value(1).toInt() != 0;
+    if (alreadyDeleted) fail(Library::tr("素材已删除"));
+    const QString stored = find.value(2).toString();
+    const QString workingPath = QFileInfo(stored).isAbsolute() ? stored : root_ + "/" + stored;
+    // The working copy is removed only for a confirmed in-app delete. A file
+    // that is already gone (external removal) still gets the tombstone — the
+    // user's intent is recorded and history stays complete. An unremovable file
+    // (locked, unplugged mount, permissions) blocks the delete rather than
+    // half-deleting; that is the "storage unreachable" state, never a deletion.
+    if (QFileInfo::exists(workingPath)) {
+        QFile f(workingPath);
+        if (!f.remove() && QFileInfo::exists(workingPath))
+            fail(Library::tr("无法删除工作副本：%1（请关闭占用该文件的程序）").arg(name));
+    }
+    // Tombstone revision: history and objects stay intact. The revision reuses
+    // the last content hash and size, so the timeline remains fully browsable
+    // and restorable after the asset is gone from the live list.
+    QString hash;
+    qint64 size = 0;
+    const auto history = revisions(assetId);
+    if (!history.isEmpty()) { hash = history.first().hash; size = history.first().size; }
+    if (!db_.transaction()) fail(db_.lastError().text());
+    try {
+        QSqlQuery ins(db_);
+        ins.prepare("INSERT INTO revisions(asset_id,hash,created,note,size,pinned,pin_reason,tombstone) VALUES(?,?,?,?,?,0,'',1)");
+        ins.addBindValue(assetId);
+        ins.addBindValue(hash);
+        ins.addBindValue(QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
+        ins.addBindValue(QStringLiteral("删除"));
+        ins.addBindValue(size);
+        execute(ins);
+        QSqlQuery up(db_);
+        up.prepare("UPDATE assets SET deleted=1 WHERE id=?");
+        up.addBindValue(assetId);
+        execute(up);
+        if (!db_.commit()) fail(db_.lastError().text());
+    } catch (...) {
+        db_.rollback();
+        throw;
+    }
+}
+
+Library::Health Library::workingCopyHealth(const Asset &asset) const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
+    const QFileInfo info(asset.path);
+    const QFileInfo dirInfo(info.absolutePath());
+    // A file in an unreadable/unstat-able directory is "unreachable" (lost
+    // mount, dropped network share, permissions) rather than "missing" —
+    // unplugging or a network drop is never a deletion, so no tombstone is ever
+    // written for it. Only deleteAsset writes a tombstone.
+    if (dirInfo.exists() && !dirInfo.isReadable()) return Health::Unreachable;
+    if (!info.exists()) return Health::Missing;
+    if (!info.isReadable()) return Health::Unreachable;
+    QFile f(asset.path);
+    if (!f.open(QIODevice::ReadOnly)) return Health::Unreachable;
+    return Health::Healthy;
+}
+
 void Library::exportRevision(const QString &assetId, qint64 revisionId, const QString &destination) const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
     // Never export into the managed library (would permit overwriting immutable objects).
@@ -1128,7 +1204,9 @@ QVector<Snapshot> Library::snapshots() const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
     QSqlQuery q(db_);
     q.prepare("SELECT s.id,s.created,s.note,"
-              "SUM(CASE WHEN sa.state='excluded' THEN 0 ELSE 1 END),"
+              // NULL-safe: a LEFT JOIN row for a snapshot with no entries has
+              // state=NULL and must not be counted as present (P-310 empty tree).
+              "SUM(CASE WHEN sa.state IS NOT NULL AND sa.state!='excluded' THEN 1 ELSE 0 END),"
               "SUM(CASE WHEN sa.state='excluded' THEN 1 ELSE 0 END) "
               "FROM snapshots s LEFT JOIN snapshot_assets sa ON sa.snapshot_id=s.id "
               "GROUP BY s.id ORDER BY s.id DESC");

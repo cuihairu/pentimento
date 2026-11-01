@@ -347,6 +347,11 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
         QMenu menu;
         menu.addAction(tr("重命名…"), this, &MainWindow::renameSelected);
         menu.addAction(tr("移动到文件夹…"), this, &MainWindow::moveSelected);
+        menu.addSeparator();
+        // P-310: in-app confirmed deletion (preview → confirm). Writes a
+        // tombstone revision — history and objects are retained — and removes
+        // the working copy.
+        menu.addAction(tr("删除素材…"), this, &MainWindow::deleteSelected);
         menu.exec(assetsList_->viewport()->mapToGlobal(pos));
     });
     connect(historyList_, &QListWidget::currentRowChanged, this, &MainWindow::showRevision);
@@ -647,6 +652,11 @@ void MainWindow::reloadHistory() {
         QStringList markers;
         if (i == 0 && unrecorded) markers << tr("未记录修改");
         if (revision.pinned) markers << tr("已固定");
+        // P-310: a tombstone revision marks the in-app deletion point. It keeps
+        // the last content hash, so a healthy object still renders; a missing
+        // object just shows the standard corrupt warning. The asset stays
+        // reachable here even though it is no longer listed as live.
+        if (revision.tombstone) markers << tr("墓碑");
         if (!corrupt && revision.id == currentId) markers << tr("当前内容");
         else if (revision.note.startsWith(QStringLiteral("恢复历史版本 #"))) markers << tr("恢复");
         else if (revision.note == QStringLiteral("恢复前自动保存")) markers << tr("自动保存");
@@ -797,6 +807,33 @@ void MainWindow::moveSelected() {
     } catch (const std::exception &error) { report(error); }
 }
 
+void MainWindow::deleteSelected() {
+    const auto asset = selected();
+    if (asset.id.isEmpty()) return;
+    // P-310: preview → confirm, exactly as the spec's three-state table demands
+    // for an in-app delete. The preview makes explicit that this is not the
+    // "missing working copy" or "storage unreachable" state.
+    const auto revisions = library_.revisions(asset.id);
+    const QStringList lines{
+        tr("名称：%1").arg(asset.name),
+        tr("路径：%1").arg(asset.logicalPath()),
+        tr("版本：%1 个").arg(revisions.size()),
+        tr("工作副本将被移除；历史与对象保留，可从时间线恢复。"),
+    };
+    QMessageBox box(QMessageBox::Warning, tr("删除素材"), lines.join(QLatin1Char('\n')), QMessageBox::NoButton, this);
+    auto *confirmBtn = box.addButton(tr("确认删除"), QMessageBox::YesRole);
+    box.addButton(tr("取消"), QMessageBox::NoRole);
+    box.exec();
+    if (box.clickedButton() != confirmBtn) return;
+    try {
+        library_.deleteAsset(asset.id);
+        statusBar()->showMessage(tr("已删除：%1（历史与对象保留，可从时间线恢复）").arg(asset.name));
+        reloadAssets();
+        historyList_->clear();
+        details_->clear();
+    } catch (const std::exception &error) { report(error); }
+}
+
 void MainWindow::exportEvidenceFile() {
     const int row = provenanceList_->currentRow();
     if (row < 0) return;
@@ -911,12 +948,23 @@ void MainWindow::showRevision() {
         if (meta.bitsPerChannel > 0) ch += QStringLiteral(" %1bit").arg(meta.bitsPerChannel);
         facts << ch;
     }
-    details_->setText(QStringLiteral("%1\n%2 · %3 · #%4%5")
+    // P-310: working-copy health is shown alongside the version facts. Missing
+    // (externally removed) and unreachable (unplugged mount / dropped share /
+    // permissions) are recoverable states, never deletions — no tombstone is
+    // written for either, and the message says so explicitly.
+    QString healthLine;
+    const auto health = library_.workingCopyHealth(selected());
+    if (health == Library::Health::Missing)
+        healthLine = tr("\n工作副本缺失（可从历史恢复，不视为删除）");
+    else if (health == Library::Health::Unreachable)
+        healthLine = tr("\n存储不可达（拔盘或断网不算删除；恢复挂载后自动恢复）");
+    details_->setText(QStringLiteral("%1\n%2 · %3 · #%4%5%6")
         .arg(selected().name)
         .arg(row == 0 ? tr("当前版本") : tr("历史版本"))
         .arg(QDateTime::fromString(revision.created, Qt::ISODateWithMs).toLocalTime().toString("yyyy-MM-dd HH:mm:ss"))
         .arg(revision.id)
-        .arg(facts.isEmpty() ? QString() : QStringLiteral(" · ") + facts.join(QStringLiteral(" · "))));
+        .arg(facts.isEmpty() ? QString() : QStringLiteral(" · ") + facts.join(QStringLiteral(" · ")))
+        .arg(healthLine));
     QByteArray content;
     try {
         content = library_.readObject(revision.hash);

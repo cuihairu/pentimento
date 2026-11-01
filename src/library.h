@@ -43,6 +43,12 @@ struct Revision {
     // only clears the flag; history is never deleted by unpinning.
     bool pinned = false;
     QString pinReason;
+    // P-310: a tombstone marks an in-app confirmed deletion. The revision keeps
+    // the last content hash/size so history and objects stay intact, but the
+    // asset is no longer listed as live. Tombstones are written only by
+    // deleteAsset — never automatically for a missing or unreachable working
+    // copy (those are recoverable states, not deletions).
+    bool tombstone = false;
 };
 
 // One whole-tree emergency anchor: each asset pinned to the revision that
@@ -115,6 +121,17 @@ public:
     // later scan. Returns true only when a new revision was recorded.
     bool captureIfStable(const Asset &asset, const QString &note = QString());
     void restore(const Asset &asset, qint64 revisionId);
+    // P-310: in-app confirmed deletion. Writes a tombstone revision (history
+    // and objects stay intact — the timeline still finds the asset) and removes
+    // the working copy. Throws when the asset is unknown or already deleted.
+    void deleteAsset(const QString &assetId);
+    // P-310: working-copy health, distinct from deletion. "missing" = the file
+    // is gone (externally removed — recoverable from history, never treated as
+    // a user deletion); "unreachable" = the file or its directory exists but
+    // cannot be read (unplugged volume / lost mount / permissions — no tombstone
+    // is ever written for this); "" = healthy.
+    enum class Health { Healthy, Missing, Unreachable };
+    Health workingCopyHealth(const Asset &asset) const;
     void exportRevision(const QString &assetId, qint64 revisionId, const QString &destination) const;
     QString objectPath(const QString &hash) const;
     QByteArray readObject(const QString &hash) const;
