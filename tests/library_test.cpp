@@ -389,6 +389,29 @@ private slots:
         QCOMPARE(get(asset.path), QByteArray("pixel data"));
         QCOMPARE(relocated.revisions(asset.id).size(), 1);
     }
+    void copyImportPreservesSourceAndSharesObjectForDistinctIdentities() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("sheet.png");
+        put(source, "identical bytes");
+        Library library(dir.filePath("lib"));
+        const auto a = library.importFile(source);
+        // The source is a copy source, never moved or modified.
+        QCOMPARE(get(source), QByteArray("identical bytes"));
+        QVERIFY(QFileInfo::exists(source));
+        // Same content imported again: distinct identity (no merge), shared object.
+        const auto b = library.importFile(source);
+        QVERIFY(a.id != b.id);
+        QCOMPARE(library.assets().size(), 2);
+        const auto ra = library.revisions(a.id).first();
+        const auto rb = library.revisions(b.id).first();
+        QCOMPARE(ra.hash, rb.hash);
+        QCOMPARE(library.objectPath(ra.hash), library.objectPath(rb.hash));
+        QCOMPARE(library.readObject(ra.hash), QByteArray("identical bytes"));
+        // A pre-registration read failure leaves no partial working directory.
+        const auto missing = dir.filePath("not-there.bin");
+        QVERIFY_EXCEPTION_THROWN(library.importFile(missing), std::runtime_error);
+        QCOMPARE(library.assets().size(), 2);
+    }
     void recentLibraryListPersistsDeduplicatesAndCaps() {
         QTemporaryDir dir;
         recent::setStoragePath(dir.filePath("settings.ini"));

@@ -223,8 +223,17 @@ Asset Library::importFile(const QString &source) {
     // the absolute working-file path is derived from the current root.
     Asset asset{id, info.fileName(), QString(), QStringLiteral("working/%1/%2").arg(id, info.fileName())};
     asset.path = root_ + "/" + asset.relative;
-    if (!QDir().mkpath(QFileInfo(asset.path).absolutePath())) fail(Library::tr("无法创建工作目录"));
-    writeFile(asset.path, bytes);
+    const QString workingDir = QFileInfo(asset.path).absolutePath();
+    if (!QDir().mkpath(workingDir)) fail(Library::tr("无法创建工作目录"));
+    // Copy import order (P-203): stable read (bounded, whole-file) -> atomic
+    // write of the working copy -> hash check before registration -> original
+    // untouched. A pre-registration failure must not leave a half-written asset.
+    try {
+        writeFile(asset.path, bytes);
+    } catch (...) {
+        QDir().rmdir(workingDir); // best-effort; empty dir only, never the source
+        throw;
+    }
     if (!db_.transaction()) fail(db_.lastError().text());
     try {
         QSqlQuery q(db_);
