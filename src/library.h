@@ -136,6 +136,28 @@ public:
     // later scan. Returns true only when a new revision was recorded.
     bool captureIfStable(const Asset &asset, const QString &note = QString());
     void restore(const Asset &asset, qint64 revisionId);
+    // P-315/P-316: restore preview and its bound plan. The plan lists exactly
+    // what a restore would do — overwrite / create / skip / conflict plus the
+    // space requirement — WITHOUT writing any file. It is bound to the target
+    // revision and the working copy's (size, mtime) at plan time; execution
+    // re-checks the binding and refuses a stale plan.
+    struct RestorePlan {
+        qint64 revisionId = 0;
+        QString action;        // "overwrite" | "create" | "skip" | "conflict"
+        qint64 protectBytes = 0; // working-copy bytes to protect (0 for create/skip)
+        qint64 targetBytes = 0;  // target content bytes to write
+        qint64 spaceNeeded = 0;  // protectBytes + targetBytes
+        QString conflictReason;  // set when action == "conflict"
+        qint64 plannedSize = -1; // working-copy size at plan time (-1 = missing)
+        qint64 plannedMtime = 0; // working-copy mtime at plan time
+    };
+    RestorePlan planRestore(const Asset &asset, qint64 revisionId) const;
+    // Execute a plan produced by planRestore. Re-checks the working copy state
+    // first; if it changed since the plan was made, throws (stale plan — the
+    // caller must refresh the preview). The current on-disk unrecorded content
+    // is protected as a version BEFORE any overwrite; a failed protect stops
+    // the restore (nothing is overwritten unprotected).
+    void restore(const Asset &asset, const RestorePlan &plan);
     // P-310: in-app confirmed deletion. Writes a tombstone revision (history
     // and objects stay intact — the timeline still finds the asset) and removes
     // the working copy. Throws when the asset is unknown or already deleted.

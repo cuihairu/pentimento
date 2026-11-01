@@ -177,6 +177,107 @@ private slots:
         // The working file is untouched because the write never succeeded.
         QCOMPARE(get(asset.path), QByteArray("unrecorded"));
     }
+    // P-315: the preview lists exactly what a restore would do without writing.
+    void restorePreviewListsActionsWithoutWriting() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("asset.dat");
+        put(source, "v1");
+        Library library(dir.filePath("library"));
+        const auto asset = library.importFile(source);
+        const qint64 rev1 = library.revisions(asset.id).first().id;
+        put(asset.path, "v2");
+        QVERIFY(library.capture(asset, "second"));
+        const qint64 rev2 = library.revisions(asset.id).first().id;
+        put(asset.path, "unrecorded");
+
+        // Overwrite: unrecorded content would be protected, target written.
+        auto plan = library.planRestore(asset, rev1);
+        QCOMPARE(plan.action, QStringLiteral("overwrite"));
+        QCOMPARE(plan.protectBytes, qint64(10));   // "unrecorded"
+        QCOMPARE(plan.targetBytes, qint64(2));     // "v1"
+        QCOMPARE(plan.spaceNeeded, qint64(12));
+        QCOMPARE(plan.plannedSize, qint64(10));
+        // The preview itself never writes: working copy and history untouched.
+        QCOMPARE(get(asset.path), QByteArray("unrecorded"));
+        QCOMPARE(library.revisions(asset.id).size(), 2);
+
+        // Skip: working copy already at the target content.
+        put(asset.path, "v2");
+        plan = library.planRestore(asset, rev2);
+        QCOMPARE(plan.action, QStringLiteral("skip"));
+        QCOMPARE(plan.spaceNeeded, qint64(0));
+
+        // Create: a missing working copy means a new file (nothing to protect).
+        QVERIFY(QFile::remove(asset.path));
+        plan = library.planRestore(asset, rev1);
+        QCOMPARE(plan.action, QStringLiteral("create"));
+        QCOMPARE(plan.plannedSize, qint64(-1));
+        QCOMPARE(plan.targetBytes, qint64(2));
+        QCOMPARE(plan.spaceNeeded, qint64(2));
+        QVERIFY(!QFileInfo::exists(asset.path)); // still nothing written
+
+        // Conflict: a corrupt/missing target object is surfaced, never a partial write.
+        put(asset.path, "unrecorded");
+        QVERIFY(platform::makeMutable(library.objectPath(library.revisions(asset.id).at(1).hash)));
+        QVERIFY(QFile::remove(library.objectPath(library.revisions(asset.id).at(1).hash)));
+        plan = library.planRestore(asset, rev1);
+        QCOMPARE(plan.action, QStringLiteral("conflict"));
+        QVERIFY(!plan.conflictReason.isEmpty());
+    }
+    // P-315: executing a stale plan (working copy changed since the preview) is refused.
+    void staleRestorePlanIsRejected() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("asset.dat");
+        put(source, "v1");
+        Library library(dir.filePath("library"));
+        const auto asset = library.importFile(source);
+        const qint64 rev1 = library.revisions(asset.id).first().id;
+        put(asset.path, "v2");
+        QVERIFY(library.capture(asset, "second"));
+
+        // Plan made, then the working copy changed -> stale.
+        put(asset.path, "unrecorded");
+        auto plan = library.planRestore(asset, rev1);
+        put(asset.path, "rewritten after preview");
+        QVERIFY_EXCEPTION_THROWN(library.restore(asset, plan), std::runtime_error);
+        QCOMPARE(get(asset.path), QByteArray("rewritten after preview"));
+
+        // Plan when missing, then the file appeared -> stale.
+        QVERIFY(QFile::remove(asset.path));
+        plan = library.planRestore(asset, rev1);
+        QCOMPARE(plan.action, QStringLiteral("create"));
+        put(asset.path, "sneaked in");
+        QVERIFY_EXCEPTION_THROWN(library.restore(asset, plan), std::runtime_error);
+
+        // Plan when present, then the file disappeared -> stale.
+        QVERIFY(QFile::remove(asset.path));
+        put(asset.path, "v2");
+        plan = library.planRestore(asset, rev1);
+        QVERIFY(QFile::remove(asset.path));
+        QVERIFY_EXCEPTION_THROWN(library.restore(asset, plan), std::runtime_error);
+    }
+    // P-316: executing a valid plan protects the current content before overwriting.
+    void plannedRestoreProtectsCurrentContentBeforeOverwrite() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("asset.dat");
+        put(source, "v1");
+        Library library(dir.filePath("library"));
+        const auto asset = library.importFile(source);
+        const qint64 rev1 = library.revisions(asset.id).first().id;
+        put(asset.path, "v2");
+        QVERIFY(library.capture(asset, "second"));
+        put(asset.path, "unrecorded");
+
+        const auto plan = library.planRestore(asset, rev1);
+        QCOMPARE(plan.action, QStringLiteral("overwrite"));
+        library.restore(asset, plan);
+        QCOMPARE(get(asset.path), QByteArray("v1"));
+        // The unrecorded content became a protected version before the overwrite.
+        QCOMPARE(library.revisions(asset.id).size(), 4);
+        const auto preserved = library.revisions(asset.id).at(1);
+        library.exportRevision(asset.id, preserved.id, dir.filePath("preserved.dat"));
+        QCOMPARE(get(dir.filePath("preserved.dat")), QByteArray("unrecorded"));
+    }
     void readObjectIsPublicAndVerifiesHash() {
         QTemporaryDir dir;
         const auto source = dir.filePath("asset.dat");

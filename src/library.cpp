@@ -1009,35 +1009,133 @@ bool Library::captureIfStable(const Asset &asset, const QString &note) {
     return true;
 }
 
-void Library::restore(const Asset &asset, qint64 revisionId) {
+// P-315: the preview phase. Builds the exact operation list for a restore —
+// overwrite / create / skip / conflict plus the space requirement — WITHOUT
+// writing any file (the preview never modifies working files). The plan is
+// bound to the target revision and the working copy's (size, mtime); execution
+// re-checks that binding and refuses a stale plan.
+Library::RestorePlan Library::planRestore(const Asset &asset, qint64 revisionId) const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
-    const auto history = revisions(asset.id);
-    for (const auto &revision : history) {
+    RestorePlan plan;
+    plan.revisionId = revisionId;
+    QString targetHash;
+    bool found = false;
+    for (const auto &revision : revisions(asset.id)) {
         if (revision.id != revisionId) continue;
-        const auto bytes = readObject(revision.hash); // Verify before touching the working file.
-        const bool existed = QFileInfo::exists(asset.path);
-        QByteArray previous;
-        if (existed) previous = readFile(asset.path);
-        if (!db_.transaction()) fail(db_.lastError().text());
-        bool replaced = false;
-        try {
-            const auto currentHistory = revisions(asset.id);
-            if (existed && (currentHistory.isEmpty() || currentHistory.first().hash != digest(previous)))
-                append(asset, previous, QStringLiteral("恢复前自动保存"));
-            append(asset, bytes, QStringLiteral("恢复历史版本 #%1").arg(revisionId));
-            if (!QDir().mkpath(QFileInfo(asset.path).absolutePath())) fail(Library::tr("无法创建恢复目录"));
-            writeFile(asset.path, bytes);
-            replaced = true;
-            if (!db_.commit()) fail(db_.lastError().text());
-        } catch (...) {
-            db_.rollback();
-            if (replaced && existed) writeFile(asset.path, previous);
-            else if (replaced) QFile::remove(asset.path);
-            throw;
+        found = true;
+        plan.targetBytes = revision.size;
+        targetHash = revision.hash;
+        // The target object must be present and complete — surfaced as a
+        // conflict before any write, never as a silent partial restore.
+        const QFileInfo object(objectPath(revision.hash));
+        if (!object.exists() || object.size() != revision.size) {
+            plan.action = QStringLiteral("conflict");
+            plan.conflictReason = Library::tr("目标版本内容缺失或损坏，无法恢复");
+            return plan;
         }
-        return;
+        break;
     }
-    fail(Library::tr("找不到属于当前素材的历史版本"));
+    if (!found) fail(Library::tr("找不到属于当前素材的历史版本"));
+    const QFileInfo info(asset.path);
+    if (!info.exists()) {
+        // Missing working copy: nothing to protect, but a file will be created —
+        // the UI asks the user to confirm this (it is never silent).
+        plan.action = QStringLiteral("create");
+        plan.plannedSize = -1;
+        plan.spaceNeeded = plan.targetBytes;
+        return plan;
+    }
+    plan.plannedSize = info.size();
+    plan.plannedMtime = info.lastModified().toMSecsSinceEpoch();
+    if (!info.isReadable()) {
+        // P-316: unreachable storage — the current content cannot be read, so it
+        // cannot be protected. A conflict, never an unprotected overwrite.
+        plan.action = QStringLiteral("conflict");
+        plan.conflictReason = Library::tr("工作副本不可读，无法保护当前内容");
+        return plan;
+    }
+    const QByteArray current = readFile(asset.path);
+    if (digest(current) == targetHash) {
+        plan.action = QStringLiteral("skip"); // already at the target content
+        return plan;
+    }
+    plan.action = QStringLiteral("overwrite");
+    plan.protectBytes = current.size();
+    plan.spaceNeeded = plan.protectBytes + plan.targetBytes;
+    return plan;
+}
+
+void Library::restore(const Asset &asset, qint64 revisionId) {
+    restore(asset, planRestore(asset, revisionId));
+}
+
+// P-315/P-316: the execution phase. Re-checks the plan's binding first — a
+// working copy that appeared, disappeared or changed since the preview means
+// the plan is stale and the caller must refresh it (no stale plan ever runs).
+// The current on-disk content is protected as a version BEFORE any overwrite;
+// a failed protect (or a detected concurrent external write) stops the restore
+// with nothing overwritten unprotected.
+void Library::restore(const Asset &asset, const RestorePlan &plan) {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
+    const QFileInfo current(asset.path);
+    if (plan.plannedSize < 0) {
+        if (current.exists())
+            fail(Library::tr("恢复计划已失效：工作副本已出现，请刷新预演"));
+    } else if (!current.exists()) {
+        fail(Library::tr("恢复计划已失效：工作副本已消失，请刷新预演"));
+    } else if (current.size() != plan.plannedSize
+               || current.lastModified().toMSecsSinceEpoch() != plan.plannedMtime) {
+        fail(Library::tr("恢复计划已失效：工作副本已变化，请刷新预演"));
+    }
+    if (plan.action == QStringLiteral("skip")) return;
+    if (plan.action == QStringLiteral("conflict"))
+        fail(plan.conflictReason.isEmpty() ? Library::tr("无法恢复：冲突未解决") : plan.conflictReason);
+    Revision target;
+    bool found = false;
+    for (const auto &revision : revisions(asset.id)) {
+        if (revision.id != plan.revisionId) continue;
+        target = revision;
+        found = true;
+        break;
+    }
+    if (!found) fail(Library::tr("找不到属于当前素材的历史版本"));
+    const auto bytes = readObject(target.hash); // Verify before touching the working file.
+    const bool existed = current.exists();
+    QByteArray previous;
+    qint64 readSize = -1;
+    qint64 readMtime = 0;
+    if (existed) {
+        previous = readFile(asset.path);
+        const QFileInfo afterRead(asset.path);
+        readSize = afterRead.size();
+        readMtime = afterRead.lastModified().toMSecsSinceEpoch();
+    }
+    if (!db_.transaction()) fail(db_.lastError().text());
+    bool replaced = false;
+    try {
+        const auto currentHistory = revisions(asset.id);
+        if (existed && (currentHistory.isEmpty() || currentHistory.first().hash != digest(previous)))
+            append(asset, previous, QStringLiteral("恢复前自动保存"));
+        append(asset, bytes, QStringLiteral("恢复历史版本 #%1").arg(plan.revisionId));
+        if (!QDir().mkpath(QFileInfo(asset.path).absolutePath())) fail(Library::tr("无法创建恢复目录"));
+        // P-316: external-edit concurrency. An outside process writing the file
+        // between our read and our write would be silently destroyed by the
+        // overwrite — block instead and ask the user to close the editor.
+        if (existed) {
+            const QFileInfo beforeWrite(asset.path);
+            if (beforeWrite.size() != readSize
+                || beforeWrite.lastModified().toMSecsSinceEpoch() != readMtime)
+                fail(Library::tr("检测到外部编辑正在写入，请关闭外部编辑器后重试"));
+        }
+        writeFile(asset.path, bytes);
+        replaced = true;
+        if (!db_.commit()) fail(db_.lastError().text());
+    } catch (...) {
+        db_.rollback();
+        if (replaced && existed) writeFile(asset.path, previous);
+        else if (replaced) QFile::remove(asset.path);
+        throw;
+    }
 }
 
 void Library::deleteAsset(const QString &assetId) {

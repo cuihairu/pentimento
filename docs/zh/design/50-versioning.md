@@ -178,11 +178,27 @@
 - 计划绑定目标版本和当前文件状态；**执行前重新检查**，变化则要求刷新预演（防旧计划失效）。
 - 不做：预演阶段修改工作文件；静默解决冲突。
 
+**实现（2026-11-01）**
+- 设计：`Library::RestorePlan`（action = overwrite|create|skip|conflict；protectBytes/targetBytes/spaceNeeded；conflictReason；plannedSize/plannedMtime 为计划时的绑定）。`planRestore(asset, revisionId)` 只读预演，`restore(asset, plan)` 执行（执行前重查绑定）。
+- 预演判定：工作副本缺失→create（无内容可保护，UI 需确认）；内容==目标→skip；目标对象缺失/损坏→conflict；工作副本不可读→conflict（P-316 不可无保护覆盖）；其余→overwrite。
+- 绑定：plannedSize<0 表示计划时缺失；执行时文件出现/消失/尺寸或 mtime 变化→「恢复计划已失效，请刷新预演」。
+- 接线：MainWindow::restore 先 planRestore 弹「恢复预演」清单（动作+空间需求+保护说明），确认后才执行；skip/conflict 只提示不执行。
+- 测试：`restorePreviewListsActionsWithoutWriting`、`staleRestorePlanIsRejected`、`plannedRestoreProtectsCurrentContentBeforeOverwrite`。
+- 验证：ctest 2/2 绿；离线烟雾运行无崩溃。
+
 ## P-316 恢复前保护当前状态（阻断条件）
 
 - 保护当前未记录内容成功后才允许恢复；保护失败即停止（不无保护覆盖）。
 - 定义：保护版本（生成新修订保存当前）、空间预估、缺失工作副本（无内容可保护但需确认）、外部编辑并发（检测到外部写则阻断，提示关闭编辑器）。
 - 不宣称保存了编辑器未写盘内容。
+
+**实现（2026-11-01）**
+- 保护前置：`restore(asset, plan)` 在写目标前先 append「恢复前自动保存」（若当前内容未记录）；保护 append 失败则整个事务回滚、工作文件不写——绝不无保护覆盖。
+- 空间预估：preview 的 spaceNeeded = protectBytes + targetBytes，UI 以 KiB 展示。
+- 缺失工作副本：plan 动作 create，UI 明确「无内容可保护，请确认」，非静默。
+- 外部编辑并发：读取工作副本后、写目标前再次校验 (size, mtime)；变化→「检测到外部编辑正在写入，请关闭外部编辑器后重试」，阻断并回滚。保护仅覆盖磁盘已保存内容，界面文案不宣称保存编辑器未写盘内容。
+- 测试：`plannedRestoreProtectsCurrentContentBeforeOverwrite`（保护版本可导出）；外部写并发为写前校验，属防御性检查。
+- 验证：ctest 2/2 绿；离线烟雾运行无崩溃。
 
 ## P-317 单素材恢复为新版本
 

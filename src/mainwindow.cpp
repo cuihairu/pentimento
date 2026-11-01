@@ -1047,9 +1047,53 @@ void MainWindow::capture() {
 void MainWindow::restore() {
     const int row = historyList_->currentRow();
     if (row < 0) return;
-    if (QMessageBox::question(this, tr("恢复历史版本"), tr("将历史内容恢复为当前工作副本，并新增一个版本。\n未记录的当前内容会先保存。请先在外部编辑器中关闭此文件。")) != QMessageBox::Yes) return;
-    try { library_.restore(selected(), revisions_.at(row).id); reloadAssets(selected().id); }
-    catch (const std::exception &error) { report(error); }
+    const auto asset = selected();
+    const qint64 revisionId = revisions_.at(row).id;
+    // P-315: the preview comes first — the exact operation list is computed
+    // before any target write, and the preview itself never writes a file.
+    Library::RestorePlan plan;
+    try { plan = library_.planRestore(asset, revisionId); }
+    catch (const std::exception &error) { report(error); return; }
+    QString detail;
+    bool confirmable = true;
+    if (plan.action == QStringLiteral("overwrite")) {
+        // P-316: the on-disk unrecorded content is protected as a version before
+        // the overwrite. Only disk-saved content is protected — an editor's
+        // unsaved buffer is never claimed to be saved.
+        detail = tr("将覆盖当前工作副本：未记录的当前内容会先保存为保护版本。\n"
+                    "空间需求：约 %1 KiB（保护 %2 KiB + 写入 %3 KiB）。\n"
+                    "保护的是磁盘上已保存的内容；外部编辑器未写盘的内容不受保护，请先关闭编辑器。")
+            .arg(plan.spaceNeeded / 1024.0, 0, 'f', 1)
+            .arg(plan.protectBytes / 1024.0, 0, 'f', 1)
+            .arg(plan.targetBytes / 1024.0, 0, 'f', 1);
+    } else if (plan.action == QStringLiteral("create")) {
+        detail = tr("当前工作副本缺失——将新增该文件（无内容可保护，请确认）。\n"
+                    "空间需求：约 %1 KiB。")
+            .arg(plan.spaceNeeded / 1024.0, 0, 'f', 1);
+    } else if (plan.action == QStringLiteral("skip")) {
+        detail = tr("当前内容已与目标一致——无需恢复。");
+        confirmable = false;
+    } else {
+        detail = tr("无法恢复：%1").arg(plan.conflictReason);
+        confirmable = false;
+    }
+    QMessageBox box(this);
+    box.setWindowTitle(tr("恢复预演"));
+    box.setIcon(confirmable ? QMessageBox::Question : QMessageBox::Warning);
+    box.setText(detail);
+    if (!confirmable) {
+        box.addButton(QMessageBox::Ok);
+        box.exec();
+        return;
+    }
+    QAbstractButton *confirm = box.addButton(tr("确认恢复"), QMessageBox::YesRole);
+    box.addButton(tr("取消"), QMessageBox::NoRole);
+    box.exec();
+    if (box.clickedButton() != confirm) return;
+    // P-315: execution re-checks the plan binding — a working copy that changed
+    // since the preview makes the plan stale, and the user is asked to refresh.
+    try { library_.restore(asset, plan); reloadAssets(asset.id); }
+    catch (const std::exception &error) { report(error); return; }
     // Re-arm the sentinel: restore is an app-initiated write, not ransomware.
     if (sentinel_) sentinel_->resetBaseline();
 }

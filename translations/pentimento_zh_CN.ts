@@ -166,7 +166,42 @@
         <translation>历史对象校验失败；已停止操作</translation>
     </message>
     <message>
-        <location line="+283"/>
+        <location line="+148"/>
+        <source>目标版本内容缺失或损坏，无法恢复</source>
+        <translation>目标版本内容缺失或损坏，无法恢复</translation>
+    </message>
+    <message>
+        <location line="+21"/>
+        <source>工作副本不可读，无法保护当前内容</source>
+        <translation>工作副本不可读，无法保护当前内容</translation>
+    </message>
+    <message>
+        <location line="+29"/>
+        <source>恢复计划已失效：工作副本已出现，请刷新预演</source>
+        <translation>恢复计划已失效：工作副本已出现，请刷新预演</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>恢复计划已失效：工作副本已消失，请刷新预演</source>
+        <translation>恢复计划已失效：工作副本已消失，请刷新预演</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>恢复计划已失效：工作副本已变化，请刷新预演</source>
+        <translation>恢复计划已失效：工作副本已变化，请刷新预演</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>无法恢复：冲突未解决</source>
+        <translation>无法恢复：冲突未解决</translation>
+    </message>
+    <message>
+        <location line="+36"/>
+        <source>检测到外部编辑正在写入，请关闭外部编辑器后重试</source>
+        <translation>检测到外部编辑正在写入，请关闭外部编辑器后重试</translation>
+    </message>
+    <message>
+        <location line="+138"/>
         <source>无法发布一致快照，以下文件仍在写入：%1</source>
         <translation>无法发布一致快照，以下文件仍在写入：%1</translation>
     </message>
@@ -181,7 +216,7 @@
         <translation>无法发布一致快照，文件写入未稳定：%1</translation>
     </message>
     <message>
-        <location line="-722"/>
+        <location line="-820"/>
         <source>历史对象内容不一致</source>
         <translation>历史对象内容不一致</translation>
     </message>
@@ -208,18 +243,19 @@
         <translation>无法创建工作目录</translation>
     </message>
     <message>
-        <location line="+87"/>
+        <location line="+179"/>
         <source>无法创建恢复目录</source>
         <translation>无法创建恢复目录</translation>
     </message>
     <message>
-        <location line="+12"/>
+        <location line="-82"/>
+        <location line="+63"/>
         <source>找不到属于当前素材的历史版本</source>
         <translation>找不到属于当前素材的历史版本</translation>
     </message>
     <message>
-        <location line="-519"/>
-        <location line="+595"/>
+        <location line="-580"/>
+        <location line="+693"/>
         <source>请导出到素材库之外的现有目录</source>
         <translation>请导出到素材库之外的现有目录</translation>
     </message>
@@ -304,13 +340,13 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+1393"/>
+        <location line="+1437"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>恢复到锚点</translation>
     </message>
     <message>
-        <location line="-1393"/>
+        <location line="-1437"/>
         <source>素材库</source>
         <translation>素材库</translation>
     </message>
@@ -348,12 +384,12 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+1145"/>
+        <location line="+1189"/>
         <source>添加</source>
         <translation>添加</translation>
     </message>
     <message>
-        <location line="-1144"/>
+        <location line="-1188"/>
         <source>移除</source>
         <translation>移除</translation>
     </message>
@@ -572,14 +608,14 @@
     </message>
     <message>
         <location line="+3"/>
-        <location line="+816"/>
+        <location line="+860"/>
         <location line="+223"/>
         <location line="+91"/>
         <source>关闭</source>
         <translation>关闭</translation>
     </message>
     <message>
-        <location line="-1129"/>
+        <location line="-1173"/>
         <source>每 15 分钟</source>
         <translation>每 15 分钟</translation>
     </message>
@@ -595,20 +631,20 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+901"/>
+        <location line="+945"/>
         <source>定时快照未启用</source>
         <translation>定时快照未启用</translation>
     </message>
     <message>
-        <location line="-898"/>
+        <location line="-942"/>
         <location line="+114"/>
-        <location line="+759"/>
+        <location line="+803"/>
         <location line="+11"/>
         <source>暂停</source>
         <translation>暂停</translation>
     </message>
     <message>
-        <location line="-882"/>
+        <location line="-926"/>
         <source>仅应用运行时生效；退出应用期间不算持续备份。</source>
         <translation>仅应用运行时生效；退出应用期间不算持续备份。</translation>
     </message>
@@ -675,12 +711,12 @@
     <message>
         <location line="+1"/>
         <location line="+238"/>
-        <location line="+544"/>
+        <location line="+588"/>
         <source>恢复</source>
         <translation>恢复</translation>
     </message>
     <message>
-        <location line="-758"/>
+        <location line="-802"/>
         <source>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</source>
         <translation>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</translation>
     </message>
@@ -879,11 +915,12 @@
     </message>
     <message>
         <location line="+1"/>
+        <location line="+257"/>
         <source>取消</source>
         <translation>取消</translation>
     </message>
     <message>
-        <location line="+5"/>
+        <location line="-252"/>
         <source>已删除：%1（历史与对象保留，可从时间线恢复）</source>
         <translation>已删除：%1（历史与对象保留，可从时间线恢复）</translation>
     </message>
@@ -1064,7 +1101,43 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation>内容未变化（当前版本 #%1），无需重复保存</translation>
     </message>
     <message>
-        <location line="+45"/>
+        <location line="+21"/>
+        <source>将覆盖当前工作副本：未记录的当前内容会先保存为保护版本。
+空间需求：约 %1 KiB（保护 %2 KiB + 写入 %3 KiB）。
+保护的是磁盘上已保存的内容；外部编辑器未写盘的内容不受保护，请先关闭编辑器。</source>
+        <translation>将覆盖当前工作副本：未记录的当前内容会先保存为保护版本。
+空间需求：约 %1 KiB（保护 %2 KiB + 写入 %3 KiB）。
+保护的是磁盘上已保存的内容；外部编辑器未写盘的内容不受保护，请先关闭编辑器。</translation>
+    </message>
+    <message>
+        <location line="+7"/>
+        <source>当前工作副本缺失——将新增该文件（无内容可保护，请确认）。
+空间需求：约 %1 KiB。</source>
+        <translation>当前工作副本缺失——将新增该文件（无内容可保护，请确认）。
+空间需求：约 %1 KiB。</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>当前内容已与目标一致——无需恢复。</source>
+        <translation>当前内容已与目标一致——无需恢复。</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>无法恢复：%1</source>
+        <translation>无法恢复：%1</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>恢复预演</source>
+        <translation>恢复预演</translation>
+    </message>
+    <message>
+        <location line="+8"/>
+        <source>确认恢复</source>
+        <translation>确认恢复</translation>
+    </message>
+    <message>
+        <location line="+42"/>
         <source>双版对比</source>
         <translation>双版对比</translation>
     </message>
@@ -1144,19 +1217,17 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation type="vanished">内容未变化，无需重复保存</translation>
     </message>
     <message>
-        <location line="-412"/>
         <source>恢复历史版本</source>
-        <translation>恢复历史版本</translation>
+        <translation type="vanished">恢复历史版本</translation>
     </message>
     <message>
-        <location line="+0"/>
         <source>将历史内容恢复为当前工作副本，并新增一个版本。
 未记录的当前内容会先保存。请先在外部编辑器中关闭此文件。</source>
-        <translation>将历史内容恢复为当前工作副本，并新增一个版本。
+        <translation type="vanished">将历史内容恢复为当前工作副本，并新增一个版本。
 未记录的当前内容会先保存。请先在外部编辑器中关闭此文件。</translation>
     </message>
     <message>
-        <location line="+10"/>
+        <location line="-402"/>
         <source>导出历史版本</source>
         <translation>导出历史版本</translation>
     </message>
