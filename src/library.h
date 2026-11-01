@@ -7,6 +7,7 @@
 #include <QSqlDatabase>
 #include <QString>
 #include <QVector>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <stdexcept>
@@ -265,6 +266,26 @@ public:
     // the package is incomplete or corrupt, so a half-export is never reported
     // as success.
     QVector<BackupEntry> verifyBackupPackage(const QString &packageDir) const;
+    // P-601: one run of the read-only object/index consistency check.
+    struct ConsistencyReport {
+        int revisions = 0;              // revision references inspected
+        int objects = 0;                // object files on disk
+        int ok = 0;                     // objects present and verified
+        QStringList missing;            // referenced hash with no object file
+        QStringList corrupt;            // object present but hash/size mismatch
+        QStringList orphan;             // object on disk with no reference
+        QStringList ioErrors;           // object present but unreadable (I/O)
+        int problems() const { return missing.size() + corrupt.size()
+                                      + orphan.size() + ioErrors.size(); }
+    };
+    // P-601: scan the object store against the index. Report-only: no object is
+    // repaired, no orphan deleted, no corrupt history rewritten — the report is
+    // the input to a later decision. Reads every object (streaming) so it is
+    // O(total bytes); `progress` (optional) reports percent + current hash so
+    // the UI can run it in the background. Throws only on a fundamentally
+    // unreadable library; per-object problems are reported, never thrown.
+    ConsistencyReport checkConsistency(
+        const std::function<void(int percent, const QString &current)> &progress = {}) const;
     // P-311: the manifest of a consistent snapshot — assetId, path-as-of-
     // snapshot, content hash and state per entry. Older snapshots (written
     // before the manifest carried path/hash) fall back to the asset's current

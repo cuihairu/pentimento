@@ -179,5 +179,6 @@ private:
     void rollbackToSnapshot();
     void showSourceState();
     void exportBackup();
+    void checkConsistency();
     void report(const std::exception &error);
 };

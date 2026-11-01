@@ -86,6 +86,7 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     // P-516: consistent full backup package export (local or mounted target);
     // writes a COMPLETE marker only after every object verifies.
     toolbar->addAction(tr("导出备份包…"), this, &MainWindow::exportBackup);
+    toolbar->addAction(tr("一致性检查…"), this, &MainWindow::checkConsistency);
     auto *splitter = new QSplitter;
     auto *left = new QWidget;
     auto *leftLayout = new QVBoxLayout(left);
@@ -1657,6 +1658,65 @@ void MainWindow::exportBackup() {
                                          .arg(result->entries.size())
                                          .arg(result->objects)
                                          .arg(result->bytes / 1024));
+        });
+}
+
+// P-601: report-only object/index consistency check. Runs on the background
+// queue (it reads every object, so a large store must never block the UI) and
+// reports counts plus the truncated problem lists. Nothing is repaired here:
+// missing/corrupt/orphan/ioErrors are surfaced so the user can decide (e.g.
+// restore from a backup package, or reconcile with a future maintenance step).
+void MainWindow::checkConsistency() {
+    statusBar()->showMessage(tr("正在执行一致性检查（只读，后台进行）…"));
+    auto result = std::make_shared<Library::ConsistencyReport>();
+    auto error = std::make_shared<QString>();
+    const qint64 id = captureQueue_->submit(QStringLiteral("一致性检查"),
+        [this, result, error](TaskQueue::Progress &) {
+            try {
+                *result = library_.checkConsistency();
+            } catch (const std::exception &e) {
+                *error = QString::fromUtf8(e.what());
+            }
+        });
+    QObject::connect(captureQueue_.get(), &TaskQueue::taskFinished, this,
+        [this, id, result, error](qint64 finished, bool, const QString &) {
+            if (finished != id) return;
+            if (!error->isEmpty()) {
+                statusBar()->showMessage(tr("一致性检查失败：%1").arg(*error));
+                return;
+            }
+            statusBar()->clearMessage();
+            const Library::ConsistencyReport &r = *result;
+            auto truncate = [](const QStringList &list, int limit) {
+                QStringList shown = list.mid(0, limit);
+                if (list.size() > limit)
+                    shown << tr("…（共 %1 项）").arg(list.size());
+                return shown;
+            };
+            const int problems = r.problems();
+            QString body = tr("检查完成：%1 条修订引用，%2 个对象文件，%3 个对象校验通过。\n\n"
+                              "问题：%4 项（缺失 %5，损坏 %6，孤立 %7，I/O %8）。")
+                               .arg(r.revisions).arg(r.objects).arg(r.ok)
+                               .arg(problems)
+                               .arg(r.missing.size()).arg(r.corrupt.size())
+                               .arg(r.orphan.size()).arg(r.ioErrors.size());
+            if (problems == 0) {
+                body += tr("\n\n未发现问题。");
+            } else {
+                if (!r.missing.isEmpty())
+                    body += tr("\n\n缺失对象（被引用但无文件）：\n%1")
+                                .arg(truncate(r.missing, 20).join('\n'));
+                if (!r.corrupt.isEmpty())
+                    body += tr("\n\n损坏对象（文件与哈希不符）：\n%1")
+                                .arg(truncate(r.corrupt, 20).join('\n'));
+                if (!r.orphan.isEmpty())
+                    body += tr("\n\n孤立对象（无引用但存在文件）：\n%1")
+                                .arg(truncate(r.orphan, 20).join('\n'));
+                if (!r.ioErrors.isEmpty())
+                    body += tr("\n\nI/O 错误（无法读取）：\n%1")
+                                .arg(truncate(r.ioErrors, 20).join('\n'));
+            }
+            QMessageBox::information(this, tr("一致性检查"), body);
         });
 }
 

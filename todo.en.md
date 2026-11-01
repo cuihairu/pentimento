@@ -112,7 +112,7 @@ Each task has one deliverable and an observable acceptance condition. See `docs/
 
 ## Reliability and release verification
 
-- [ ] P-601 Check object/index consistency. Acceptance: Report missing/corrupt objects and invalid references. (BLOCKED review 2026-11-01: missing user approval; P-015 implementation approval not obtained) (delegated: execute per docs/review/2026-10-30-decisions.md (2026-10-30))
+- [x] P-601 Check object/index consistency. Acceptance: Report missing/corrupt objects and invalid references. (BLOCKED review 2026-11-01: missing user approval; P-015 implementation approval not obtained) (delegated: execute per docs/review/2026-10-30-decisions.md (2026-10-30)) (done 2026-11-01)
 - [ ] P-602 Preview space and retention policies. Acceptance: List candidates and preservation reasons without deletion. (BLOCKED review 2026-11-01: missing user approval; P-015 implementation approval not obtained) (delegated: execute per docs/review/2026-10-30-decisions.md (2026-10-30))
 - [ ] P-603 Verify backup restorability. Acceptance: Restore into an empty directory and verify assets, revisions and metadata. (BLOCKED review 2026-11-01: missing user approval; P-015 implementation approval not obtained) (delegated: execute per docs/review/2026-10-30-decisions.md (2026-10-30))
 - [ ] P-604 Validate NAS compatibility matrix. Acceptance: Record tested devices, OSes, protocols, failures and limits. (BLOCKED review 2026-11-01: missing user approval; P-015 implementation approval not obtained) (delegated: execute per docs/review/2026-10-30-decisions.md (2026-10-30))

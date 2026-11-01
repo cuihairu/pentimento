@@ -416,12 +416,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+999"/>
+        <location line="+1000"/>
         <source>记录版本</source>
         <translation>Record version</translation>
     </message>
     <message>
-        <location line="-998"/>
+        <location line="-999"/>
         <source>编辑工作副本</source>
         <translation>Edit working copy</translation>
     </message>
@@ -457,7 +457,7 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+1521"/>
+        <location line="+1522"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>Restore to anchor</translation>
@@ -523,7 +523,7 @@
         <translation>No rating</translation>
     </message>
     <message>
-        <location line="-91"/>
+        <location line="-92"/>
         <source>浏览快照…</source>
         <translation>Browse snapshot…</translation>
     </message>
@@ -536,6 +536,11 @@
         <location line="+3"/>
         <source>导出备份包…</source>
         <translation>Export Backup Package…</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>一致性检查…</source>
+        <translation>一致性检查…</translation>
     </message>
     <message>
         <location line="+19"/>
@@ -738,12 +743,12 @@ Restoring appends a new version; existing history is always kept.</translation>
         <location line="+877"/>
         <location line="+223"/>
         <location line="+152"/>
-        <location line="+135"/>
+        <location line="+194"/>
         <source>关闭</source>
         <translation>Off</translation>
     </message>
     <message>
-        <location line="-1386"/>
+        <location line="-1445"/>
         <source>每 15 分钟</source>
         <translation>Every 15 minutes</translation>
     </message>
@@ -1387,7 +1392,89 @@ The package does not share the running index and is portable to another machine.
         <translation>Backup package exported: %1 (%2 assets, %3 objects, about %4 KiB; completion marker written)</translation>
     </message>
     <message>
-        <location line="+16"/>
+        <location line="+14"/>
+        <source>正在执行一致性检查（只读，后台进行）…</source>
+        <translation>正在执行一致性检查（只读，后台进行）…</translation>
+    </message>
+    <message>
+        <location line="+15"/>
+        <source>一致性检查失败：%1</source>
+        <translation>一致性检查失败：%1</translation>
+    </message>
+    <message>
+        <location line="+8"/>
+        <source>…（共 %1 项）</source>
+        <translation>…（共 %1 项）</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>检查完成：%1 条修订引用，%2 个对象文件，%3 个对象校验通过。
+
+问题：%4 项（缺失 %5，损坏 %6，孤立 %7，I/O %8）。</source>
+        <translation>检查完成：%1 条修订引用，%2 个对象文件，%3 个对象校验通过。
+
+问题：%4 项（缺失 %5，损坏 %6，孤立 %7，I/O %8）。</translation>
+    </message>
+    <message>
+        <location line="+7"/>
+        <source>
+
+未发现问题。</source>
+        <translation>
+
+未发现问题。</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>
+
+缺失对象（被引用但无文件）：
+%1</source>
+        <translation>
+
+缺失对象（被引用但无文件）：
+%1</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>
+
+损坏对象（文件与哈希不符）：
+%1</source>
+        <translation>
+
+损坏对象（文件与哈希不符）：
+%1</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>
+
+孤立对象（无引用但存在文件）：
+%1</source>
+        <translation>
+
+孤立对象（无引用但存在文件）：
+%1</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>
+
+I/O 错误（无法读取）：
+%1</source>
+        <translation>
+
+I/O 错误（无法读取）：
+%1</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>一致性检查</source>
+        <translation>一致性检查</translation>
+    </message>
+    <message>
+        <location line="+12"/>
         <source>挂载来源状态</source>
         <translation>Mounted Source Status</translation>
     </message>
@@ -1544,7 +1631,7 @@ The package does not share the running index and is portable to another machine.
 Unrecorded current content is saved first. Close the file in external editors.</translation>
     </message>
     <message>
-        <location line="-694"/>
+        <location line="-753"/>
         <location line="+5"/>
         <source>导出历史版本</source>
         <translation>Export revision</translation>

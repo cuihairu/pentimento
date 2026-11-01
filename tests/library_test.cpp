@@ -874,6 +874,52 @@ private slots:
         catch (const std::exception &) { corruptRejected = true; }
         QVERIFY(corruptRejected);
     }
+    void consistencyCheckReportsCleanLibrary() {
+        QTemporaryDir dir;
+        put(dir.filePath("a.png"), "bytes-a");
+        put(dir.filePath("b.png"), "bytes-b");
+        Library library(dir.filePath("library"));
+        QVERIFY(!library.importFile(dir.filePath("a.png")).id.isEmpty());
+        QVERIFY(!library.importFile(dir.filePath("b.png")).id.isEmpty());
+        int progressCalls = 0;
+        const auto report = library.checkConsistency(
+            [&progressCalls](int, const QString &) { ++progressCalls; });
+        // Every referenced hash verified; no problems; progress actually ran.
+        QCOMPARE(report.revisions, 2);
+        QCOMPARE(report.objects, 2);
+        QCOMPARE(report.ok, 2);
+        QCOMPARE(report.problems(), 0);
+        QVERIFY(progressCalls > 0);
+    }
+    void consistencyCheckReportsMissingCorruptOrphan() {
+        QTemporaryDir dir;
+        put(dir.filePath("a.png"), "bytes-a");
+        put(dir.filePath("b.png"), "bytes-b");
+        Library library(dir.filePath("library"));
+        QVERIFY(!library.importFile(dir.filePath("a.png")).id.isEmpty());
+        QVERIFY(!library.importFile(dir.filePath("b.png")).id.isEmpty());
+        const QString objectsDir = dir.filePath("library/objects");
+        const QString hashA = digestHex("bytes-a");
+        const QString hashB = digestHex("bytes-b");
+        const QString orphanHash = digestHex("orphan-bytes");
+        // A referenced object file deleted → missing.
+        QVERIFY(QFile::remove(objectsDir + "/" + hashA));
+        // A referenced object overwritten with different bytes → corrupt.
+        // (Objects are content-addressed and stored read-only, so clear the
+        // write protection before clobbering the file.)
+        const QString objB = objectsDir + "/" + hashB;
+        ::chmod(objB.toLocal8Bit(), 0644);
+        put(objB, "wrong-bytes");
+        // An object file no revision references → orphan.
+        put(objectsDir + "/" + orphanHash, "orphan-bytes");
+        const auto report = library.checkConsistency();
+        QVERIFY(report.missing.contains(hashA));
+        QVERIFY(report.corrupt.contains(hashB));
+        QVERIFY(report.orphan.contains(orphanHash));
+        QCOMPARE(report.problems(), 3);
+        // Report-only: the store is left exactly as we made it.
+        QVERIFY(QFileInfo::exists(objectsDir + "/" + orphanHash));
+    }
     void storageInterfaceReportsConsistentLocalInfo() {
         QTemporaryDir dir;
         put(dir.filePath("a.png"), "image-bytes");

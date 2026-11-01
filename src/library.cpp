@@ -1858,6 +1858,83 @@ QVector<Library::BackupEntry> Library::verifyBackupPackage(const QString &packag
     return entries;
 }
 
+Library::ConsistencyReport Library::checkConsistency(
+    const std::function<void(int percent, const QString &current)> &progress) const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
+    ConsistencyReport report;
+    // Reference map: every revision (including history of deleted assets — the
+    // timeline still owns those objects) pins its content hash.
+    QHash<QString, qint64> hashSize;
+    QHash<QString, int> refs;
+    {
+        QSqlQuery q(db_);
+        q.prepare("SELECT hash,size FROM revisions");
+        execute(q);
+        while (q.next()) {
+            const QString hash = q.value(0).toString();
+            refs[hash]++;
+            hashSize[hash] = q.value(1).toLongLong();
+            ++report.revisions;
+        }
+    }
+    const QString objectsDir = root_ + QStringLiteral("/objects");
+    // Missing / corrupt / I/O: one check per referenced hash.
+    const int total = qMax(1, refs.size());
+    int done = 0;
+    for (auto it = refs.constBegin(); it != refs.constEnd(); ++it, ++done) {
+        const QString hash = it.key();
+        if (progress) progress(done * 100 / total, hash);
+        // Build the path directly: a malformed hash in the index is reported as
+        // missing rather than throwing (the check must never die on bad data).
+        const QString objectPath = objectsDir + QLatin1Char('/') + hash;
+        const QFileInfo object(objectPath);
+        if (!object.exists()) {
+            report.missing << hash;
+            continue;
+        }
+        if (object.size() != hashSize.value(hash)) {
+            report.corrupt << hash;
+            continue;
+        }
+        // Read the object (streaming) and verify its content hash.
+        QFile file(objectPath);
+        if (!file.open(QIODevice::ReadOnly)) {
+            report.ioErrors << hash;
+            continue;
+        }
+        QCryptographicHash verifier(QCryptographicHash::Sha256);
+        constexpr qint64 kChunk = 1 << 20;
+        bool ioError = false;
+        while (!file.atEnd()) {
+            const QByteArray chunk = file.read(kChunk);
+            if (chunk.isEmpty() && file.error() != QFileDevice::NoError) {
+                ioError = true;
+                break;
+            }
+            verifier.addData(chunk);
+        }
+        if (ioError) {
+            report.ioErrors << hash;
+            continue;
+        }
+        if (QString::fromLatin1(verifier.result().toHex()) != hash) {
+            report.corrupt << hash;
+            continue;
+        }
+        ++report.ok;
+    }
+    // Orphan: an object file no revision references. History objects of deleted
+    // assets ARE referenced, so only truly unreferenced files are orphans.
+    const QDir objects(objectsDir);
+    if (objects.exists()) {
+        const auto files = objects.entryList(QDir::Files | QDir::NoDotAndDotDot, QDir::Name);
+        report.objects = files.size();
+        for (const auto &name : files)
+            if (!refs.contains(name)) report.orphan << name;
+    }
+    return report;
+}
+
 int Library::rollbackAll(qint64 snapshotId) {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
     QHash<QString, Asset> byId;
