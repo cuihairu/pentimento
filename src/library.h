@@ -156,4 +156,17 @@ private:
     // schema/identity metadata, and validate the schema version.
     void openAndInitialize(const QString &catalog);
     void append(const Asset &asset, const QByteArray &bytes, const QString &note);
+    // P-302 object storage: content is addressed by its SHA-256 and stored
+    // immutably in objects/<hash>. Both paths follow the same order — stage in
+    // objects/.tmp/, fully verify the staged bytes hash to the address, publish
+    // by rename (or, if the object already appeared, verify and drop the
+    // temp) — so a failed store never leaves a partial or duplicate object and
+    // a dedup never rewrites existing content. `hash` is supplied by the
+    // streaming callers so a large file is hashed once, not twice.
+    QString storeObject(const QByteArray &bytes);
+    QString storeObjectFromFile(const QString &sourcePath, const QString &hash);
+    void publishObject(const QString &tempPath, const QString &hash);
+    QString tempObjectPath() const;
+    // Record one revision row and refresh the asset's P-217 facts.
+    void recordRevision(const Asset &asset, const QString &hash, qint64 size, const QString &note);
 };

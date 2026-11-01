@@ -34,6 +34,7 @@
 - 验证：大文件（64 MiB+）、磁盘满（临时写失败 → 清理临时，不发布）。
 - 风险：中途断电/复用损坏对象使多版本不可读 → 每次读取校验（见 P-601）；校验失败阻断使用。
 - 不做：覆盖已存在不同内容对象；历史对象 GC（意外对象占空间，不误清理）。
+- 实现（2026-11-01）：内容对象存储统一走暂存→校验→发布顺序——storeObject(bytes)/storeObjectFromFile(path,hash) 先在 objects/.tmp/ 写暂存（字节直接写 / 流式 1 MiB 分块拷贝），再重读校验暂存内容哈希=目标地址，改名发布到 objects/<hash>（若并发已出现同名对象则校验后丢弃暂存，绝不覆盖），成功后 makeImmutable；任何失败删除暂存并抛出，绝不发布部分对象、不留孤儿暂存。哈希：bytes 整块 / 文件流式 SHA-256（digestFile 1 MiB 分块，不整文件驻内存）；去重：objects/<hash> 已存在则校验后直接复用（不重写）；capture() 改为从工作副本流式入库（只算一次哈希，复用做未变检测与暂存校验），大文件不再整块进内存；每次读取仍校验（readObject，P-601）。测试 contentObjectStorageStreamsAndDeduplicates（64 MiB+ 导入+capture 流式入库、同内容不重复版本/对象、改内容再入库、暂存目录无残留）与 objectStoreTempFailureLeavesNoPartialObject（暂存目录只读模拟磁盘满：capture 抛错、无部分对象/无孤儿暂存/工作副本未动，恢复后同 capture 可重试成功）。ctest 2/2 绿；offscreen 冒烟正常。
 
 ## P-303 手动记录版本（语义）
 

@@ -38,6 +38,37 @@ void writeFile(const QString &path, const QByteArray &bytes) {
 void execute(QSqlQuery &query) {
     if (!query.exec()) fail(query.lastError().text());
 }
+// P-302 streaming helpers: a large file is hashed and copied in bounded chunks
+// instead of being read whole into memory.
+QString digestFile(const QString &path) {
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) fail(Library::tr("无法读取文件：%1").arg(path));
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    constexpr qint64 kChunk = 1 << 20; // 1 MiB
+    while (!file.atEnd()) {
+        const auto chunk = file.read(kChunk);
+        if (chunk.isEmpty() && file.error() != QFileDevice::NoError)
+            fail(Library::tr("无法读取文件：%1").arg(path));
+        hash.addData(chunk);
+    }
+    return QString::fromLatin1(hash.result().toHex());
+}
+void copyFileStreaming(const QString &from, const QString &to) {
+    QFile in(from), out(to);
+    if (!in.open(QIODevice::ReadOnly)) fail(Library::tr("无法读取文件：%1").arg(from));
+    if (!out.open(QIODevice::WriteOnly)) fail(Library::tr("无法写入暂存对象：%1").arg(to));
+    constexpr qint64 kChunk = 1 << 20; // 1 MiB
+    while (!in.atEnd()) {
+        const auto chunk = in.read(kChunk);
+        if (chunk.isEmpty() && in.error() != QFileDevice::NoError)
+            fail(Library::tr("无法读取文件：%1").arg(from));
+        if (out.write(chunk) != chunk.size())
+            fail(Library::tr("无法写入暂存对象：%1").arg(to));
+    }
+    out.close();
+    if (out.error() != QFileDevice::NoError)
+        fail(Library::tr("无法写入暂存对象：%1").arg(to));
+}
 }
 
 Library::Library(const QString &root)
@@ -560,31 +591,86 @@ QByteArray Library::readObject(const QString &hash) const {
 }
 
 void Library::append(const Asset &asset, const QByteArray &bytes, const QString &note) {
+    const QString hash = storeObject(bytes);
+    recordRevision(asset, hash, bytes.size(), note);
+}
+
+QString Library::storeObject(const QByteArray &bytes) {
     const QString hash = digest(bytes);
     const QString path = objectPath(hash);
-    if (!QFileInfo::exists(path)) {
-        writeFile(path, bytes);
-    } else if (readObject(hash) != bytes) {
-        fail(Library::tr("历史对象内容不一致"));
+    if (QFileInfo::exists(path)) {
+        if (digestFile(path) != hash) fail(Library::tr("历史对象校验失败；已停止操作"));
+        platform::makeImmutable(path); // best-effort + idempotent
+        return hash;
     }
-    // The version store is append-only: once an object lands it must resist
-    // later tampering by a same-user ransomware process. Best-effort + idempotent
-    // (chattr +i where the OS allows it, read-only mode bits otherwise).
+    const QString temp = tempObjectPath();
+    try {
+        writeFile(temp, bytes);
+        publishObject(temp, hash);
+    } catch (...) {
+        QFile::remove(temp); // never leave a stray temp; never publish partial content
+        throw;
+    }
+    return hash;
+}
+
+QString Library::storeObjectFromFile(const QString &sourcePath, const QString &hash) {
+    const QString path = objectPath(hash);
+    if (QFileInfo::exists(path)) {
+        if (digestFile(path) != hash) fail(Library::tr("历史对象校验失败；已停止操作"));
+        platform::makeImmutable(path);
+        return hash;
+    }
+    const QString temp = tempObjectPath();
+    try {
+        copyFileStreaming(sourcePath, temp);
+        publishObject(temp, hash);
+    } catch (...) {
+        QFile::remove(temp);
+        throw;
+    }
+    return hash;
+}
+
+void Library::publishObject(const QString &tempPath, const QString &hash) {
+    // P-302 order: fully verify the staged bytes hash to the address, then
+    // publish by rename. If the object already appeared (another capture raced
+    // us), verify it and drop the temp instead of overwriting.
+    if (digestFile(tempPath) != hash) fail(Library::tr("历史对象校验失败；已停止操作"));
+    const QString path = objectPath(hash);
+    if (QFileInfo::exists(path)) {
+        if (digestFile(path) != hash) fail(Library::tr("历史对象校验失败；已停止操作"));
+        QFile::remove(tempPath);
+    } else if (!QFile::rename(tempPath, path)) {
+        fail(Library::tr("无法发布历史对象"));
+    }
+    // Append-only store: once an object lands it must resist later tampering by
+    // a same-user ransomware process. Best-effort + idempotent (chattr +i where
+    // the OS allows it, read-only mode bits otherwise).
     platform::makeImmutable(path);
+}
+
+QString Library::tempObjectPath() const {
+    const QString dir = root_ + "/objects/.tmp";
+    if (!QDir().mkpath(dir)) fail(Library::tr("无法创建对象暂存目录"));
+    return dir + "/" + QUuid::createUuid().toString(QUuid::WithoutBraces);
+}
+
+void Library::recordRevision(const Asset &asset, const QString &hash, qint64 size, const QString &note) {
     QSqlQuery q(db_);
     q.prepare("INSERT INTO revisions(asset_id,hash,created,note,size) VALUES(?,?,?,?,?)");
     q.addBindValue(asset.id);
     q.addBindValue(hash);
     q.addBindValue(QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
     q.addBindValue(note.isEmpty() ? QStringLiteral("手动快照") : note);
-    q.addBindValue(bytes.size());
+    q.addBindValue(size);
     execute(q);
     // P-217: refresh the asset's filtering facts from this new revision. Header
     // only; an undecodable content leaves the format empty and size 0 (unknown).
     // Content detection is authoritative (no name-extension hint): the asset
     // name can be stale after a format-changing capture, and the facts must
     // reflect the true committed content.
-    const auto meta = preview::metadata(path);
+    const auto meta = preview::metadata(objectPath(hash));
     QSqlQuery facts(db_);
     facts.prepare("UPDATE assets SET format=?,width=?,height=? WHERE id=?");
     // A null QString binds as SQL NULL and the NOT NULL column rejects it.
@@ -631,10 +717,14 @@ Asset Library::importFile(const QString &source) {
 }
 
 bool Library::capture(const Asset &asset, const QString &note) {
-    const auto bytes = readFile(asset.path);
+    // P-302: stream the working copy straight into the object store so a large
+    // file never sits whole in memory; the content hash is computed once and
+    // reused for the dedup check and the staged-object verification.
+    const QString hash = digestFile(asset.path);
     const auto history = revisions(asset.id);
-    if (!history.isEmpty() && history.first().hash == digest(bytes)) return false;
-    append(asset, bytes, note);
+    if (!history.isEmpty() && history.first().hash == hash) return false;
+    storeObjectFromFile(asset.path, hash);
+    recordRevision(asset, hash, QFileInfo(asset.path).size(), note);
     return true;
 }
 

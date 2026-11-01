@@ -1181,6 +1181,88 @@ private slots:
         QCOMPARE(lib.assetFormat(tga.id).toUpper(), QStringLiteral("PNG"));
         QCOMPARE(lib.assetSize(tga.id), QSize(120, 60));
     }
+
+    void contentObjectStorageStreamsAndDeduplicates() {
+        QTemporaryDir dir;
+        // 64 MiB + a tail: comfortably past the P-302 "large file" sample so
+        // the streaming path (bounded 1 MiB chunks, no whole-file buffer) runs.
+        QByteArray block(4096, 0);
+        for (int i = 0; i < block.size(); ++i) block[i] = char(i * 7 + 3);
+        QByteArray large;
+        large.reserve(64 * 1024 * 1024 + 1024);
+        while (large.size() < 64 * 1024 * 1024) large += block;
+        large += QByteArray("large-file-tail", 16);
+        put(dir.filePath("big.bin"), large);
+        Library lib(dir.filePath("lib"));
+        const auto asset = lib.importFile(dir.filePath("big.bin"));
+
+        const auto hashOf = [](const QByteArray &bytes) {
+            return QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
+        };
+        const QString h1 = hashOf(large);
+        auto history = lib.revisions(asset.id);
+        QCOMPARE(history.size(), 1);
+        QCOMPARE(history.first().hash, h1);
+        QCOMPARE(history.first().size, qint64(large.size()));
+        QVERIFY(QFileInfo::exists(lib.root() + "/objects/" + h1));
+
+        // Same content again: no duplicate revision or object (dedup by hash).
+        QVERIFY(!lib.capture(asset));
+        QCOMPARE(lib.revisions(asset.id).size(), 1);
+
+        // Change the working copy and capture: the new revision streams through
+        // the staged store and lands under its own content address.
+        const QByteArray v2 = large + QByteArray("captured-v2", 12);
+        put(asset.path, v2);
+        QVERIFY(lib.capture(asset, "v2"));
+        history = lib.revisions(asset.id);
+        QCOMPARE(history.size(), 2);
+        QCOMPARE(history.first().hash, hashOf(v2));
+        QCOMPARE(history.first().size, qint64(v2.size()));
+        QVERIFY(QFileInfo::exists(lib.root() + "/objects/" + hashOf(v2)));
+
+        // Unchanged capture adds nothing; the staged area is left clean.
+        QVERIFY(!lib.capture(asset));
+        QCOMPARE(lib.revisions(asset.id).size(), 2);
+        const QDir staged(lib.root() + "/objects/.tmp");
+        QVERIFY(staged.exists());
+        QCOMPARE(staged.entryList(QDir::Files | QDir::NoDotAndDotDot).size(), 0);
+    }
+
+    void objectStoreTempFailureLeavesNoPartialObject() {
+        QTemporaryDir dir;
+        put(dir.filePath("a.bin"), "original-v1");
+        Library lib(dir.filePath("lib"));
+        const auto asset = lib.importFile(dir.filePath("a.bin"));
+
+        // New content whose object is not yet stored anywhere.
+        const QByteArray v2 = QByteArray("next-v2-content");
+        put(asset.path, v2);
+
+        // Simulate a full/unwritable store: the staging dir refuses writes, so
+        // the capture must fail without publishing a partial object, without a
+        // stray temp, and without touching the working copy (retryable).
+        const QString tmpDir = lib.root() + "/objects/.tmp";
+        QVERIFY(QFileInfo::exists(tmpDir));
+        QVERIFY(::chmod(tmpDir.toLocal8Bit().constData(), 0555) == 0);
+        bool threw = false;
+        try { lib.capture(asset); } catch (const std::runtime_error &) { threw = true; }
+        QVERIFY(::chmod(tmpDir.toLocal8Bit().constData(), 0755) == 0);
+        QVERIFY(threw);
+
+        const auto history = lib.revisions(asset.id);
+        QCOMPARE(history.size(), 1);
+        const QString h2 = QString::fromLatin1(
+            QCryptographicHash::hash(v2, QCryptographicHash::Sha256).toHex());
+        QVERIFY(!QFileInfo::exists(lib.root() + "/objects/" + h2));
+        const QDir staged(tmpDir);
+        QCOMPARE(staged.entryList(QDir::Files | QDir::NoDotAndDotDot).size(), 0);
+        QCOMPARE(get(asset.path), v2);
+
+        // With the staging dir writable again the same capture succeeds.
+        QVERIFY(lib.capture(asset, "retry"));
+        QCOMPARE(lib.revisions(asset.id).size(), 2);
+    }
 };
 QTEST_GUILESS_MAIN(HistoryTest)
 #include "library_test.moc"

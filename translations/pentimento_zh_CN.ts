@@ -5,11 +5,15 @@
     <name>Library</name>
     <message>
         <location filename="../src/library.cpp" line="+26"/>
+        <location line="+19"/>
+        <location line="+6"/>
+        <location line="+7"/>
+        <location line="+6"/>
         <source>无法读取文件：%1</source>
         <translation>无法读取文件：%1</translation>
     </message>
     <message>
-        <location line="+2"/>
+        <location line="-36"/>
         <source>首版单文件上限为 256 MiB：%1</source>
         <translation>首版单文件上限为 256 MiB：%1</translation>
     </message>
@@ -23,7 +27,7 @@
         <translation type="vanished">无法创建素材库目录</translation>
     </message>
     <message>
-        <location line="+17"/>
+        <location line="+48"/>
         <source>该目录不是有效的素材库（未找到 catalog.sqlite），不会静默重建</source>
         <translation>该目录不是有效的素材库（未找到 catalog.sqlite），不会静默重建</translation>
     </message>
@@ -121,22 +125,42 @@
     </message>
     <message>
         <location line="+6"/>
+        <location line="+13"/>
+        <location line="+18"/>
+        <location line="+19"/>
+        <location line="+3"/>
         <source>历史对象校验失败；已停止操作</source>
         <translation>历史对象校验失败；已停止操作</translation>
     </message>
     <message>
-        <location line="-180"/>
-        <location line="+190"/>
+        <location line="-233"/>
         <source>历史对象内容不一致</source>
         <translation>历史对象内容不一致</translation>
     </message>
     <message>
-        <location line="+41"/>
+        <location line="-350"/>
+        <location line="+7"/>
+        <location line="+4"/>
+        <source>无法写入暂存对象：%1</source>
+        <translation>无法写入暂存对象：%1</translation>
+    </message>
+    <message>
+        <location line="+575"/>
+        <source>无法发布历史对象</source>
+        <translation>无法发布历史对象</translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <source>无法创建对象暂存目录</source>
+        <translation>无法创建对象暂存目录</translation>
+    </message>
+    <message>
+        <location line="+40"/>
         <source>无法创建工作目录</source>
         <translation>无法创建工作目录</translation>
     </message>
     <message>
-        <location line="+47"/>
+        <location line="+51"/>
         <source>无法创建恢复目录</source>
         <translation>无法创建恢复目录</translation>
     </message>
@@ -146,8 +170,8 @@
         <translation>找不到属于当前素材的历史版本</translation>
     </message>
     <message>
-        <location line="-279"/>
-        <location line="+288"/>
+        <location line="-338"/>
+        <location line="+347"/>
         <source>请导出到素材库之外的现有目录</source>
         <translation>请导出到素材库之外的现有目录</translation>
     </message>
