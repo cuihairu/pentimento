@@ -16,6 +16,7 @@
 #include <QApplication>
 #include <QTranslator>
 #include <QBuffer>
+#include <QCryptographicHash>
 #include <QDataStream>
 #include <QFile>
 #include <QFileInfo>
@@ -38,6 +39,36 @@ void put(const QString &path, const QByteArray &data) {
     QFile file(path); QVERIFY(file.open(QIODevice::WriteOnly)); QCOMPARE(file.write(data), data.size());
 }
 QByteArray get(const QString &path) { QFile file(path); return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray(); }
+QString digestHex(const QByteArray &data) {
+    return QString::fromLatin1(QCryptographicHash::hash(data, QCryptographicHash::Sha256).toHex());
+}
+// P-320 test support: write a 'planned' restore-log row directly into the
+// catalog, simulating a crash between the file replacement and the index commit
+// (the exact state convergeRestoreLog() must handle on reopen).
+void injectPendingRestoreLog(const QString &root, const QString &assetId, qint64 revisionId,
+                             const QString &prevHash, const QString &targetHash, qint64 protectId) {
+    const QString conn = QStringLiteral("inject_") + QUuid::createUuid().toString(QUuid::WithoutBraces);
+    {
+        QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", conn);
+        db.setDatabaseName(root + "/catalog.sqlite");
+        QVERIFY(db.open());
+        QSqlQuery q(db);
+        q.prepare("INSERT INTO restore_log(asset_id,revision_id,state,previous_hash,target_hash,"
+                  "protect_revision_id,error,created,updated) VALUES(?,?,?,?,?,?,'',?,?)");
+        const QString now = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+        q.addBindValue(assetId);
+        q.addBindValue(revisionId);
+        q.addBindValue(QStringLiteral("planned"));
+        q.addBindValue(prevHash);
+        q.addBindValue(targetHash);
+        q.addBindValue(protectId);
+        q.addBindValue(now);
+        q.addBindValue(now);
+        QVERIFY(q.exec());
+        db.close();
+    }
+    QSqlDatabase::removeDatabase(conn);
+}
 
 // A known-good uncompressed 32-bit BGRA TGA (Qt can read TGA but not write it,
 // so the sample is built byte-exact to validate the decoder, P-210). The Qt TGA
@@ -154,6 +185,9 @@ private slots:
         library.exportRevision(asset.id, preserved.id, dir.filePath("preserved.dat"));
         QCOMPARE(get(dir.filePath("preserved.dat")), QByteArray("unrecorded"));
     }
+    // P-320: a restore that fails at the file-replacement stage leaves the
+    // protect revision recorded (a real version of the content that was there)
+    // and the working file unchanged — no half-restored state, no lost content.
     void restoreRollsBackPreservationOnTransactionFailure() {
         if (::geteuid() == 0) QSKIP("root bypasses directory write permissions");
         QTemporaryDir dir;
@@ -164,7 +198,7 @@ private slots:
         const qint64 first = library.revisions(asset.id).first().id;
         put(asset.path, "unrecorded");
         // Make the working-file directory unwritable so the restored working-file write fails
-        // *after* the transaction has already appended the preservation ("恢复前自动保存") revision.
+        // after the protect ("恢复前自动保存") revision was already committed.
         const QString workingDir = QFileInfo(asset.path).absolutePath();
         struct stat st;
         QVERIFY(::stat(workingDir.toLocal8Bit().constData(), &st) == 0);
@@ -172,9 +206,15 @@ private slots:
         QVERIFY(::chmod(workingDir.toLocal8Bit().constData(), 0555) == 0);
         QVERIFY_EXCEPTION_THROWN(library.restore(asset, first), std::runtime_error);
         QVERIFY(::chmod(workingDir.toLocal8Bit().constData(), original) == 0);
-        // The failed in-transaction write must roll back both appends: only the original import revision remains.
-        QCOMPARE(library.revisions(asset.id).size(), 1);
-        // The working file is untouched because the write never succeeded.
+        // The protect revision stays (the unrecorded content is recorded as a
+        // real version); the restore revision was never appended.
+        QCOMPARE(library.revisions(asset.id).size(), 2);
+        QCOMPARE(library.revisions(asset.id).first().note, QStringLiteral("恢复前自动保存"));
+        const auto preserved = library.revisions(asset.id).first();
+        library.exportRevision(asset.id, preserved.id, dir.filePath("preserved.dat"));
+        QCOMPARE(get(dir.filePath("preserved.dat")), QByteArray("unrecorded"));
+        // The working file is untouched because the write never succeeded, and
+        // no restore note exists in the history (nothing half-restored).
         QCOMPARE(get(asset.path), QByteArray("unrecorded"));
     }
     // P-315: the preview lists exactly what a restore would do without writing.
@@ -388,6 +428,76 @@ private slots:
         const QString link = dir.filePath("link.dat");
         QVERIFY(QFile::link(inLib, link));
         QVERIFY_EXCEPTION_THROWN(library.exportRevision(asset.id, rev2.id, link), std::runtime_error);
+    }
+    // P-320: a crash between the file replacement and the index commit (file =
+    // target, log row still 'planned') is converged FORWARD on reopen — the
+    // restore revision is completed, the log row becomes 'done'.
+    void interruptedRestoreConvergesForwardOnReopen() {
+        QTemporaryDir dir;
+        const QString root = dir.filePath("library");
+        QString assetId;
+        qint64 rev1Id = 0;
+        qint64 protectId = 0;
+        QString rev1Hash;
+        {
+            put(dir.filePath("a.dat"), "v1");
+            Library lib(root);
+            const auto a = lib.importFile(dir.filePath("a.dat"));
+            assetId = a.id;
+            rev1Id = lib.revisions(a.id).first().id;
+            rev1Hash = lib.revisions(a.id).first().hash;
+            put(a.path, "v2");
+            QVERIFY(lib.capture(a, "v2"));
+            put(a.path, "unrecorded");
+            QVERIFY(lib.capture(a, QStringLiteral("恢复前自动保存"))); // stage 1 protect, committed
+            protectId = lib.revisions(a.id).first().id;
+            // Crash state: the file was replaced with the target (stage 3), the
+            // index was never committed (stage 4) — the log row stays 'planned'.
+            put(a.path, "v1");
+            injectPendingRestoreLog(root, a.id, rev1Id, digestHex("unrecorded"), rev1Hash, protectId);
+        }
+        Library reopened(root);
+        // Forward convergence: the restore revision was completed and logged done.
+        QCOMPARE(reopened.restoreLogs().first().state, QStringLiteral("done"));
+        QCOMPARE(reopened.restoreLogs().first().revisionId, rev1Id);
+        const auto a = reopened.assets().first();
+        QCOMPARE(a.id, assetId);
+        QCOMPARE(get(a.path), QByteArray("v1"));
+        QCOMPARE(reopened.revisions(assetId).first().note, QStringLiteral("恢复历史版本 #%1").arg(rev1Id));
+        // The protect revision is still present as a real version.
+        QCOMPARE(reopened.revisions(assetId).size(), 4);
+    }
+    // P-320: a crash before the file replacement (file = original, log row still
+    // 'planned') is converged BACKWARD on reopen — nothing restored, the row is
+    // marked 'aborted', and the working file is untouched.
+    void interruptedRestoreConvergesBackwardOnReopen() {
+        QTemporaryDir dir;
+        const QString root = dir.filePath("library");
+        QString assetId;
+        qint64 rev1Id = 0;
+        qint64 protectId = 0;
+        QString rev1Hash;
+        {
+            put(dir.filePath("a.dat"), "v1");
+            Library lib(root);
+            const auto a = lib.importFile(dir.filePath("a.dat"));
+            assetId = a.id;
+            rev1Id = lib.revisions(a.id).first().id;
+            rev1Hash = lib.revisions(a.id).first().hash;
+            put(a.path, "v2");
+            QVERIFY(lib.capture(a, "v2"));
+            put(a.path, "unrecorded");
+            QVERIFY(lib.capture(a, QStringLiteral("恢复前自动保存")));
+            protectId = lib.revisions(a.id).first().id;
+            // Crash before stage 3: the file is still the original content.
+            injectPendingRestoreLog(root, a.id, rev1Id, digestHex("unrecorded"), rev1Hash, protectId);
+        }
+        Library reopened(root);
+        QCOMPARE(reopened.restoreLogs().first().state, QStringLiteral("aborted"));
+        const auto a = reopened.assets().first();
+        QCOMPARE(get(a.path), QByteArray("unrecorded")); // untouched
+        // No restore revision appended: import, v2, protect only.
+        QCOMPARE(reopened.revisions(assetId).size(), 3);
     }
     void readObjectIsPublicAndVerifiesHash() {
         QTemporaryDir dir;

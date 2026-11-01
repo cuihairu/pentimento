@@ -75,7 +75,7 @@ Each task has one deliverable and an observable acceptance condition. See `docs/
 - [x] P-317 Restore an asset as a new revision. Acceptance: Preserve prior history and expose the restored result. (delegated: execute per docs/review/2026-10-30-decisions.md (2026-10-30); done 2026-11-01)
 - [x] P-318 Restore selected snapshot items. Acceptance: Apply only reviewed resources and metadata. (delegated: execute per docs/review/2026-10-30-decisions.md (2026-10-30); done 2026-11-01)
 - [x] P-319 Export historical copies. Acceptance: Leave the history backend and current workspace unchanged. (delegated: execute per docs/review/2026-10-30-decisions.md (2026-10-30); done 2026-11-01)
-- [ ] P-320 Implement restore journal and restart recovery. Acceptance: Resolve interrupted work as completed or rolled back, never silently partial. (BLOCKED review 2026-11-01: missing user approval; P-015 implementation approval not obtained) (delegated: execute per docs/review/2026-10-30-decisions.md (2026-10-30))
+- [x] P-320 Implement restore journal and restart recovery. Acceptance: Resolve interrupted work as completed or rolled back, never silently partial. (delegated: execute per docs/review/2026-10-30-decisions.md (2026-10-30); done 2026-11-01)
 
 ## Git, SVN and Time Machine
 

@@ -251,3 +251,11 @@
 
 - SQLite 事务与文件替换非同一事务；普通异常回滚 ≠ 断电安全 → 以日志+重开收敛为准。
 - 不发布隐藏半恢复状态的实现；不把「异常回滚」当「断电安全」。
+
+**实现（2026-11-01）**
+- 设计：`restore_log` 表（asset_id/revision_id/state/previous_hash/target_hash/protect_revision_id/error/时间戳）。restore 分四个持久阶段：①保护版本独立提交（失败→什么都不写）→ ②日志行「planned」独立提交（先于任何文件改动）→ ③QSaveFile 原子替换工作文件（失败→日志标 failed，文件未动）→ ④append 恢复修订+日志标 done 单事务提交（失败→回滚+恢复原文件+日志标 failed）。
+- 断电安全：阶段 3 与 4 之间断电时文件已替换而索引未提交——重开 `Library` 构造尾部 `convergeRestoreLog()`：工作文件哈希==目标哈希→向前收敛（补 append 恢复修订+标 done）；==previous_hash→向后收敛（标 aborted，文件不动）；都不是→外部改动，标 conflict 不覆盖。素材记录/目标版本不存在或已删除→aborted（不自动复活）。
+- 不隐藏：`restoreLogs()` 只读返回日志行（planned|done|failed|aborted|conflict），可查每条恢复的最终状态。
+- 保护阶段独立提交的语义变化：restore 在文件替换阶段失败时，保护版本（恢复前自动保存）保留为真实版本——内容无丢失、无半恢复；旧「全部回滚」测试已按此语义更新。
+- 测试：`interruptedRestoreConvergesForwardOnReopen`（直接写入 planned 日志行模拟断电窗口，重开后补齐恢复修订、日志 done）、`interruptedRestoreConvergesBackwardOnReopen`（文件未替换→aborted、文件不动）、`restoreRollsBackPreservationOnTransactionFailure`（更新：失败恢复保留保护版本、工作文件不变）。
+- 验证：ctest 2/2 绿；离线烟雾运行无崩溃。

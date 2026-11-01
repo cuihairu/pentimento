@@ -181,6 +181,19 @@ public:
                                                      const QStringList &assetIds) const;
     QVector<RestoreOutcome> restoreFromSnapshot(qint64 snapshotId,
                                                 const QVector<SnapshotRestoreItem> &items);
+    // P-320: read-only view of recent restore-log rows (newest first). Each
+    // restore is staged in the log (planned | done | failed | aborted |
+    // conflict) so an interrupted restore's outcome is never hidden.
+    struct RestoreLogEntry {
+        qint64 id = 0;
+        QString assetId;
+        qint64 revisionId = 0;
+        QString state;
+        QString error;
+        QString created;
+        QString updated;
+    };
+    QVector<RestoreLogEntry> restoreLogs() const;
     // P-310: in-app confirmed deletion. Writes a tombstone revision (history
     // and objects stay intact — the timeline still finds the asset) and removes
     // the working copy. Throws when the asset is unknown or already deleted.
@@ -329,4 +342,14 @@ private:
     // Record one revision row and refresh the asset's P-217 facts; returns the
     // new revision id.
     qint64 recordRevision(const Asset &asset, const QString &hash, qint64 size, const QString &note);
+    // P-320: durable restore-log helpers. writeRestoreLog inserts the row and
+    // commits it BEFORE the working file is replaced; markRestoreLog updates a
+    // row's state; convergeRestoreLog runs on open to finish (forward) or roll
+    // back any restore that was interrupted, so a half-restored state is never
+    // silently left behind.
+    qint64 writeRestoreLog(const QString &assetId, qint64 revisionId,
+                           const QString &previousHash, const QString &targetHash,
+                           qint64 protectId);
+    void markRestoreLog(qint64 logId, const QString &state, const QString &error = QString());
+    void convergeRestoreLog();
 };

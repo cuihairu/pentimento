@@ -105,6 +105,10 @@ Library::Library(const QString &root)
     // a tamperer left writable (idempotent, best-effort). Documented promise in
     // 85-antiransom.md: hardenObjects() is for hardening existing objects on open.
     hardenObjects();
+    // P-320: an interrupted restore (power loss / kill between the file write
+    // and the index commit) is converged here — completed or rolled back — so a
+    // half-restored state is never silently left behind.
+    convergeRestoreLog();
 }
 
 void Library::openAndInitialize(const QString &catalog) {
@@ -140,7 +144,13 @@ void Library::openAndInitialize(const QString &catalog) {
              // P-309: append-only per-field metadata history. Each change is
              // linked to the metadata-only revision it created, keeping field
              // history and the revision sequence aligned.
-             QStringLiteral("CREATE TABLE IF NOT EXISTS field_history(id INTEGER PRIMARY KEY AUTOINCREMENT,asset_id TEXT NOT NULL REFERENCES assets(id),revision_id INTEGER NOT NULL DEFAULT 0,field TEXT NOT NULL,old_value TEXT NOT NULL DEFAULT '',new_value TEXT NOT NULL DEFAULT '',changed TEXT NOT NULL)")}) {
+             QStringLiteral("CREATE TABLE IF NOT EXISTS field_history(id INTEGER PRIMARY KEY AUTOINCREMENT,asset_id TEXT NOT NULL REFERENCES assets(id),revision_id INTEGER NOT NULL DEFAULT 0,field TEXT NOT NULL,old_value TEXT NOT NULL DEFAULT '',new_value TEXT NOT NULL DEFAULT '',changed TEXT NOT NULL)"),
+             // P-320: durable restore log. A restore is split into stages
+             // (protect -> log -> replace file -> commit index); the log row is
+             // committed BEFORE the working file is replaced, so an interrupted
+             // restore (power loss / kill) is detected and converged on reopen.
+             // state: planned | done | failed | aborted | conflict.
+             QStringLiteral("CREATE TABLE IF NOT EXISTS restore_log(id INTEGER PRIMARY KEY AUTOINCREMENT,asset_id TEXT NOT NULL,revision_id INTEGER NOT NULL,state TEXT NOT NULL,previous_hash TEXT NOT NULL DEFAULT '',target_hash TEXT NOT NULL DEFAULT '',protect_revision_id INTEGER NOT NULL DEFAULT 0,error TEXT NOT NULL DEFAULT '',created TEXT NOT NULL,updated TEXT NOT NULL)")}) {
         if (!q.exec(sql)) fail(q.lastError().text());
     }
     // P-216/P-217: assets gain a logical folder column plus filtering facts
@@ -1110,13 +1120,36 @@ void Library::restore(const Asset &asset, const RestorePlan &plan) {
         readSize = afterRead.size();
         readMtime = afterRead.lastModified().toMSecsSinceEpoch();
     }
-    if (!db_.transaction()) fail(db_.lastError().text());
-    bool replaced = false;
-    try {
-        const auto currentHistory = revisions(asset.id);
-        if (existed && (currentHistory.isEmpty() || currentHistory.first().hash != digest(previous)))
+    // P-320: the restore runs in durable stages. The protect version (stage 1)
+    // and the restore-log row (stage 2) are committed BEFORE the working file
+    // is replaced, so a crash or power loss between the file write (stage 3)
+    // and the index commit (stage 4) leaves a log row that convergeRestoreLog()
+    // completes or rolls back on reopen — a half-restored state is never left
+    // silently behind. A SQLite transaction alone is not crash-safe across the
+    // file write; the log is.
+    const QString previousHash = existed ? digest(previous) : QStringLiteral("");
+    qint64 protectId = 0;
+    const auto currentHistory = revisions(asset.id);
+    if (existed && (currentHistory.isEmpty() || currentHistory.first().hash != previousHash)) {
+        // Stage 1: protect. The unrecorded on-disk content becomes a real
+        // version BEFORE anything else. Committed on its own: if the restore is
+        // abandoned later, the protect stays (a legit version of the content
+        // that was there) and nothing is half-restored.
+        if (!db_.transaction()) fail(db_.lastError().text());
+        try {
             append(asset, previous, QStringLiteral("恢复前自动保存"));
-        append(asset, bytes, QStringLiteral("恢复历史版本 #%1").arg(plan.revisionId));
+            if (!db_.commit()) fail(db_.lastError().text());
+            protectId = revisions(asset.id).first().id;
+        } catch (...) {
+            db_.rollback();
+            throw;
+        }
+    }
+    // Stage 2: write the durable log row (committed before any file change).
+    const qint64 logId = writeRestoreLog(asset.id, plan.revisionId, previousHash,
+                                         target.hash, protectId);
+    // Stage 3: replace the working file (QSaveFile is atomic per file).
+    try {
         if (!QDir().mkpath(QFileInfo(asset.path).absolutePath())) fail(Library::tr("无法创建恢复目录"));
         // P-316: external-edit concurrency. An outside process writing the file
         // between our read and our write would be silently destroyed by the
@@ -1128,17 +1161,166 @@ void Library::restore(const Asset &asset, const RestorePlan &plan) {
                 fail(Library::tr("检测到外部编辑正在写入，请关闭外部编辑器后重试"));
         }
         writeFile(asset.path, bytes);
-        replaced = true;
+    } catch (const std::exception &error) {
+        // The file was not replaced (QSaveFile keeps the original on failure);
+        // record the failure so the log never claims a finished restore.
+        markRestoreLog(logId, QStringLiteral("failed"), QString::fromUtf8(error.what()));
+        throw;
+    }
+    // Stage 4: append the restore revision and mark the log done (one commit).
+    if (!db_.transaction()) {
+        markRestoreLog(logId, QStringLiteral("failed"), db_.lastError().text());
+        fail(db_.lastError().text());
+    }
+    try {
+        append(asset, bytes, QStringLiteral("恢复历史版本 #%1").arg(plan.revisionId));
+        markRestoreLog(logId, QStringLiteral("done"));
         if (!db_.commit()) fail(db_.lastError().text());
     } catch (...) {
+        // The file WAS replaced but the index did not commit: restore the
+        // previous content so file and index agree, and record the failure in
+        // the log (in-process path; a power loss here is handled by convergence
+        // on reopen instead).
         db_.rollback();
-        if (replaced && existed) writeFile(asset.path, previous);
-        else if (replaced) QFile::remove(asset.path);
+        if (existed) writeFile(asset.path, previous);
+        else QFile::remove(asset.path);
+        markRestoreLog(logId, QStringLiteral("failed"), db_.lastError().text());
         throw;
     }
 }
 
-// P-318 preview: one bound plan per requested asset, each against its snapshot
+qint64 Library::writeRestoreLog(const QString &assetId, qint64 revisionId,
+                                const QString &previousHash, const QString &targetHash,
+                                qint64 protectId) {
+    if (!db_.transaction()) fail(db_.lastError().text());
+    qint64 logId = 0;
+    try {
+        QSqlQuery ins(db_);
+        ins.prepare("INSERT INTO restore_log(asset_id,revision_id,state,previous_hash,target_hash,"
+                    "protect_revision_id,error,created,updated) VALUES(?,?,?,?,?,?,'',?,?)");
+        const QString now = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+        ins.addBindValue(assetId);
+        ins.addBindValue(revisionId);
+        ins.addBindValue(QStringLiteral("planned"));
+        ins.addBindValue(previousHash);
+        ins.addBindValue(targetHash);
+        ins.addBindValue(protectId);
+        ins.addBindValue(now);
+        ins.addBindValue(now);
+        execute(ins);
+        logId = ins.lastInsertId().toLongLong();
+        if (!db_.commit()) fail(db_.lastError().text());
+    } catch (...) {
+        db_.rollback();
+        throw;
+    }
+    return logId;
+}
+
+QVector<Library::RestoreLogEntry> Library::restoreLogs() const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
+    QVector<RestoreLogEntry> entries;
+    QSqlQuery q(db_);
+    q.prepare("SELECT id,asset_id,revision_id,state,error,created,updated "
+              "FROM restore_log ORDER BY id DESC");
+    execute(q);
+    while (q.next()) {
+        RestoreLogEntry entry;
+        entry.id = q.value(0).toLongLong();
+        entry.assetId = q.value(1).toString();
+        entry.revisionId = q.value(2).toLongLong();
+        entry.state = q.value(3).toString();
+        entry.error = q.value(4).toString();
+        entry.created = q.value(5).toString();
+        entry.updated = q.value(6).toString();
+        entries.append(entry);
+    }
+    return entries;
+}
+
+void Library::markRestoreLog(qint64 logId, const QString &state, const QString &error) {
+    if (logId <= 0) return;
+    QSqlQuery up(db_);
+    up.prepare("UPDATE restore_log SET state=?,error=?,updated=? WHERE id=?");
+    up.addBindValue(state);
+    up.addBindValue(error.isNull() ? QStringLiteral("") : error); // NOT NULL column: bind '' not null
+    up.addBindValue(QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
+    up.addBindValue(logId);
+    execute(up);
+}
+
+// P-320: on open, finish or roll back any restore that was interrupted between
+// the file replacement and the index commit. A log row left in 'planned' means
+// the file write may or may not have happened; comparing the current working
+// file against the logged previous/target hashes decides which way to converge
+// — forward (the file is the target, complete the index) or backward (the file
+// is still the original, record the abort). Any other file state is an external
+// edit after the interruption: left untouched and flagged, never overwritten.
+void Library::convergeRestoreLog() {
+    QSqlQuery q(db_);
+    q.prepare("SELECT id,asset_id,revision_id,previous_hash,target_hash,protect_revision_id "
+              "FROM restore_log WHERE state='planned'");
+    execute(q);
+    struct Pending { qint64 id; QString assetId; qint64 revisionId; QString prev; QString target; };
+    QVector<Pending> pending;
+    while (q.next())
+        pending.append({q.value(0).toLongLong(), q.value(1).toString(), q.value(2).toLongLong(),
+                        q.value(3).toString(), q.value(4).toString()});
+    for (const auto &row : pending) {
+        // Locate the asset row (even if deleted — the working path is still needed).
+        QSqlQuery asset(db_);
+        asset.prepare("SELECT name,path,deleted FROM assets WHERE id=?");
+        asset.addBindValue(row.assetId);
+        execute(asset);
+        if (!asset.next()) { markRestoreLog(row.id, QStringLiteral("aborted"), Library::tr("素材记录不存在")); continue; }
+        const bool deleted = asset.value(2).toInt() != 0;
+        if (deleted) { markRestoreLog(row.id, QStringLiteral("aborted"), Library::tr("素材已删除，不自动复活")); continue; }
+        const QString stored = asset.value(1).toString();
+        const QString workingPath = QFileInfo(stored).isAbsolute() ? stored : root_ + "/" + stored;
+        // The target object must still exist for a forward convergence.
+        QSqlQuery rev(db_);
+        rev.prepare("SELECT hash FROM revisions WHERE asset_id=? AND id=?");
+        rev.addBindValue(row.assetId);
+        rev.addBindValue(row.revisionId);
+        execute(rev);
+        if (!rev.next()) { markRestoreLog(row.id, QStringLiteral("aborted"), Library::tr("目标版本不存在")); continue; }
+        const QString targetHash = rev.value(0).toString();
+        const QFileInfo info(workingPath);
+        const QString fileHash = (info.exists() && info.isReadable()) ? digest(readFile(workingPath)) : QString();
+        if (fileHash == targetHash) {
+            // The file WAS replaced; the index never committed. Complete it now.
+            QByteArray bytes;
+            try { bytes = readObject(targetHash); }
+            catch (const std::exception &error) {
+                markRestoreLog(row.id, QStringLiteral("failed"),
+                               Library::tr("目标内容损坏，无法完成恢复：%1").arg(QString::fromUtf8(error.what())));
+                continue;
+            }
+            Asset a;
+            a.id = row.assetId;
+            a.name = asset.value(0).toString();
+            a.path = workingPath;
+            if (!db_.transaction()) { markRestoreLog(row.id, QStringLiteral("failed"), db_.lastError().text()); continue; }
+            try {
+                append(a, bytes, QStringLiteral("恢复历史版本 #%1").arg(row.revisionId));
+                markRestoreLog(row.id, QStringLiteral("done"));
+                if (!db_.commit()) fail(db_.lastError().text());
+            } catch (...) {
+                db_.rollback();
+                markRestoreLog(row.id, QStringLiteral("failed"), db_.lastError().text());
+            }
+        } else if (fileHash == row.prev) {
+            // The file was never replaced (or was already rolled back). Nothing
+            // to undo; the protect revision (if any) is a legit version. The
+            // restore simply did not complete — record the abort.
+            markRestoreLog(row.id, QStringLiteral("aborted"), Library::tr("恢复未完成，已取消"));
+        } else {
+            // The working file changed after the interruption for another reason:
+            // never overwrite it. Flag the row and leave the file alone.
+            markRestoreLog(row.id, QStringLiteral("conflict"), Library::tr("工作副本在中断后被外部修改，未自动处理"));
+        }
+    }
+}
 // anchor. Excluded / tombstone / unknown entries are reported as skip with a
 // reason — the UI never claims they will be restored. Nothing is written here.
 QVector<Library::SnapshotRestoreItem> Library::planSnapshotRestore(

@@ -55,12 +55,12 @@
         <translation>The library is in use by another process</translation>
     </message>
     <message>
-        <location line="+24"/>
+        <location line="+28"/>
         <source>素材库损坏或索引无法打开：%1</source>
         <translation>Library is corrupt or the index cannot be opened: %1</translation>
     </message>
     <message>
-        <location line="+97"/>
+        <location line="+103"/>
         <source>素材库 schema 版本不兼容（%1），请使用匹配版本打开</source>
         <translation>Library schema version is incompatible (%1); open with a matching version</translation>
     </message>
@@ -196,12 +196,42 @@
         <translation>无法恢复：冲突未解决</translation>
     </message>
     <message>
-        <location line="+36"/>
+        <location line="+59"/>
         <source>检测到外部编辑正在写入，请关闭外部编辑器后重试</source>
         <translation>检测到外部编辑正在写入，请关闭外部编辑器后重试</translation>
     </message>
     <message>
-        <location line="+36"/>
+        <location line="+114"/>
+        <source>素材记录不存在</source>
+        <translation>素材记录不存在</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>素材已删除，不自动复活</source>
+        <translation>素材已删除，不自动复活</translation>
+    </message>
+    <message>
+        <location line="+9"/>
+        <source>目标版本不存在</source>
+        <translation>目标版本不存在</translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <source>目标内容损坏，无法完成恢复：%1</source>
+        <translation>目标内容损坏，无法完成恢复：%1</translation>
+    </message>
+    <message>
+        <location line="+20"/>
+        <source>恢复未完成，已取消</source>
+        <translation>恢复未完成，已取消</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>工作副本在中断后被外部修改，未自动处理</source>
+        <translation>工作副本在中断后被外部修改，未自动处理</translation>
+    </message>
+    <message>
+        <location line="+26"/>
         <source>不在该快照中，跳过</source>
         <translation>不在该快照中，跳过</translation>
     </message>
@@ -246,19 +276,19 @@
         <translation>Cannot publish a consistent snapshot, write not settled: %1</translation>
     </message>
     <message>
-        <location line="-925"/>
+        <location line="-1097"/>
         <source>历史对象内容不一致</source>
         <translation>History object content mismatch</translation>
     </message>
     <message>
-        <location line="-448"/>
+        <location line="-458"/>
         <location line="+7"/>
         <location line="+4"/>
         <source>无法写入暂存对象：%1</source>
         <translation>Cannot write the staged object: %1</translation>
     </message>
     <message>
-        <location line="+816"/>
+        <location line="+826"/>
         <source>无法发布历史对象</source>
         <translation>Cannot publish the history object</translation>
     </message>
@@ -273,19 +303,19 @@
         <translation>Cannot create working directory</translation>
     </message>
     <message>
-        <location line="+179"/>
+        <location line="+202"/>
         <source>无法创建恢复目录</source>
         <translation>Cannot create restore directory</translation>
     </message>
     <message>
-        <location line="-82"/>
+        <location line="-105"/>
         <location line="+63"/>
         <source>找不到属于当前素材的历史版本</source>
         <translation>No revision found for this asset</translation>
     </message>
     <message>
         <location line="-580"/>
-        <location line="+790"/>
+        <location line="+962"/>
         <source>请导出到素材库之外的现有目录</source>
         <translation>Export to an existing directory outside the library</translation>
     </message>
