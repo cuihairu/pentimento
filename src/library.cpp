@@ -828,6 +828,15 @@ QVector<Revision> Library::revisions(const QString &assetId) const {
     return result;
 }
 
+bool Library::hasContent(const QString &hexHash) const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
+    QSqlQuery q(db_);
+    q.prepare("SELECT COUNT(*) FROM revisions WHERE hash=?");
+    q.addBindValue(hexHash);
+    execute(q);
+    return q.next() && q.value(0).toInt() > 0;
+}
+
 QString Library::objectPath(const QString &hash) const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
     if (hash.size() != 64) fail(Library::tr("无效的对象哈希"));

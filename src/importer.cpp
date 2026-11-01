@@ -2,8 +2,10 @@
 
 #include "storage.h"
 
+#include <QCryptographicHash>
 #include <QDir>
 #include <QDirIterator>
+#include <QFile>
 #include <QFileInfo>
 
 namespace importer {
@@ -101,6 +103,47 @@ void importPlan(Library &library, const QVector<QString> &sourcePaths,
         progress.setPercent(static_cast<int>(
             (static_cast<qint64>(i + 1) * 100) / qMax<qsizetype>(1, sourcePaths.size())));
     }
+}
+
+RescanPreview rescanPreview(Library &library, const QString &root,
+                            const QVector<IgnoreRule> &rules) {
+    const ScanResult scan = scanDirectory(root, rules);
+    RescanPreview preview;
+    preview.unreadable = scan.permissionErrors;
+    for (const auto &candidate : scan.candidates) {
+        RescanCandidate rc;
+        rc.candidate = candidate;
+        // Readable at scan time, but the mount can drop between the scan and
+        // this hash — a file that cannot be read now is reported as unstable
+        // (kept, retryable), never treated as a remote deletion.
+        QFile file(candidate.sourcePath);
+        if (!file.open(QIODevice::ReadOnly)) {
+            rc.error = QObject::tr("读取失败（可重试）：%1").arg(candidate.sourcePath);
+            preview.candidates.push_back(rc);
+            continue;
+        }
+        const QByteArray bytes = file.readAll();
+        rc.hash = QString::fromLatin1(
+            QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
+        rc.alreadyImported = library.hasContent(rc.hash);
+        preview.candidates.push_back(rc);
+    }
+    return preview;
+}
+
+int RescanPreview::fresh() const {
+    int n = 0;
+    for (const auto &c : candidates)
+        if (c.error.isEmpty() && !c.alreadyImported && c.candidate.excludeReason.isEmpty())
+            ++n;
+    return n;
+}
+
+int RescanPreview::alreadyImported() const {
+    int n = 0;
+    for (const auto &c : candidates)
+        if (c.alreadyImported) ++n;
+    return n;
 }
 
 } // namespace importer

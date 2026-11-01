@@ -735,6 +735,82 @@ private slots:
         for (int i = lastConnecting + 1; i < spy.size(); ++i)
             QCOMPARE(qvariant_cast<ConnectionState>(spy.at(i).at(0)), ConnectionState::Unreachable);
     }
+    void rescanPreviewClassifiesFreshAndImported() {
+        QTemporaryDir dir;
+        const QString source = dir.filePath("share");
+        QVERIFY(QDir().mkpath(source));
+        put(source + "/a.png", "content-a");
+        put(source + "/b.png", "content-b");
+        {
+            Library library(dir.filePath("library"));
+            QVERIFY(!library.importFile(source + "/a.png").id.isEmpty());
+            // P-515: a read-only preview — a.png is already imported (skip, no
+            // duplicate), b.png is genuinely new (importable).
+            const auto preview = importer::rescanPreview(library, source);
+            QCOMPARE(preview.fresh(), 1);
+            QCOMPARE(preview.alreadyImported(), 1);
+            QCOMPARE(preview.candidates.size(), 2);
+        }
+    }
+    void rescanNeverSyncsRemoteChangesIntoLocalDeletions() {
+        QTemporaryDir dir;
+        const QString source = dir.filePath("share");
+        QVERIFY(QDir().mkpath(source));
+        put(source + "/a.png", "content-a");
+        put(source + "/b.png", "content-b");
+        Library library(dir.filePath("library"));
+        QVERIFY(!library.importFile(source + "/a.png").id.isEmpty());
+        QVERIFY(!library.importFile(source + "/b.png").id.isEmpty());
+        QCOMPARE(library.assets().size(), 2);
+
+        // After the import the source changes: a.png is deleted, b.png is
+        // renamed to c.png (same content), and d.png is made unreadable.
+        QVERIFY(QFile::remove(source + "/a.png"));
+        QVERIFY(QFile::rename(source + "/b.png", source + "/c.png"));
+        put(source + "/d.png", "content-d");
+        bool asRoot = ::geteuid() == 0;
+        if (!asRoot) QVERIFY(::chmod((source + "/d.png").toLocal8Bit().constData(), 0000) == 0);
+
+        // The rescan is read-only and classifies; it never mutates the library.
+        const auto preview = importer::rescanPreview(library, source);
+        // c.png has b's content → already imported (a rename never re-imports
+        // or duplicates); d.png is unreadable → reported, not fresh.
+        QCOMPARE(preview.alreadyImported(), 1);
+        if (!asRoot) {
+            QCOMPARE(preview.fresh(), 0);
+            QVERIFY(!preview.unreadable.isEmpty());
+        }
+
+        // The library is untouched: no deletion, no rename, no tombstone.
+        const auto assets = library.assets();
+        QCOMPARE(assets.size(), 2);
+        for (const auto &a : assets) {
+            QVERIFY(QFile::exists(a.path));            // working copy never deleted
+            const auto revs = library.revisions(a.id);
+            QVERIFY(!revs.isEmpty());
+            QVERIFY(!revs.first().tombstone);          // never auto-tombstoned
+        }
+        QStringList names;
+        for (const auto &a : assets) names << a.name;
+        QVERIFY(names.contains(QStringLiteral("a.png"))); // source-deleted → still local
+        QVERIFY(names.contains(QStringLiteral("b.png"))); // source-renamed → still local
+
+        // Importing the fresh candidates is additive only: it adds, and never
+        // deletes/renames anything in the library.
+        QStringList freshPaths;
+        for (const auto &c : preview.candidates)
+            if (c.error.isEmpty() && !c.alreadyImported && c.candidate.excludeReason.isEmpty())
+                freshPaths << c.candidate.sourcePath;
+        TaskQueue queue;
+        queue.submit(QStringLiteral("重扫导入"), [&](TaskQueue::Progress &p) {
+            importer::importPlan(library, freshPaths, p);
+        });
+        QTRY_VERIFY_WITH_TIMEOUT([&] {
+            for (const auto &s : queue.statuses()) if (s.done) return true;
+            return false;
+        }(), 10000);
+        QCOMPARE(library.assets().size(), asRoot ? 3 : 2); // adds only what was fresh
+    }
     void storageInterfaceReportsConsistentLocalInfo() {
         QTemporaryDir dir;
         put(dir.filePath("a.png"), "image-bytes");

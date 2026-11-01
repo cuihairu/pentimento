@@ -151,7 +151,7 @@
         <translation>该素材库缺少身份标识（library_id），库可能已损坏</translation>
     </message>
     <message>
-        <location line="+39"/>
+        <location line="+48"/>
         <location line="+2"/>
         <source>无效的对象哈希</source>
         <translation>无效的对象哈希</translation>
@@ -276,7 +276,7 @@
         <translation>无法发布一致快照，文件写入未稳定：%1</translation>
     </message>
     <message>
-        <location line="-1097"/>
+        <location line="-1106"/>
         <source>历史对象内容不一致</source>
         <translation>历史对象内容不一致</translation>
     </message>
@@ -288,7 +288,7 @@
         <translation>无法写入暂存对象：%1</translation>
     </message>
     <message>
-        <location line="+826"/>
+        <location line="+835"/>
         <source>无法发布历史对象</source>
         <translation>无法发布历史对象</translation>
     </message>
@@ -314,8 +314,8 @@
         <translation>找不到属于当前素材的历史版本</translation>
     </message>
     <message>
-        <location line="-580"/>
-        <location line="+962"/>
+        <location line="-589"/>
+        <location line="+971"/>
         <source>请导出到素材库之外的现有目录</source>
         <translation>请导出到素材库之外的现有目录</translation>
     </message>
@@ -344,7 +344,7 @@
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../src/mainwindow.cpp" line="+42"/>
+        <location filename="../src/mainwindow.cpp" line="+43"/>
         <source>pentimento · 画迹</source>
         <translation>pentimento · 画迹</translation>
     </message>
@@ -677,12 +677,12 @@
         <location line="+877"/>
         <location line="+223"/>
         <location line="+152"/>
-        <location line="+76"/>
+        <location line="+92"/>
         <source>关闭</source>
         <translation>关闭</translation>
     </message>
     <message>
-        <location line="-1327"/>
+        <location line="-1343"/>
         <source>每 15 分钟</source>
         <translation>每 15 分钟</translation>
     </message>
@@ -1321,41 +1321,108 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation>来源只读探测；重试只重新检查可达性，不写入、不覆盖远端内容。</translation>
     </message>
     <message>
-        <location line="+6"/>
+        <location line="+9"/>
+        <source>重扫预览…</source>
+        <translation>重扫预览…</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>扫描来源并与库对照：已导入内容跳过，仅新增内容可导入；来源变化不影响本地素材。</source>
+        <translation>扫描来源并与库对照：已导入内容跳过，仅新增内容可导入；来源变化不影响本地素材。</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>导入新增</source>
+        <translation>导入新增</translation>
+    </message>
+    <message>
+        <location line="+10"/>
         <source>重试</source>
         <translation>重试</translation>
     </message>
     <message>
-        <location line="+12"/>
+        <location line="+15"/>
         <source>连接中：%1</source>
         <translation>连接中：%1</translation>
     </message>
     <message>
-        <location line="+5"/>
+        <location line="+6"/>
         <source>在线：来源可达%1</source>
         <translation>在线：来源可达%1</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location line="+6"/>
-        <location line="+6"/>
+        <location line="+7"/>
+        <location line="+7"/>
         <source>（%1）</source>
         <translation>（%1）</translation>
     </message>
     <message>
-        <location line="-7"/>
+        <location line="-8"/>
         <source>离线：来源不可达%1</source>
         <translation>离线：来源不可达%1</translation>
     </message>
     <message>
-        <location line="+6"/>
+        <location line="+7"/>
         <source>失败：来源探测失败%1</source>
         <translation>失败：来源探测失败%1</translation>
     </message>
     <message>
-        <location line="+12"/>
+        <location line="+13"/>
         <source>选择已挂载来源目录</source>
         <translation>选择已挂载来源目录</translation>
+    </message>
+    <message>
+        <location line="+12"/>
+        <source>正在扫描来源并与库对照…</source>
+        <translation>正在扫描来源并与库对照…</translation>
+    </message>
+    <message>
+        <location line="+8"/>
+        <source>重扫预览：新增 %1（可导入）、%2 已在库中、%3 不可读（不视为删除）</source>
+        <translation>重扫预览：新增 %1（可导入）、%2 已在库中、%3 不可读（不视为删除）</translation>
+    </message>
+    <message>
+        <location line="+7"/>
+        <source>· 已排除：%1（%2）</source>
+        <translation>· 已排除：%1（%2）</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>· 不可读：%1</source>
+        <translation>· 不可读：%1</translation>
+    </message>
+    <message>
+        <location line="+13"/>
+        <source>正在导入 %1 个新增内容…</source>
+        <translation>正在导入 %1 个新增内容…</translation>
+    </message>
+    <message>
+        <location line="+7"/>
+        <source>导入未完成：%1</source>
+        <translation>导入未完成：%1</translation>
+    </message>
+    <message>
+        <location line="+7"/>
+        <source>· 已导入：%1</source>
+        <translation>· 已导入：%1</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>· 失败：%1（%2）</source>
+        <translation>· 失败：%1（%2）</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>没有新增内容可导入</source>
+        <translation>没有新增内容可导入</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>导入完成：
+%1</source>
+        <translation>导入完成：
+%1</translation>
     </message>
     <message>
         <source>已记录新版本</source>
@@ -1376,7 +1443,7 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
 未记录的当前内容会先保存。请先在外部编辑器中关闭此文件。</translation>
     </message>
     <message>
-        <location line="-569"/>
+        <location line="-651"/>
         <location line="+5"/>
         <source>导出历史版本</source>
         <translation>导出历史版本</translation>
@@ -1641,7 +1708,7 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
 <context>
     <name>QObject</name>
     <message>
-        <location filename="../src/importer.cpp" line="+50"/>
+        <location filename="../src/importer.cpp" line="+52"/>
         <source>忽略规则 %1</source>
         <translation>忽略规则 %1</translation>
     </message>
@@ -1654,6 +1721,11 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <location line="+14"/>
         <source>不可读（跳过，可重试）：%1</source>
         <translation>不可读（跳过，可重试）：%1</translation>
+    </message>
+    <message>
+        <location line="+46"/>
+        <source>读取失败（可重试）：%1</source>
+        <translation>读取失败（可重试）：%1</translation>
     </message>
     <message>
         <location filename="../src/source_connection.cpp" line="+22"/>

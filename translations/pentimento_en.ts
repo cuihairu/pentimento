@@ -151,7 +151,7 @@
         <translation>This asset library is missing its identity (library_id); the library may be corrupt</translation>
     </message>
     <message>
-        <location line="+39"/>
+        <location line="+48"/>
         <location line="+2"/>
         <source>无效的对象哈希</source>
         <translation>Invalid object hash</translation>
@@ -276,7 +276,7 @@
         <translation>Cannot publish a consistent snapshot, write not settled: %1</translation>
     </message>
     <message>
-        <location line="-1097"/>
+        <location line="-1106"/>
         <source>历史对象内容不一致</source>
         <translation>History object content mismatch</translation>
     </message>
@@ -288,7 +288,7 @@
         <translation>Cannot write the staged object: %1</translation>
     </message>
     <message>
-        <location line="+826"/>
+        <location line="+835"/>
         <source>无法发布历史对象</source>
         <translation>Cannot publish the history object</translation>
     </message>
@@ -314,8 +314,8 @@
         <translation>No revision found for this asset</translation>
     </message>
     <message>
-        <location line="-580"/>
-        <location line="+962"/>
+        <location line="-589"/>
+        <location line="+971"/>
         <source>请导出到素材库之外的现有目录</source>
         <translation>Export to an existing directory outside the library</translation>
     </message>
@@ -344,7 +344,7 @@
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../src/mainwindow.cpp" line="+42"/>
+        <location filename="../src/mainwindow.cpp" line="+43"/>
         <source>pentimento · 画迹</source>
         <translation>pentimento</translation>
     </message>
@@ -677,12 +677,12 @@ Restoring appends a new version; existing history is always kept.</translation>
         <location line="+877"/>
         <location line="+223"/>
         <location line="+152"/>
-        <location line="+76"/>
+        <location line="+92"/>
         <source>关闭</source>
         <translation>Off</translation>
     </message>
     <message>
-        <location line="-1327"/>
+        <location line="-1343"/>
         <source>每 15 分钟</source>
         <translation>Every 15 minutes</translation>
     </message>
@@ -1321,41 +1321,108 @@ The original file and history are fully preserved and can be exported.</translat
         <translation>Read-only probe; retry only re-checks reachability — it never writes to or overwrites remote content.</translation>
     </message>
     <message>
-        <location line="+6"/>
+        <location line="+9"/>
+        <source>重扫预览…</source>
+        <translation>Rescan Preview…</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>扫描来源并与库对照：已导入内容跳过，仅新增内容可导入；来源变化不影响本地素材。</source>
+        <translation>Scans the source against the library: already-imported content is skipped and only new content is importable; source-side changes never affect local assets.</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>导入新增</source>
+        <translation>Import New</translation>
+    </message>
+    <message>
+        <location line="+10"/>
         <source>重试</source>
         <translation>Retry</translation>
     </message>
     <message>
-        <location line="+12"/>
+        <location line="+15"/>
         <source>连接中：%1</source>
         <translation>Connecting: %1</translation>
     </message>
     <message>
-        <location line="+5"/>
+        <location line="+6"/>
         <source>在线：来源可达%1</source>
         <translation>Online: source reachable%1</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location line="+6"/>
-        <location line="+6"/>
+        <location line="+7"/>
+        <location line="+7"/>
         <source>（%1）</source>
         <translation> (%1)</translation>
     </message>
     <message>
-        <location line="-7"/>
+        <location line="-8"/>
         <source>离线：来源不可达%1</source>
         <translation>Offline: source unreachable%1</translation>
     </message>
     <message>
-        <location line="+6"/>
+        <location line="+7"/>
         <source>失败：来源探测失败%1</source>
         <translation>Failed: source probe failed%1</translation>
     </message>
     <message>
-        <location line="+12"/>
+        <location line="+13"/>
         <source>选择已挂载来源目录</source>
         <translation>Select a mounted source directory</translation>
+    </message>
+    <message>
+        <location line="+12"/>
+        <source>正在扫描来源并与库对照…</source>
+        <translation>Scanning the source against the library…</translation>
+    </message>
+    <message>
+        <location line="+8"/>
+        <source>重扫预览：新增 %1（可导入）、%2 已在库中、%3 不可读（不视为删除）</source>
+        <translation>Rescan preview: %1 new (importable), %2 already in library, %3 unreadable (not treated as deleted)</translation>
+    </message>
+    <message>
+        <location line="+7"/>
+        <source>· 已排除：%1（%2）</source>
+        <translation>· excluded: %1 (%2)</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>· 不可读：%1</source>
+        <translation>· unreadable: %1</translation>
+    </message>
+    <message>
+        <location line="+13"/>
+        <source>正在导入 %1 个新增内容…</source>
+        <translation>Importing %1 new item(s)…</translation>
+    </message>
+    <message>
+        <location line="+7"/>
+        <source>导入未完成：%1</source>
+        <translation>Import incomplete: %1</translation>
+    </message>
+    <message>
+        <location line="+7"/>
+        <source>· 已导入：%1</source>
+        <translation>· imported: %1</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>· 失败：%1（%2）</source>
+        <translation>· failed: %1 (%2)</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>没有新增内容可导入</source>
+        <translation>No new content to import</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>导入完成：
+%1</source>
+        <translation>Import complete:
+%1</translation>
     </message>
     <message>
         <source>已记录新版本</source>
@@ -1376,7 +1443,7 @@ The original file and history are fully preserved and can be exported.</translat
 Unrecorded current content is saved first. Close the file in external editors.</translation>
     </message>
     <message>
-        <location line="-569"/>
+        <location line="-651"/>
         <location line="+5"/>
         <source>导出历史版本</source>
         <translation>Export revision</translation>
@@ -1641,7 +1708,7 @@ Close all external editors first.</translation>
 <context>
     <name>QObject</name>
     <message>
-        <location filename="../src/importer.cpp" line="+50"/>
+        <location filename="../src/importer.cpp" line="+52"/>
         <source>忽略规则 %1</source>
         <translation>Ignore rule %1</translation>
     </message>
@@ -1654,6 +1721,11 @@ Close all external editors first.</translation>
         <location line="+14"/>
         <source>不可读（跳过，可重试）：%1</source>
         <translation>Unreadable (skipped, can retry): %1</translation>
+    </message>
+    <message>
+        <location line="+46"/>
+        <source>读取失败（可重试）：%1</source>
+        <translation>Read failed (retryable): %1</translation>
     </message>
     <message>
         <location filename="../src/source_connection.cpp" line="+22"/>

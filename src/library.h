@@ -122,6 +122,14 @@ public:
     Library &operator=(const Library &) = delete;
     QVector<Asset> assets() const;
     QVector<Revision> revisions(const QString &assetId) const;
+    // P-515: is this content hash already recorded anywhere in the library
+    // (any revision, including of a since-deleted asset)? A mounted-source
+    // rescan uses this to skip content it already imported — importing stays
+    // additive, so re-importing a file (or one renamed on the source) never
+    // duplicates it, and a source-side change is never turned into a local
+    // deletion. Content kept in a deleted asset's history still counts as
+    // present: the object exists and a re-import would only duplicate it.
+    bool hasContent(const QString &hexHash) const;
     Asset importFile(const QString &source);
     bool capture(const Asset &asset, const QString &note = QString());
     // P-303 manual version record: always returns the version id that now

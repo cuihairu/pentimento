@@ -52,4 +52,32 @@ ScanResult scanDirectory(const QString &root, const QVector<IgnoreRule> &rules =
 void importPlan(Library &library, const QVector<QString> &sourcePaths,
                 TaskQueue::Progress &progress);
 
+// P-515: one classified source file from a reconnect rescan. `hash` is the
+// file's content hash; `alreadyImported` is whether that content is already in
+// the library (so a re-import would only duplicate it).
+struct RescanCandidate {
+    Candidate candidate;
+    QString hash;               // hex SHA-256 of the file content
+    bool alreadyImported = false;
+    QString error;              // non-empty = could not be read/hashed (unstable)
+};
+
+// P-515: a reconnect rescan preview — read-only against the library, never a
+// sync. It classifies what a rescan would find: files whose content is already
+// in the library (skip — no duplicates), genuinely new files (importable), and
+// unreadable entries (permission errors, reported and kept — a permission
+// change is never treated as a deletion). The caller shows this and imports
+// only the fresh candidates explicitly; nothing is deleted, renamed, or
+// tombstoned because of a source-side change (a remote delete never
+// masquerades as a local deletion, and the import path is additive).
+struct RescanPreview {
+    QVector<RescanCandidate> candidates; // in stable scan order
+    QStringList unreadable;              // unreadable/unstable entries, kept
+    int fresh() const;                   // importable (not imported, no error)
+    int alreadyImported() const;         // content present in the library
+};
+
+RescanPreview rescanPreview(Library &library, const QString &root,
+                            const QVector<IgnoreRule> &rules = {});
+
 } // namespace importer

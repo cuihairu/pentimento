@@ -82,6 +82,12 @@
 - 未来外部索引单独批准删除/改名映射规则。
 - **V1 不做**：双向同步；远端缺失自动转本地墓碑。
 
+**实现（2026-11-01）**
+- 设计：`importer::rescanPreview(library, root)` 只读重扫预览——按内容哈希对照库（`Library::hasContent`）：已在库中（含已删素材历史保留的对象）跳过不重复导入，真正新增内容标为可导入，不可读/不稳定条目如实报告（可重试），**从不删除、从不改名、从不写墓碑**——来源端删除/改名/权限变化不冒充本地删除。导入走既有 `importPlan`，天然只增不改。
+- 接线：P-513 来源对话框在「可达」时启用「重扫预览…」，显示 新增/已在库中/不可读 计数与排除/不可读明细；「导入新增」只导入 fresh 候选（后台写者队列，绝不界面线程）。
+- 测试：`rescanPreviewClassifiesFreshAndImported`（新/已在库分类）、`rescanNeverSyncsRemoteChangesIntoLocalDeletions`（来源删除 a.png/改名 b→c/权限变化 d.png 后重扫：库不变——无删除无改名无墓碑、工作副本仍在；fresh 导入只增）。
+- 验证：ctest 2/2 绿；离线烟雾运行无崩溃；lupdate/lrelease 322/322 双语言完成。
+
 ## P-516 NAS 备份包导出与校验（V1 纳入）
 
 - 完整备份包导出：可选本地或已挂载 NAS 目标，**不依赖 WebDAV/SFTP**。

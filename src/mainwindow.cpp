@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include "compare_canvas.h"
+#include "importer.h"
 #include "preview.h"
 #include "preview_canvas.h"
 #include "sentinel.h"
@@ -1622,7 +1623,7 @@ void MainWindow::saveScreenshot(const QString &path) { grab().save(path); }
 void MainWindow::showSourceState() {
     QDialog dialog(this);
     dialog.setWindowTitle(tr("挂载来源状态"));
-    dialog.setMinimumWidth(560);
+    dialog.setMinimumWidth(620);
     auto *layout = new QVBoxLayout(&dialog);
 
     auto *pathRow = new QHBoxLayout;
@@ -1643,6 +1644,22 @@ void MainWindow::showSourceState() {
     hint->setWordWrap(true);
     layout->addWidget(hint);
 
+    // P-515: a reconnect rescan is a read-only preview plus an explicit,
+    // additive import — never a sync. A source-side delete, rename, or
+    // permission change is reported or skipped, never turned into a local
+    // deletion or rename (no tombstones, no double-import, no write-back).
+    auto *rescanBtn = new QPushButton(tr("重扫预览…"), &dialog);
+    rescanBtn->setEnabled(false);
+    rescanBtn->setToolTip(tr("扫描来源并与库对照：已导入内容跳过，仅新增内容可导入；来源变化不影响本地素材。"));
+    auto *importBtn = new QPushButton(tr("导入新增"), &dialog);
+    importBtn->setEnabled(false);
+    auto *previewLabel = new QLabel(&dialog);
+    previewLabel->setWordWrap(true);
+    previewLabel->setStyleSheet("color:#444;");
+    layout->addWidget(rescanBtn);
+    layout->addWidget(previewLabel);
+    layout->addWidget(importBtn);
+
     auto *buttonRow = new QHBoxLayout;
     auto *retryBtn = new QPushButton(tr("重试"), &dialog);
     retryBtn->setEnabled(false);
@@ -1653,30 +1670,37 @@ void MainWindow::showSourceState() {
     layout->addLayout(buttonRow);
 
     SourceConnection connection; // lives on the UI thread; probes run in the background
+    // P-515 preview result, produced on the worker and read on taskFinished.
+    auto preview = std::make_shared<importer::RescanPreview>();
+    bool previewDone = false;
     auto render = [&](ConnectionState state, const QString &reason) {
         switch (state) {
         case ConnectionState::Connecting:
             stateLabel->setText(tr("连接中：%1").arg(reason));
             stateLabel->setStyleSheet("color:#666;");
             retryBtn->setEnabled(false);
+            rescanBtn->setEnabled(false);
             break;
         case ConnectionState::Reachable:
             stateLabel->setText(tr("在线：来源可达%1")
                                     .arg(reason.isEmpty() ? QString() : tr("（%1）").arg(reason)));
             stateLabel->setStyleSheet("color:#2e7d32;");
             retryBtn->setEnabled(false);
+            rescanBtn->setEnabled(true);
             break;
         case ConnectionState::Unreachable:
             stateLabel->setText(tr("离线：来源不可达%1")
                                     .arg(reason.isEmpty() ? QString() : tr("（%1）").arg(reason)));
             stateLabel->setStyleSheet("color:#b26a00;");
             retryBtn->setEnabled(true);
+            rescanBtn->setEnabled(false);
             break;
         case ConnectionState::Failed:
             stateLabel->setText(tr("失败：来源探测失败%1")
                                     .arg(reason.isEmpty() ? QString() : tr("（%1）").arg(reason)));
             stateLabel->setStyleSheet("color:#c62828;");
             retryBtn->setEnabled(true);
+            rescanBtn->setEnabled(false);
             break;
         }
     };
@@ -1691,6 +1715,65 @@ void MainWindow::showSourceState() {
         connection.open(path);
     });
     QObject::connect(retryBtn, &QPushButton::clicked, &connection, &SourceConnection::retry);
+    // P-515: run the rescan on the background writer queue (a mounted-source
+    // scan can be slow and may hang, never on the UI thread).
+    QObject::connect(rescanBtn, &QPushButton::clicked, &dialog, [&] {
+        const QString path = pathEdit->text().trimmed();
+        if (path.isEmpty()) return;
+        rescanBtn->setEnabled(false);
+        previewLabel->setText(tr("正在扫描来源并与库对照…"));
+        const qint64 id = captureQueue_->submit(QStringLiteral("来源重扫预览"),
+            [this, path, preview](TaskQueue::Progress &) { *preview = importer::rescanPreview(library_, path); });
+        QObject::connect(captureQueue_.get(), &TaskQueue::taskFinished, &dialog,
+            [&, id](qint64 finished, bool, const QString &) {
+                if (finished != id) return;
+                rescanBtn->setEnabled(connection.state() == ConnectionState::Reachable);
+                importBtn->setEnabled(preview->fresh() > 0);
+                previewLabel->setText(tr("重扫预览：新增 %1（可导入）、%2 已在库中、%3 不可读（不视为删除）")
+                                          .arg(preview->fresh())
+                                          .arg(preview->alreadyImported())
+                                          .arg(preview->unreadable.size()));
+                QStringList lines;
+                for (const auto &c : preview->candidates) {
+                    if (c.candidate.excludeReason.isEmpty()) continue;
+                    lines << tr("· 已排除：%1（%2）").arg(c.candidate.relative, c.candidate.excludeReason);
+                }
+                for (const auto &u : preview->unreadable) lines << tr("· 不可读：%1").arg(u);
+                if (!lines.isEmpty()) previewLabel->setText(previewLabel->text() + "\n" + lines.join('\n'));
+            });
+    });
+    // P-515: importing is additive only — the fresh candidates are imported,
+    // never anything deleted, renamed, or tombstoned.
+    QObject::connect(importBtn, &QPushButton::clicked, &dialog, [&] {
+        QStringList paths;
+        for (const auto &c : preview->candidates)
+            if (c.error.isEmpty() && !c.alreadyImported && c.candidate.excludeReason.isEmpty())
+                paths << c.candidate.sourcePath;
+        if (paths.isEmpty()) return;
+        importBtn->setEnabled(false);
+        previewLabel->setText(tr("正在导入 %1 个新增内容…").arg(paths.size()));
+        const qint64 id = captureQueue_->submit(QStringLiteral("来源重扫导入"),
+            [this, paths](TaskQueue::Progress &p) { importer::importPlan(library_, paths, p); });
+        QObject::connect(captureQueue_.get(), &TaskQueue::taskFinished, &dialog,
+            [&, id](qint64 finished, bool ok, const QString &error) {
+                if (finished != id) return;
+                if (!ok) {
+                    previewLabel->setText(tr("导入未完成：%1").arg(error));
+                    return;
+                }
+                QStringList done;
+                for (const auto &s : captureQueue_->statuses())
+                    if (s.id == id)
+                        for (const auto &item : s.items)
+                            done << (item.ok ? tr("· 已导入：%1").arg(item.label)
+                                             : tr("· 失败：%1（%2）").arg(item.label, item.error));
+                previewLabel->setText(done.isEmpty() ? tr("没有新增内容可导入")
+                                                     : tr("导入完成：\n%1").arg(done.join('\n')));
+                importBtn->setEnabled(false);
+                reloadAssets();
+                if (sentinel_) sentinel_->resetBaseline();
+            });
+    });
     QObject::connect(closeBtn, &QPushButton::clicked, &dialog, &QDialog::accept);
     dialog.exec();
 }

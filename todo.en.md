@@ -107,7 +107,7 @@ Each task has one deliverable and an observable acceptance condition. See `docs/
 - [ ] P-512 Verify SSH host keys. Acceptance: Require new-host confirmation and explicit handling of changed keys. (BLOCKED review 2026-11-01: missing user approval; P-015 implementation approval not obtained) (delegated: execute per docs/review/2026-10-30-decisions.md (2026-10-30))
 - [x] P-513 Implement reconnection states. Acceptance: Show connecting/online/offline/failed states without remote overwrites. (delegated: execute per docs/review/2026-10-30-decisions.md (2026-10-30); done 2026-11-01)
 - [ ] P-514 Browse offline cache. Acceptance: Distinguish available and uncached content. (BLOCKED review 2026-11-01: missing user approval; P-015 implementation approval not obtained) (delegated: execute per docs/review/2026-10-30-decisions.md (2026-10-30))
-- [ ] P-515 Reconcile remote changes after reconnect. Acceptance: Do not confuse remote deletion, rename or permission changes with local deletion. (BLOCKED review 2026-11-01: missing user approval; P-015 implementation approval not obtained) (delegated: execute per docs/review/2026-10-30-decisions.md (2026-10-30))
+- [x] P-515 Reconcile remote changes after reconnect. Acceptance: Do not confuse remote deletion, rename or permission changes with local deletion. (delegated: execute per docs/review/2026-10-30-decisions.md (2026-10-30); done 2026-11-01)
 - [ ] P-516 Export and verify NAS backup packages. Acceptance: Mark success only after manifest/object verification; never share the live index. (BLOCKED review 2026-11-01: missing user approval; P-015 implementation approval not obtained) (delegated: execute per docs/review/2026-10-30-decisions.md (2026-10-30))
 
 ## Reliability and release verification
