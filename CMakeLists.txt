@@ -69,6 +69,9 @@ if(BUILD_TESTING)
     add_executable(pentimento_tests tests/library_test.cpp src/compare_canvas.cpp)
     target_link_libraries(pentimento_tests PRIVATE pentimento_core Qt6::Test Qt6::Widgets)
     add_test(NAME library_history COMMAND pentimento_tests)
+    # Headless CI/nightly runners have no X display; Qt Widgets tests need the
+    # offscreen platform plugin instead of xcb.
+    set_tests_properties(library_history PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     add_executable(pentimento_security_tests tests/security_test.cpp)
     target_link_libraries(pentimento_security_tests PRIVATE pentimento_core Qt6::Test)
     add_test(NAME security_sentinel COMMAND pentimento_security_tests)
