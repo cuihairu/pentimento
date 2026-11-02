@@ -120,7 +120,7 @@ Each task has one deliverable and an observable acceptance condition. See `docs/
 - [x] P-606 Verify keyboard access and scaling. Acceptance: Complete critical workflows by keyboard with usable scaled controls. (BLOCKED review 2026-11-01: missing user approval; P-015 implementation approval not obtained) (delegated: execute per docs/review/2026-10-30-decisions.md (2026-10-30)) (done 2026-11-02)
 - [ ] P-607 Verify macOS/Windows/Linux builds. Acceptance: Record builds, plugin deployment and limitations separately. (BLOCKED review 2026-11-01: missing user approval; P-015 implementation approval not obtained) (delegated: execute per docs/review/2026-10-30-decisions.md (2026-10-30))
 - [x] P-608 Verify bilingual consistency. Acceptance: Match requirement IDs, task states and capability limits. (BLOCKED review 2026-11-01: missing user approval; P-015 implementation approval not obtained) (delegated: execute per docs/review/2026-10-30-decisions.md (2026-10-30)) (done 2026-11-02)
-- [ ] P-609 Run V1 journey acceptance. Acceptance: Run all requirement scenarios; failed items remain open. (BLOCKED review 2026-11-01: missing user approval; P-015 implementation approval not obtained) (delegated: execute per docs/review/2026-10-30-decisions.md (2026-10-30))
+- [x] P-609 Run V1 journey acceptance. Acceptance: Run all requirement scenarios; failed items remain open. (BLOCKED review 2026-11-01: missing user approval; P-015 implementation approval not obtained) (delegated: execute per docs/review/2026-10-30-decisions.md (2026-10-30)) (done 2026-11-02: automated journey evidence `v1UserJourneyAcceptanceWalkthrough`; R12-R18/P-204/P-410/P-411/P-501/P-604/P-607 remain open, see 80-reliability#P-609)
 
 ## Security defense (anti-ransomware)
 
