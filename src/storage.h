@@ -12,6 +12,14 @@
 // add placeholder classes claiming support.
 enum class SourceState { Reachable, ReadOnly, Unreachable, PermissionDenied };
 
+// ReadOnly means "the path exists, is readable, but the process cannot write
+// it" (mode bits / read-only mount). It applies to BOTH files and directories:
+// a read-only mounted SMB/NFS source is still listable and importable, so it
+// maps to a connected source (see source_connection) — writability is a
+// backup-target question (P-510), never a "disk is healthy" verdict. Callers
+// must not treat ReadOnly as Unreachable/PermissionDenied, and must not assume
+// a Reachable directory is writable.
+
 struct SourceInfo {
     QString path;             // as given (display); canonical when resolved
     QByteArray contentHash;   // SHA-256 for files; empty for directories

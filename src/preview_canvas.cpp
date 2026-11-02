@@ -10,6 +10,11 @@
 
 namespace {
 constexpr int kCheckerSize = 8; // squares of the transparency backdrop
+// Manual zoom paints the image at a fixed origin inset from the widget edges
+// (so the backdrop frame stays visible). sizeHint() must include this inset on
+// every side, otherwise the right/bottom 12px of the image lie outside the
+// widget and the scrollbars can never pan the full image (P-209).
+constexpr int kOriginInset = 12;
 
 // One 2x2 checkerboard tile painted under the image; transparency reads as a
 // neutral, familiar backdrop instead of an invisible hole (P-209).
@@ -69,8 +74,10 @@ qreal PreviewCanvas::effectiveZoom() const {
 QSize PreviewCanvas::sizeHint() const {
     if (image_.isNull()) return QSize(0, 0);
     // Fit: a tiny hint lets the scroll area expand us to the full viewport.
-    // Manual: exact scaled size, so scrollbars pan across the image.
-    return fit_ ? QSize(1, 1) : scaledTo(image_.size(), zoom_);
+    // Manual: scaled size PLUS the fixed origin inset on each side, so the
+    // scrollbars pan the complete image (nothing clipped at the edges).
+    return fit_ ? QSize(1, 1)
+                : scaledTo(image_.size(), zoom_) + QSize(2 * kOriginInset, 2 * kOriginInset);
 }
 
 void PreviewCanvas::paintEvent(QPaintEvent *) {
@@ -79,7 +86,7 @@ void PreviewCanvas::paintEvent(QPaintEvent *) {
     const QSize scaled = scaledTo(image_.size(), factor);
     const QRect target = fit_
         ? QRect(QPoint((width() - scaled.width()) / 2, (height() - scaled.height()) / 2), scaled)
-        : QRect(QPoint(12, 12), scaled); // manual zoom: fixed origin, scroll pans
+        : QRect(QPoint(kOriginInset, kOriginInset), scaled); // manual zoom: fixed origin, scroll pans
     QPainter p(this);
     p.fillRect(rect(), palette().window());
     if (checker_ && image_.hasAlphaChannel())

@@ -69,9 +69,27 @@ QImage thumbnailFor(ThumbnailCache &cache, const QByteArray &contentBytes,
         QImageReader::supportedImageFormats().contains(formatHint.toLatin1()))
         reader.setFormat(formatHint.toLatin1());
     reader.setAutoTransform(true);
+    // Pre-downsample BEFORE the full decode (P-207): a huge image must never be
+    // decoded at full resolution just to shrink to an 80x80 thumbnail, which
+    // would spike peak memory (and stall the UI thread) on 256 MiB-level files.
+    // The target is the aspect-preserving fit inside the requested size, so the
+    // stored thumbnail is identical to the old `decoded.scaled(...)` result.
+    const QSize source = reader.size();
+    bool preScaled = false;
+    if (source.isValid()) {
+        QSize target = source.scaled(size, Qt::KeepAspectRatio);
+        reader.setScaledSize(target.expandedTo(QSize(1, 1)));
+        preScaled = true;
+    }
     QImage decoded = reader.read();
     if (decoded.isNull()) return QImage();
-    const QImage scaled = decoded.scaled(size, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    // The reader pre-scaled to the aspect-preserving target (already within the
+    // requested box); a tiny source stays at its natural size. Only when the
+    // size could not be probed does the explicit scale run, so a thumbnail is
+    // never larger than requested and a huge image is never decoded whole.
+    const QImage scaled = preScaled
+        ? decoded
+        : decoded.scaled(size, Qt::KeepAspectRatio, Qt::SmoothTransformation);
     cache.store(contentHash, size, version, scaled);
     return scaled;
 }

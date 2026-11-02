@@ -9,8 +9,10 @@ namespace {
 SourceState stateFor(const QFileInfo &info) {
     if (!info.exists()) return SourceState::Unreachable;
     if (!info.isReadable()) return SourceState::PermissionDenied;
-    // Writable from the process's perspective (mode bits); mounted read-only
-    // shares report as ReadOnly, which must not be treated as a healthy disk.
+    // Readable from the process's perspective. isWritable() applies to files AND
+    // directories: a read-only mounted share (or a directory without write
+    // permission) reports ReadOnly, which must not be treated as a healthy disk
+    // or as unreachable — a read-only source is still listable/importable.
     return info.isWritable() ? SourceState::Reachable : SourceState::ReadOnly;
 }
 }

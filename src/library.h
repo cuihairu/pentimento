@@ -6,6 +6,8 @@
 #include <QRecursiveMutex>
 #include <QSqlDatabase>
 #include <QString>
+#include <QThread>
+#include <QThreadStorage>
 #include <QVector>
 #include <functional>
 #include <memory>
@@ -13,6 +15,14 @@
 #include <stdexcept>
 
 class QLockFile;
+
+// A worker thread's SQLite connection plus its unique registration name, so
+// the connection can be closed and unregistered when that thread exits (Qt
+// requires removeDatabase() to release a connection's name).
+struct WorkerDb {
+    QSqlDatabase db;
+    QString name;
+};
 
 struct Asset {
     QString id;
@@ -266,6 +276,16 @@ public:
     // the package is incomplete or corrupt, so a half-export is never reported
     // as success.
     QVector<BackupEntry> verifyBackupPackage(const QString &packageDir) const;
+    // P-603: restore rehearsal — materialize a backup package into THIS
+    // library, which must be a freshly created empty library at an independent
+    // directory (refuses to restore into a library that already has assets, so
+    // an original library is never overwritten). Every package object is
+    // verified (size + content hash) again during the copy; each manifest entry
+    // is reconstructed with its recorded asset id, name/folder path and content
+    // hash, and gets one revision (the manifest carries each live asset's
+    // latest revision). Returns the restored entries — the caller's verification
+    // report (asset ids, hashes, paths, version counts) is built from them.
+    QVector<BackupEntry> restoreBackupPackage(const QString &packageDir);
     // P-601: one run of the read-only object/index consistency check.
     struct ConsistencyReport {
         int revisions = 0;              // revision references inspected
@@ -404,7 +424,13 @@ public:
 private:
     QString root_;
     QString connection_;
-    QSqlDatabase db_;
+    mutable QSqlDatabase db_;   // connection for the creating (owner) thread
+    QThread *ownerThread_ = nullptr; // thread that constructed this library
+    // Qt rule: a QSqlDatabase connection is only usable from the thread that
+    // created it. Worker threads (TaskQueue) that call Library methods get their
+    // own lazily-opened connection (auto-cleaned when that thread exits), so no
+    // cross-thread use ever happens.
+    mutable QThreadStorage<WorkerDb> threadDbs_;
     std::unique_ptr<QLockFile> lock_;
     // P-304: every public method serializes on this, so the auto-record capture
     // can run on the background TaskQueue worker without racing the UI thread's
@@ -414,6 +440,10 @@ private:
     // Exception-safe construction helper (P-201): open the catalog, stamp the
     // schema/identity metadata, and validate the schema version.
     void openAndInitialize(const QString &catalog);
+    // The calling thread's SQLite connection (owner thread -> db_, otherwise a
+    // lazily-created per-thread connection). Throws if the worker connection
+    // cannot be opened; a worker never shares the owner's handle.
+    QSqlDatabase &db() const;
     void append(const Asset &asset, const QByteArray &bytes, const QString &note);
     // P-302 object storage: content is addressed by its SHA-256 and stored
     // immutably in objects/<hash>. Both paths follow the same order — stage in

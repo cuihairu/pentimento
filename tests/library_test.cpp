@@ -1,6 +1,7 @@
 #include "library.h"
 #include "backend.h"
 #include "compare_canvas.h"
+#include "preview_canvas.h"
 #include "exclusion.h"
 #include "filter.h"
 #include "i18n.h"
@@ -874,6 +875,74 @@ private slots:
         catch (const std::exception &) { corruptRejected = true; }
         QVERIFY(corruptRejected);
     }
+    void restoreBackupPackageRebuildsAssetsAndMetadata() {
+        QTemporaryDir dir;
+        QTemporaryDir target;
+        // Real PNGs so the restored asset gains honest filter facts (P-217).
+        auto makePng = [](const QString &path, const QColor &fill) {
+            QImage img(40, 30, QImage::Format_ARGB32);
+            img.fill(fill);
+            QByteArray bytes;
+            QBuffer buf(&bytes);
+            buf.open(QIODevice::WriteOnly);
+            QVERIFY(img.save(&buf, "PNG"));
+            put(path, bytes);
+        };
+        makePng(dir.filePath("a.png"), Qt::red);
+        makePng(dir.filePath("b.png"), Qt::blue);
+        Library library(dir.filePath("library"));
+        const auto a = library.importFile(dir.filePath("a.png"));
+        const auto b = library.importFile(dir.filePath("b.png"));
+        // Give the source library identifiable metadata: a tag, a rating, a
+        // note, and a second captured revision so the timeline has >1 version.
+        library.addTag(a.id, QStringLiteral("hero"));
+        library.setRating(a.id, 5);
+        library.setNote(a.id, QStringLiteral("主视觉"));
+        library.capture(a, QStringLiteral("第二次记录"));
+
+        // Export a consistent package, then rehearse restore into a fresh
+        // independent empty directory (never over the original library).
+        const auto package = library.exportBackupPackage(target.path());
+        QCOMPARE(package.entries.size(), 2);
+        Library drill(target.filePath("drill"));
+        const auto restored = drill.restoreBackupPackage(target.path());
+        QCOMPARE(restored.size(), 2);
+
+        // Content + identity survive: same asset ids, working file hashes match.
+        const auto assets = drill.assets();
+        QCOMPARE(assets.size(), 2);
+        for (const auto &e : restored) {
+            const auto it = std::find_if(assets.cbegin(), assets.cend(),
+                [&e](const Asset &x) { return x.id == e.assetId; });
+            QVERIFY(it != assets.cend());
+            QCOMPARE(it->name, e.name);
+            QCOMPARE(it->folder, e.folder);
+            QCOMPARE(digestHex(get(it->path)), e.hash);
+            // The object store holds the same content-addressed object.
+            QCOMPARE(digestHex(get(drill.objectPath(e.hash))), e.hash);
+        }
+        // At least one revision per asset, content hash preserved.
+        for (const auto &e : restored) {
+            const auto revs = drill.revisions(e.assetId);
+            QVERIFY(!revs.isEmpty());
+            QCOMPARE(revs.first().hash, e.hash);
+        }
+        // Recovered assets carry their stored identity (id + folder + name).
+        const auto ra = std::find_if(assets.cbegin(), assets.cend(),
+            [&](const Asset &x) { return x.id == a.id; });
+        QVERIFY(ra != assets.cend());
+        QCOMPARE(ra->name, a.name);
+        QCOMPARE(ra->folder, a.folder);
+        // Filtering facts are recomputed from the recovered content.
+        QCOMPARE(drill.assetFormat(a.id).toLower(), QStringLiteral("png"));
+        QVERIFY(drill.assetSize(a.id).width() > 0);
+
+        // The drill refuses to restore over a library that already has assets.
+        bool refused = false;
+        try { drill.restoreBackupPackage(target.path()); }
+        catch (const std::exception &) { refused = true; }
+        QVERIFY(refused);
+    }
     void consistencyCheckReportsCleanLibrary() {
         QTemporaryDir dir;
         put(dir.filePath("a.png"), "bytes-a");
@@ -952,6 +1021,58 @@ private slots:
         QCOMPARE(p.pinnedBytes, qint64(7));
         QCOMPARE(p.orphanObjects, 1);
         QCOMPARE(p.reclaimableBytes, qint64(12));  // orphan-bytes = 12 bytes
+    }
+    void backupPackageRestoreDrillRebuildsIndependentLibrary() {
+        QTemporaryDir dir;
+        QTemporaryDir target;
+        put(dir.filePath("a.png"), "bytes-a");
+        put(dir.filePath("b.png"), "bytes-b");
+        Library library(dir.filePath("library"));
+        QVERIFY(!library.importFile(dir.filePath("a.png")).id.isEmpty());
+        QVERIFY(!library.importFile(dir.filePath("b.png")).id.isEmpty());
+        const auto package = library.exportBackupPackage(target.filePath("pkg"));
+        QVERIFY(!package.entries.isEmpty());
+        // P-603: the drill restores into a separate empty library — never over
+        // the original. The recovered catalog must match the manifest on every
+        // dimension the rehearsal checks.
+        QTemporaryDir drill;
+        Library recovered(drill.filePath("lib"));
+        const auto restored = recovered.restoreBackupPackage(package.packageDir);
+        QCOMPARE(restored.size(), package.entries.size());
+        const auto assets = recovered.assets();
+        QCOMPARE(assets.size(), package.entries.size());
+        for (const auto &e : package.entries) {
+            // Resource id + path (folder/name) preserved.
+            const auto it = std::find_if(assets.cbegin(), assets.cend(),
+                [&e](const Asset &a) { return a.id == e.assetId; });
+            QVERIFY(it != assets.cend());
+            QCOMPARE(it->name, e.name);
+            QCOMPARE(it->folder, e.folder);
+            // Version count: exactly the manifest revision, content hash + size.
+            const auto revs = recovered.revisions(e.assetId);
+            QCOMPARE(revs.size(), 1);
+            QCOMPARE(revs.first().hash, e.hash);
+            QCOMPARE(revs.first().size, e.size);
+            // Content hash of the recovered working copy.
+            QCOMPARE(digestHex(get(it->path)), e.hash);
+        }
+    }
+    void backupPackageRestoreRefusesExistingLibrary() {
+        QTemporaryDir dir;
+        QTemporaryDir target;
+        QTemporaryDir drill;
+        put(dir.filePath("a.png"), "bytes-a");
+        Library library(dir.filePath("library"));
+        QVERIFY(!library.importFile(dir.filePath("a.png")).id.isEmpty());
+        const auto package = library.exportBackupPackage(target.filePath("pkg"));
+        // A drill library that already holds an asset must refuse the restore:
+        // the rehearsal never overwrites an original library.
+        Library recovered(drill.filePath("lib"));
+        QVERIFY(!recovered.importFile(dir.filePath("a.png")).id.isEmpty());
+        bool refused = false;
+        try { recovered.restoreBackupPackage(package.packageDir); }
+        catch (const std::exception &) { refused = true; }
+        QVERIFY(refused);
     }
     void storageInterfaceReportsConsistentLocalInfo() {
         QTemporaryDir dir;
@@ -1138,6 +1259,22 @@ private slots:
         QCOMPARE(get(asset.path), QByteArray("pixel data"));
         QCOMPARE(relocated.revisions(asset.id).size(), 1);
     }
+    // A corrupt catalog (not a SQLite file) must fail peekLibraryId without
+    // leaking a registered connection (Qt warns "connection still in use" if a
+    // handle is removed while open, so the failure must be clean).
+    void peekLibraryIdOnCorruptCatalogClosesCleanly() {
+        QTemporaryDir dir;
+        put(dir.filePath("catalog.sqlite"), "this is not sqlite");
+        bool rejected = false;
+        try { Library::peekLibraryId(dir.path()); }
+        catch (const std::exception &) { rejected = true; }
+        QVERIFY(rejected);
+        // Repeating must still fail cleanly (no leaked handle blocks reopen).
+        rejected = false;
+        try { Library::peekLibraryId(dir.path()); }
+        catch (const std::exception &) { rejected = true; }
+        QVERIFY(rejected);
+    }
     void copyImportPreservesSourceAndSharesObjectForDistinctIdentities() {
         QTemporaryDir dir;
         const auto source = dir.filePath("sheet.png");
@@ -1160,6 +1297,36 @@ private slots:
         const auto missing = dir.filePath("not-there.bin");
         QVERIFY_EXCEPTION_THROWN(library.importFile(missing), std::runtime_error);
         QCOMPARE(library.assets().size(), 2);
+    }
+    // P-203: an import that fails AFTER the working copy is written (here: the
+    // object staging dir refuses writes, so the registration append throws)
+    // must not leave a half-written asset — no orphan working directory, no
+    // asset row, and no stray object temp.
+    void importFileFailureAfterWorkingCopyLeavesNoOrphan() {
+        QTemporaryDir dir;
+        put(dir.filePath("a.bin"), "fresh bytes");
+        Library library(dir.filePath("lib"));
+        // Make the object staging dir unwritable so storeObject() throws inside
+        // the registration transaction (after the working copy exists).
+        const QString tmpDir = library.root() + "/objects/.tmp";
+        QVERIFY(QDir().mkpath(tmpDir));
+        QVERIFY(::chmod(tmpDir.toLocal8Bit().constData(), 0555) == 0);
+        bool threw = false;
+        try { library.importFile(dir.filePath("a.bin")); }
+        catch (const std::runtime_error &) { threw = true; }
+        QVERIFY(::chmod(tmpDir.toLocal8Bit().constData(), 0755) == 0);
+        QVERIFY(threw);
+        // No asset row, no orphan working directory, no partial temp object.
+        QCOMPARE(library.assets().size(), 0);
+        const int workingDirs = QDir(library.root() + "/working")
+            .entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot).size();
+        QCOMPARE(workingDirs, 0);
+        const int temps = QDir(tmpDir).entryInfoList(QDir::Files | QDir::NoDotAndDotDot).size();
+        QCOMPARE(temps, 0);
+        // The library still works: a retry after restoring write access imports.
+        const auto asset = library.importFile(dir.filePath("a.bin"));
+        QVERIFY(!asset.id.isEmpty());
+        QCOMPARE(library.assets().size(), 1);
     }
     void recentLibraryListPersistsDeduplicatesAndCaps() {
         QTemporaryDir dir;
@@ -1304,6 +1471,24 @@ private slots:
         const QImage rebuilt = thumbnailFor(cache, pngBytes, hash, request);
         QVERIFY(!rebuilt.isNull());
         QCOMPARE(rebuilt.size(), QSize(64, 32));
+        // A very large source is pre-downsampled before decode (P-207): the
+        // thumbnail fits the request box and keeps the aspect ratio, so a huge
+        // image never forces a full-resolution decode on the UI thread.
+        QImage huge(4000, 1000, QImage::Format_ARGB32);
+        huge.fill(Qt::blue);
+        QByteArray hugePng;
+        {
+            QBuffer buf(&hugePng);
+            buf.open(QIODevice::WriteOnly);
+            QVERIFY(huge.save(&buf, "PNG"));
+        }
+        const QString hugeHash = QString::fromLatin1(QCryptographicHash::hash(
+            hugePng, QCryptographicHash::Sha256).toHex());
+        const QImage hugeThumb = thumbnailFor(cache, hugePng, hugeHash, request);
+        QVERIFY(!hugeThumb.isNull());
+        QVERIFY(hugeThumb.size().width() <= request.width());
+        QVERIFY(hugeThumb.size().height() <= request.height());
+        QCOMPARE(hugeThumb.size(), QSize(64, 16)); // 4000x1000 -> 64x16
         // The thumbnail is not the history content: the source bytes are untouched.
         QCOMPARE(hash, QString::fromLatin1(QCryptographicHash::hash(
             pngBytes, QCryptographicHash::Sha256).toHex()));
@@ -2622,6 +2807,24 @@ private slots:
         oneSided.show();
         QVERIFY(oneSided.hasImages());
         QVERIFY(!oneSided.grab().isNull());
+    }
+    // P-209: manual-zoom sizeHint includes the 12px origin inset on every side,
+    // so the scroll area can pan the complete image (nothing clipped at the
+    // right/bottom edge).
+    void previewCanvasManualSizeHintIncludesOriginInset() {
+        PreviewCanvas canvas;
+        QImage img(300, 200, QImage::Format_RGB32);
+        img.fill(Qt::red);
+        canvas.setImage(img);
+        // Fit: tiny hint (the scroll area expands to the viewport).
+        canvas.setFit(true);
+        QCOMPARE(canvas.sizeHint(), QSize(1, 1));
+        // Manual 1.0: scaled image PLUS the 12px inset on each side.
+        canvas.setZoom(1.0);
+        QCOMPARE(canvas.sizeHint(), QSize(300 + 24, 200 + 24));
+        // Manual 0.5: half size plus the same inset.
+        canvas.setZoom(0.5);
+        QCOMPARE(canvas.sizeHint(), QSize(150 + 24, 100 + 24));
     }
 };
 

@@ -88,6 +88,7 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     toolbar->addAction(tr("导出备份包…"), this, &MainWindow::exportBackup);
     toolbar->addAction(tr("一致性检查…"), this, &MainWindow::checkConsistency);
     toolbar->addAction(tr("空间预演…"), this, &MainWindow::showSpacePreview);
+    toolbar->addAction(tr("恢复演练…"), this, &MainWindow::restoreBackupDrill);
     auto *splitter = new QSplitter;
     auto *left = new QWidget;
     auto *leftLayout = new QVBoxLayout(left);
@@ -1770,6 +1771,82 @@ void MainWindow::showSpacePreview() {
                     .arg(p.pinnedRevisions).arg(fmt(p.pinnedBytes))
                     .arg(fmt(p.reclaimableBytes)).arg(p.orphanObjects);
             QMessageBox::information(this, tr("空间预演"), body);
+        });
+}
+
+// P-603: backup rehearsal — prove a package can actually be recovered, in an
+// independent empty directory (never over the original library). This is the
+// evidence that a backup succeeded; checking "the backup file exists" or
+// counting archive members proves nothing about index/object correspondence.
+// After the restore, the drill re-reads the recovered catalog and checks each
+// manifest entry: asset id, folder/name path, revision count, content hash.
+void MainWindow::restoreBackupDrill() {
+    const QString packageDir = QFileDialog::getExistingDirectory(this, tr("选择备份包目录（含 COMPLETE 标记）"));
+    if (packageDir.isEmpty()) return;
+    const QString targetDir = QFileDialog::getExistingDirectory(this, tr("选择恢复演练目标目录（须为空目录）"));
+    if (targetDir.isEmpty()) return;
+    if (QMessageBox::question(this, tr("恢复演练"),
+                              tr("将在独立目录完整恢复备份包并逐项核对：\n"
+                                 "备份包：%1\n目标目录：%2\n\n"
+                                 "不覆盖原素材库；核对 空目录恢复、内容哈希、资源 ID、版本数、路径。")
+                                  .arg(packageDir, targetDir))
+        != QMessageBox::Yes)
+        return;
+    statusBar()->showMessage(tr("正在执行恢复演练（后台进行）…"));
+    auto summary = std::make_shared<QString>();
+    auto error = std::make_shared<QString>();
+    const qint64 id = captureQueue_->submit(QStringLiteral("恢复演练"),
+        [packageDir, targetDir, summary, error](TaskQueue::Progress &) {
+            try {
+                Library drill(targetDir);
+                const auto restored = drill.restoreBackupPackage(packageDir);
+                int checked = 0;
+                QStringList problems;
+                const auto assets = drill.assets();
+                for (const auto &e : restored) {
+                    // Asset id present, path (folder/name) preserved.
+                    const auto it = std::find_if(assets.cbegin(), assets.cend(),
+                        [&e](const Asset &a) { return a.id == e.assetId; });
+                    if (it == assets.cend()) {
+                        problems << e.name;
+                        continue;
+                    }
+                    if (it->name != e.name || it->folder != e.folder)
+                        problems << e.name;
+                    // Version count and content hash of the recovered revision.
+                    const auto revs = drill.revisions(e.assetId);
+                    if (revs.isEmpty() || revs.first().hash != e.hash)
+                        problems << e.name;
+                    // The recovered working file must hash to the same content.
+                    QFile working(it->path);
+                    if (!working.open(QIODevice::ReadOnly)
+                        || QString::fromLatin1(QCryptographicHash::hash(working.readAll(),
+                                                   QCryptographicHash::Sha256).toHex()) != e.hash)
+                        problems << e.name;
+                    ++checked;
+                }
+                *summary = problems.isEmpty()
+                    ? QStringLiteral("OK %1").arg(restored.size())
+                    : QStringLiteral("PARTIAL %1/%2 (%3)").arg(checked).arg(restored.size())
+                                                     .arg(problems.join(','));
+            } catch (const std::exception &e) {
+                *error = QString::fromUtf8(e.what());
+            }
+        });
+    QObject::connect(captureQueue_.get(), &TaskQueue::taskFinished, this,
+        [this, id, summary, error, targetDir](qint64 finished, bool, const QString &) {
+            if (finished != id) return;
+            if (!error->isEmpty()) {
+                statusBar()->showMessage(tr("恢复演练失败：%1").arg(*error));
+                QMessageBox::warning(this, tr("恢复演练"),
+                                     tr("恢复演练失败：%1\n（演练目录未通过，备份不可视为可用）").arg(*error));
+                return;
+            }
+            statusBar()->showMessage(tr("恢复演练完成：%1（独立目录 %2）").arg(*summary).arg(targetDir));
+            QMessageBox::information(this, tr("恢复演练"),
+                                     tr("恢复演练完成：%1\n"
+                                        "空目录恢复、内容哈希、资源 ID、版本数、路径已逐项核对。\n"
+                                        "演练目录：%2").arg(*summary, targetDir));
         });
 }
 

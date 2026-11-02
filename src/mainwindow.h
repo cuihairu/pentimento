@@ -181,5 +181,6 @@ private:
     void exportBackup();
     void checkConsistency();
     void showSpacePreview();
+    void restoreBackupDrill();
     void report(const std::exception &error);
 };

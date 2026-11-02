@@ -161,7 +161,7 @@ void Library::openAndInitialize(const QString &catalog) {
     // existing table, so add each column when it is missing (existing rows keep
     // the root folder "" and unknown format/size).
     const auto ensureColumn = [&](const QString &name, const QString &ddl) {
-        QSqlQuery check(db_);
+        QSqlQuery check(db());
         check.prepare("SELECT COUNT(*) FROM pragma_table_info('assets') WHERE name=?");
         check.addBindValue(name);
         execute(check);
@@ -181,7 +181,7 @@ void Library::openAndInitialize(const QString &catalog) {
     // P-306: snapshot entries carry a state (present|excluded; tombstone|missing
     // arrive with P-310/P-311) plus the exclusion reason that produced it.
     const auto ensureSnapshotColumn = [&](const QString &name, const QString &ddl) {
-        QSqlQuery check(db_);
+        QSqlQuery check(db());
         check.prepare("SELECT COUNT(*) FROM pragma_table_info('snapshot_assets') WHERE name=?");
         check.addBindValue(name);
         execute(check);
@@ -203,7 +203,7 @@ void Library::openAndInitialize(const QString &catalog) {
     // policy never cleans or overwrites its object. Old libraries lack the
     // columns; every existing revision is simply unpinned by default.
     const auto ensureRevisionColumn = [&](const QString &name, const QString &ddl) {
-        QSqlQuery check(db_);
+        QSqlQuery check(db());
         check.prepare("SELECT COUNT(*) FROM pragma_table_info('revisions') WHERE name=?");
         check.addBindValue(name);
         execute(check);
@@ -223,8 +223,13 @@ void Library::openAndInitialize(const QString &catalog) {
     meta.prepare("SELECT value FROM meta WHERE key='schema_version'");
     execute(meta);
     if (meta.next()) {
-        if (meta.value(0).toString() != QStringLiteral("1"))
+        if (meta.value(0).toString() != QStringLiteral("1")) {
+            // Close the already-open handle before the exception propagates to
+            // the constructor catch (which only resets + removeDatabase), so an
+            // incompatible catalog never leaks an open SQLite connection.
+            db_.close();
             fail(Library::tr("素材库 schema 版本不兼容（%1），请使用匹配版本打开").arg(meta.value(0).toString()));
+        }
     } else {
         // Fresh library: stamp identity + version (P-202 foundation).
         QSqlQuery stamp(db_);
@@ -240,6 +245,46 @@ Library::~Library() {
     QSqlDatabase::removeDatabase(connection_);
 }
 
+QSqlDatabase &Library::db() const {
+    if (QThread::currentThread() == QCoreApplication::instance()->thread())
+        return db_;
+    // A worker thread: get (or lazily create) its own connection, stored in
+    // QThreadStorage so it is cleaned up when that worker exits. The library is
+    // opened and validated by the owner before any worker runs; a worker only
+    // ever sees an already-initialized catalog.
+    if (!threadDbs_.hasLocalData()) {
+        // Unique name per thread; never reuses a thread id, so a recycled id
+        // (a later worker) cannot collide with a dead thread's connection.
+        const QString name = connection_ + QStringLiteral("_w%1").arg(
+            QUuid::createUuid().toString(QUuid::WithoutBraces));
+        QSqlDatabase worker = QSqlDatabase::addDatabase("QSQLITE", name);
+        worker.setDatabaseName(root_ + "/catalog.sqlite");
+        if (!worker.open()) {
+            const QString error = worker.lastError().text();
+            QSqlDatabase::removeDatabase(name);
+            fail(Library::tr("后台连接无法打开：%1").arg(error));
+        }
+        QSqlQuery pragma(worker);
+        if (!pragma.exec("PRAGMA foreign_keys=ON"))
+            fail(Library::tr("后台连接初始化失败：%1").arg(pragma.lastError().text()));
+        WorkerDb entry;
+        entry.db = worker;
+        entry.name = name;
+        threadDbs_.setLocalData(entry);
+        // Close + unregister when this worker thread exits, so a recycled
+        // thread id never reuses a dead thread's connection and no name leaks.
+        QThread *self = QThread::currentThread();
+        QObject::connect(self, &QThread::finished, self, [this, name]() {
+            if (QSqlDatabase::contains(name)) {
+                QSqlDatabase db = QSqlDatabase::database(name, false);
+                if (db.isOpen()) db.close();
+                QSqlDatabase::removeDatabase(name);
+            }
+        });
+    }
+    return threadDbs_.localData().db;
+}
+
 BackendInfo Library::backendInfo() const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
     // V1 only ever hosts the self-built backend. Git/SVN (read-only) and Time
@@ -249,7 +294,7 @@ BackendInfo Library::backendInfo() const {
 
 QString Library::libraryId() const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
-    QSqlQuery q(db_);
+    QSqlQuery q(db());
     q.prepare("SELECT value FROM meta WHERE key='library_id'");
     execute(q);
     if (q.next()) return q.value(0).toString();
@@ -262,7 +307,7 @@ QString Library::libraryId() const {
 
 QStringList Library::tags(const QString &assetId) const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
-    QSqlQuery q(db_);
+    QSqlQuery q(db());
     q.prepare("SELECT tag FROM tags WHERE asset_id=? ORDER BY tag");
     q.addBindValue(assetId);
     execute(q);
@@ -273,7 +318,7 @@ QStringList Library::tags(const QString &assetId) const {
 
 QStringList Library::assetsWithTag(const QString &tag) const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
-    QSqlQuery q(db_);
+    QSqlQuery q(db());
     q.prepare("SELECT asset_id FROM tags WHERE tag=? ORDER BY asset_id");
     q.addBindValue(tag.trimmed());
     execute(q);
@@ -286,7 +331,7 @@ int Library::addTag(const QString &assetId, const QString &tag) {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
     const QString value = tag.trimmed();
     if (value.isEmpty()) return 0;
-    QSqlQuery q(db_);
+    QSqlQuery q(db());
     q.prepare("INSERT OR IGNORE INTO tags(asset_id,tag) VALUES(?,?)");
     q.addBindValue(assetId);
     q.addBindValue(value);
@@ -299,7 +344,7 @@ int Library::removeTag(const QString &assetId, const QString &tag) {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
     const QString value = tag.trimmed();
     if (value.isEmpty()) return 0;
-    QSqlQuery q(db_);
+    QSqlQuery q(db());
     q.prepare("DELETE FROM tags WHERE asset_id=? AND tag=?");
     q.addBindValue(assetId);
     q.addBindValue(value);
@@ -313,17 +358,17 @@ int Library::addTagToAssets(const QStringList &assetIds, const QString &tag) {
     const QString value = tag.trimmed();
     if (value.isEmpty() || assetIds.isEmpty()) return 0;
     int changed = 0;
-    db_.transaction();
+    db().transaction();
     for (const QString &id : assetIds) {
-        QSqlQuery q(db_);
+        QSqlQuery q(db());
         q.prepare("INSERT OR IGNORE INTO tags(asset_id,tag) VALUES(?,?)");
         q.addBindValue(id);
         q.addBindValue(value);
-        if (!q.exec()) { db_.rollback(); fail(q.lastError().text()); }
+        if (!q.exec()) { db().rollback(); fail(q.lastError().text()); }
         if (q.numRowsAffected() > 0) recordFieldChange(id, QStringLiteral("标签"), QString(), value);
         changed += q.numRowsAffected();
     }
-    db_.commit();
+    db().commit();
     return changed;
 }
 
@@ -332,17 +377,17 @@ int Library::removeTagFromAssets(const QStringList &assetIds, const QString &tag
     const QString value = tag.trimmed();
     if (value.isEmpty() || assetIds.isEmpty()) return 0;
     int changed = 0;
-    db_.transaction();
+    db().transaction();
     for (const QString &id : assetIds) {
-        QSqlQuery q(db_);
+        QSqlQuery q(db());
         q.prepare("DELETE FROM tags WHERE asset_id=? AND tag=?");
         q.addBindValue(id);
         q.addBindValue(value);
-        if (!q.exec()) { db_.rollback(); fail(q.lastError().text()); }
+        if (!q.exec()) { db().rollback(); fail(q.lastError().text()); }
         if (q.numRowsAffected() > 0) recordFieldChange(id, QStringLiteral("标签"), value, QString());
         changed += q.numRowsAffected();
     }
-    db_.commit();
+    db().commit();
     return changed;
 }
 
@@ -352,7 +397,7 @@ int Library::countAssetsWithoutTag(const QStringList &assetIds, const QString &t
     if (value.isEmpty()) return 0;
     int count = 0;
     for (const QString &id : assetIds) {
-        QSqlQuery q(db_);
+        QSqlQuery q(db());
         q.prepare("SELECT 1 FROM tags WHERE asset_id=? AND tag=?");
         q.addBindValue(id);
         q.addBindValue(value);
@@ -368,7 +413,7 @@ int Library::countAssetsWithTag(const QStringList &assetIds, const QString &tag)
     if (value.isEmpty()) return 0;
     int count = 0;
     for (const QString &id : assetIds) {
-        QSqlQuery q(db_);
+        QSqlQuery q(db());
         q.prepare("SELECT 1 FROM tags WHERE asset_id=? AND tag=?");
         q.addBindValue(id);
         q.addBindValue(value);
@@ -385,7 +430,7 @@ int Library::countAssetsWithTag(const QStringList &assetIds, const QString &tag)
 
 int Library::rating(const QString &assetId) const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
-    QSqlQuery q(db_);
+    QSqlQuery q(db());
     q.prepare("SELECT rating FROM asset_meta WHERE asset_id=?");
     q.addBindValue(assetId);
     execute(q);
@@ -399,13 +444,13 @@ void Library::setRating(const QString &assetId, int rating) {
         fail(Library::tr("无效的评分：%1").arg(rating));
     // P-309: the old rating is read before the change so the field history can
     // record exactly old → new ("" means no rating).
-    QSqlQuery old(db_);
+    QSqlQuery old(db());
     old.prepare("SELECT rating FROM asset_meta WHERE asset_id=?");
     old.addBindValue(assetId);
     execute(old);
     const QString oldValue = old.next() && !old.value(0).isNull()
         ? QString::number(old.value(0).toInt()) : QString();
-    QSqlQuery q(db_);
+    QSqlQuery q(db());
     // Upsert preserves an existing note; a fresh row starts with an empty note.
     if (rating < 0) {
         q.prepare("INSERT INTO asset_meta(asset_id,rating,note) VALUES(?,NULL,'') "
@@ -423,7 +468,7 @@ void Library::setRating(const QString &assetId, int rating) {
 
 QString Library::note(const QString &assetId) const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
-    QSqlQuery q(db_);
+    QSqlQuery q(db());
     q.prepare("SELECT note FROM asset_meta WHERE asset_id=?");
     q.addBindValue(assetId);
     execute(q);
@@ -434,12 +479,12 @@ void Library::setNote(const QString &assetId, const QString &note) {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
     // P-309: the old note is read before the change (the field history records
     // the actual old value, never an invented one).
-    QSqlQuery old(db_);
+    QSqlQuery old(db());
     old.prepare("SELECT note FROM asset_meta WHERE asset_id=?");
     old.addBindValue(assetId);
     execute(old);
     const QString oldValue = old.next() ? old.value(0).toString() : QString();
-    QSqlQuery q(db_);
+    QSqlQuery q(db());
     // Upsert preserves an existing rating; a fresh row starts with no rating.
     // A null QString binds as SQL NULL, which the NOT NULL note column rejects;
     // an "empty" note is stored as '' (readers see empty either way).
@@ -461,7 +506,7 @@ void Library::setNote(const QString &assetId, const QString &note) {
 
 QVector<Provenance> Library::provenance(const QString &assetId) const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
-    QSqlQuery q(db_);
+    QSqlQuery q(db());
     q.prepare("SELECT id,source,author,license,evidence,evidence_name,recorded "
               "FROM provenance WHERE asset_id=? ORDER BY id DESC");
     q.addBindValue(assetId);
@@ -494,7 +539,7 @@ void Library::addProvenance(const QString &assetId, const Provenance &entry) {
     // value). Append-only records stay viewable either way (P-215).
     const auto previous = provenance(assetId);
     const Provenance prior = previous.isEmpty() ? Provenance{} : previous.first();
-    QSqlQuery q(db_);
+    QSqlQuery q(db());
     q.prepare("INSERT INTO provenance(asset_id,source,author,license,evidence,evidence_name,recorded) "
               "VALUES(?,?,?,?,?,?,?)");
     q.addBindValue(assetId);
@@ -545,13 +590,13 @@ void Library::addExclusion(const QString &kind, const QString &pattern) {
     if (normalized.isEmpty()) fail(Library::tr("排除规则不能为空"));
     if (kind != QLatin1String("extension") && kind != QLatin1String("path") && kind != QLatin1String("name"))
         fail(Library::tr("未知的排除规则类型"));
-    QSqlQuery find(db_);
+    QSqlQuery find(db());
     find.prepare("SELECT COUNT(*) FROM exclusions WHERE kind=? AND pattern=?");
     find.addBindValue(kind);
     find.addBindValue(normalized);
     execute(find);
     if (find.next() && find.value(0).toInt() > 0) fail(Library::tr("该排除规则已存在"));
-    QSqlQuery ins(db_);
+    QSqlQuery ins(db());
     ins.prepare("INSERT INTO exclusions(kind,pattern,created) VALUES(?,?,?)");
     ins.addBindValue(kind);
     ins.addBindValue(normalized);
@@ -561,7 +606,7 @@ void Library::addExclusion(const QString &kind, const QString &pattern) {
 
 void Library::removeExclusion(const QString &kind, const QString &pattern) {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
-    QSqlQuery del(db_);
+    QSqlQuery del(db());
     del.prepare("DELETE FROM exclusions WHERE kind=? AND pattern=?");
     del.addBindValue(kind);
     del.addBindValue(exclusionNormalize(kind, pattern));
@@ -570,7 +615,7 @@ void Library::removeExclusion(const QString &kind, const QString &pattern) {
 
 QVector<Exclusion> Library::exclusions() const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
-    QSqlQuery q(db_);
+    QSqlQuery q(db());
     q.prepare("SELECT kind,pattern,created FROM exclusions ORDER BY kind,pattern");
     execute(q);
     QVector<Exclusion> result;
@@ -586,12 +631,12 @@ QVector<Exclusion> Library::exclusions() const {
 
 void Library::pinRevision(qint64 revisionId, const QString &reason) {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
-    QSqlQuery find(db_);
+    QSqlQuery find(db());
     find.prepare("SELECT COUNT(*) FROM revisions WHERE id=?");
     find.addBindValue(revisionId);
     execute(find);
     if (find.next() && find.value(0).toInt() == 0) fail(Library::tr("版本不存在"));
-    QSqlQuery upd(db_);
+    QSqlQuery upd(db());
     upd.prepare("UPDATE revisions SET pinned=1,pin_reason=? WHERE id=?");
     upd.addBindValue(reason.trimmed().isEmpty() ? Library::tr("手动固定") : reason.trimmed());
     upd.addBindValue(revisionId);
@@ -600,7 +645,7 @@ void Library::pinRevision(qint64 revisionId, const QString &reason) {
 
 void Library::unpinRevision(qint64 revisionId) {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
-    QSqlQuery upd(db_);
+    QSqlQuery upd(db());
     upd.prepare("UPDATE revisions SET pinned=0,pin_reason='' WHERE id=?");
     upd.addBindValue(revisionId);
     execute(upd);
@@ -626,7 +671,7 @@ void Library::recordFieldChange(const QString &assetId, const QString &field,
         // Metadata-only revision: the content hash and size are copied from the
         // current content, so no new object is written and the content timeline
         // is untouched; only the note carries the field change.
-        QSqlQuery ins(db_);
+        QSqlQuery ins(db());
         ins.prepare("INSERT INTO revisions(asset_id,hash,created,note,size,pinned,pin_reason) VALUES(?,?,?,?,?,0,'')");
         ins.addBindValue(assetId);
         ins.addBindValue(history.first().hash);
@@ -636,7 +681,7 @@ void Library::recordFieldChange(const QString &assetId, const QString &field,
         execute(ins);
         revisionId = ins.lastInsertId().toLongLong();
     }
-    QSqlQuery rec(db_);
+    QSqlQuery rec(db());
     rec.prepare("INSERT INTO field_history(asset_id,revision_id,field,old_value,new_value,changed) VALUES(?,?,?,?,?,?)");
     rec.addBindValue(assetId);
     rec.addBindValue(revisionId);
@@ -649,7 +694,7 @@ void Library::recordFieldChange(const QString &assetId, const QString &field,
 
 QVector<FieldChange> Library::fieldHistory(const QString &assetId) const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
-    QSqlQuery q(db_);
+    QSqlQuery q(db());
     q.prepare("SELECT id,asset_id,revision_id,field,old_value,new_value,changed "
               "FROM field_history WHERE asset_id=? ORDER BY id DESC");
     q.addBindValue(assetId);
@@ -676,14 +721,14 @@ void Library::renameAsset(const QString &assetId, const QString &newName) {
     if (name.isEmpty()) fail(Library::tr("名称不能为空"));
     if (name.contains('/') || name.contains('\\'))
         fail(Library::tr("名称不能包含路径分隔符"));
-    QSqlQuery find(db_);
+    QSqlQuery find(db());
     find.prepare("SELECT name,folder,path FROM assets WHERE id=?");
     find.addBindValue(assetId);
     execute(find);
     if (!find.next()) fail(Library::tr("找不到素材"));
     const QString folder = find.value(1).toString();
     // Same-folder name clash: refuse and say so; two assets never merge.
-    QSqlQuery clash(db_);
+    QSqlQuery clash(db());
     clash.prepare("SELECT id FROM assets WHERE folder=? AND name=? AND id<>?");
     clash.addBindValue(folder);
     clash.addBindValue(name);
@@ -704,7 +749,7 @@ void Library::renameAsset(const QString &assetId, const QString &newName) {
         if (!QFile::rename(oldAbsolute, newAbsolute))
             fail(Library::tr("无法重命名工作副本"));
     }
-    QSqlQuery update(db_);
+    QSqlQuery update(db());
     update.prepare("UPDATE assets SET name=?,path=? WHERE id=?");
     update.addBindValue(name);
     update.addBindValue(newStored);
@@ -728,14 +773,14 @@ void Library::moveAsset(const QString &assetId, const QString &newFolder) {
         parts << piece;
     }
     const QString folder = parts.join('/');
-    QSqlQuery find(db_);
+    QSqlQuery find(db());
     find.prepare("SELECT name,folder FROM assets WHERE id=?");
     find.addBindValue(assetId);
     execute(find);
     if (!find.next()) fail(Library::tr("找不到素材"));
     if (find.value(1).toString() == folder) return; // already there: no-op
     // Same-folder name clash after the move: refuse, never merge identities.
-    QSqlQuery clash(db_);
+    QSqlQuery clash(db());
     clash.prepare("SELECT id FROM assets WHERE folder=? AND name=? AND id<>?");
     clash.addBindValue(folder);
     clash.addBindValue(find.value(0).toString());
@@ -743,7 +788,7 @@ void Library::moveAsset(const QString &assetId, const QString &newFolder) {
     execute(clash);
     if (clash.next())
         fail(Library::tr("目标文件夹已有同名素材：%1，不会合并").arg(find.value(0).toString()));
-    QSqlQuery update(db_);
+    QSqlQuery update(db());
     update.prepare("UPDATE assets SET folder=? WHERE id=?");
     update.addBindValue(folder);
     update.addBindValue(assetId);
@@ -758,7 +803,7 @@ void Library::moveAsset(const QString &assetId, const QString &newFolder) {
 
 QString Library::assetFormat(const QString &assetId) const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
-    QSqlQuery q(db_);
+    QSqlQuery q(db());
     q.prepare("SELECT format FROM assets WHERE id=?");
     q.addBindValue(assetId);
     execute(q);
@@ -767,7 +812,7 @@ QString Library::assetFormat(const QString &assetId) const {
 
 QSize Library::assetSize(const QString &assetId) const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
-    QSqlQuery q(db_);
+    QSqlQuery q(db());
     q.prepare("SELECT width,height FROM assets WHERE id=?");
     q.addBindValue(assetId);
     execute(q);
@@ -790,8 +835,11 @@ QString Library::peekLibraryId(const QString &root) {
             QSqlQuery q(db);
             if (q.exec("SELECT value FROM meta WHERE key='library_id'") && q.next())
                 id = q.value(0).toString();
-            db.close();
         }
+        // Close on BOTH paths: a successful open must release the handle before
+        // removeDatabase, and a failed open may still have registered a handle
+        // that Qt warns about if removed while "in use".
+        if (db.isOpen()) db.close();
     }
     QSqlDatabase::removeDatabase(connection);
     if (id.isEmpty()) fail(Library::tr("该素材库缺少身份标识（library_id），库可能已损坏"));
@@ -800,7 +848,7 @@ QString Library::peekLibraryId(const QString &root) {
 
 QVector<Asset> Library::assets() const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
-    QSqlQuery q(db_);
+    QSqlQuery q(db());
     // P-310: live assets only. A deleted asset keeps its row (and history) for
     // timeline queries but is never listed as a live entry; it stays reachable
     // through the tombstone revision's asset_id.
@@ -820,7 +868,7 @@ QVector<Asset> Library::assets() const {
 
 QVector<Revision> Library::revisions(const QString &assetId) const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
-    QSqlQuery q(db_);
+    QSqlQuery q(db());
     q.prepare("SELECT id,hash,created,note,size,pinned,pin_reason,tombstone FROM revisions WHERE asset_id=? ORDER BY id DESC");
     q.addBindValue(assetId);
     execute(q);
@@ -833,7 +881,7 @@ QVector<Revision> Library::revisions(const QString &assetId) const {
 
 bool Library::hasContent(const QString &hexHash) const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
-    QSqlQuery q(db_);
+    QSqlQuery q(db());
     q.prepare("SELECT COUNT(*) FROM revisions WHERE hash=?");
     q.addBindValue(hexHash);
     execute(q);
@@ -922,7 +970,7 @@ QString Library::tempObjectPath() const {
 }
 
 qint64 Library::recordRevision(const Asset &asset, const QString &hash, qint64 size, const QString &note) {
-    QSqlQuery q(db_);
+    QSqlQuery q(db());
     q.prepare("INSERT INTO revisions(asset_id,hash,created,note,size) VALUES(?,?,?,?,?)");
     q.addBindValue(asset.id);
     q.addBindValue(hash);
@@ -937,7 +985,7 @@ qint64 Library::recordRevision(const Asset &asset, const QString &hash, qint64 s
     // name can be stale after a format-changing capture, and the facts must
     // reflect the true committed content.
     const auto meta = preview::metadata(objectPath(hash));
-    QSqlQuery facts(db_);
+    QSqlQuery facts(db());
     facts.prepare("UPDATE assets SET format=?,width=?,height=? WHERE id=?");
     // A null QString binds as SQL NULL and the NOT NULL column rejects it.
     facts.addBindValue(meta.format.isEmpty() ? QStringLiteral("") : meta.format.toUpper());
@@ -970,17 +1018,26 @@ Asset Library::importFile(const QString &source) {
         QDir().rmdir(workingDir); // best-effort; empty dir only, never the source
         throw;
     }
-    if (!db_.transaction()) fail(db_.lastError().text());
+    if (!db().transaction()) fail(db().lastError().text());
     try {
-        QSqlQuery q(db_);
+        QSqlQuery q(db());
         q.prepare("INSERT INTO assets(id,name,path,folder) VALUES(?,?,?,?)");
         q.addBindValue(asset.id); q.addBindValue(asset.name); q.addBindValue(asset.relative);
         // A null QString binds as SQL NULL; the root folder is stored as ''.
         q.addBindValue(asset.folder.isNull() ? QStringLiteral("") : asset.folder);
         execute(q);
         append(asset, bytes, QStringLiteral("首次导入"));
-        if (!db_.commit()) fail(db_.lastError().text());
-    } catch (...) { db_.rollback(); throw; }
+        if (!db().commit()) fail(db().lastError().text());
+    } catch (...) {
+        db().rollback();
+        // P-203: a pre-registration failure must not leave a half-written asset.
+        // The working copy is removed (and its now-empty directory) so no orphan
+        // with an assets row is left behind; the content-addressed object is
+        // shared and would be reported by the consistency check, not leaked here.
+        QFile::remove(asset.path);
+        QDir().rmdir(workingDir);
+        throw;
+    }
     return asset;
 }
 
@@ -1147,13 +1204,13 @@ void Library::restore(const Asset &asset, const RestorePlan &plan) {
         // version BEFORE anything else. Committed on its own: if the restore is
         // abandoned later, the protect stays (a legit version of the content
         // that was there) and nothing is half-restored.
-        if (!db_.transaction()) fail(db_.lastError().text());
+        if (!db().transaction()) fail(db().lastError().text());
         try {
             append(asset, previous, QStringLiteral("恢复前自动保存"));
-            if (!db_.commit()) fail(db_.lastError().text());
+            if (!db().commit()) fail(db().lastError().text());
             protectId = revisions(asset.id).first().id;
         } catch (...) {
-            db_.rollback();
+            db().rollback();
             throw;
         }
     }
@@ -1180,23 +1237,23 @@ void Library::restore(const Asset &asset, const RestorePlan &plan) {
         throw;
     }
     // Stage 4: append the restore revision and mark the log done (one commit).
-    if (!db_.transaction()) {
-        markRestoreLog(logId, QStringLiteral("failed"), db_.lastError().text());
-        fail(db_.lastError().text());
+    if (!db().transaction()) {
+        markRestoreLog(logId, QStringLiteral("failed"), db().lastError().text());
+        fail(db().lastError().text());
     }
     try {
         append(asset, bytes, QStringLiteral("恢复历史版本 #%1").arg(plan.revisionId));
         markRestoreLog(logId, QStringLiteral("done"));
-        if (!db_.commit()) fail(db_.lastError().text());
+        if (!db().commit()) fail(db().lastError().text());
     } catch (...) {
         // The file WAS replaced but the index did not commit: restore the
         // previous content so file and index agree, and record the failure in
         // the log (in-process path; a power loss here is handled by convergence
         // on reopen instead).
-        db_.rollback();
+        db().rollback();
         if (existed) writeFile(asset.path, previous);
         else QFile::remove(asset.path);
-        markRestoreLog(logId, QStringLiteral("failed"), db_.lastError().text());
+        markRestoreLog(logId, QStringLiteral("failed"), db().lastError().text());
         throw;
     }
 }
@@ -1204,10 +1261,10 @@ void Library::restore(const Asset &asset, const RestorePlan &plan) {
 qint64 Library::writeRestoreLog(const QString &assetId, qint64 revisionId,
                                 const QString &previousHash, const QString &targetHash,
                                 qint64 protectId) {
-    if (!db_.transaction()) fail(db_.lastError().text());
+    if (!db().transaction()) fail(db().lastError().text());
     qint64 logId = 0;
     try {
-        QSqlQuery ins(db_);
+        QSqlQuery ins(db());
         ins.prepare("INSERT INTO restore_log(asset_id,revision_id,state,previous_hash,target_hash,"
                     "protect_revision_id,error,created,updated) VALUES(?,?,?,?,?,?,'',?,?)");
         const QString now = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
@@ -1221,9 +1278,9 @@ qint64 Library::writeRestoreLog(const QString &assetId, qint64 revisionId,
         ins.addBindValue(now);
         execute(ins);
         logId = ins.lastInsertId().toLongLong();
-        if (!db_.commit()) fail(db_.lastError().text());
+        if (!db().commit()) fail(db().lastError().text());
     } catch (...) {
-        db_.rollback();
+        db().rollback();
         throw;
     }
     return logId;
@@ -1232,7 +1289,7 @@ qint64 Library::writeRestoreLog(const QString &assetId, qint64 revisionId,
 QVector<Library::RestoreLogEntry> Library::restoreLogs() const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
     QVector<RestoreLogEntry> entries;
-    QSqlQuery q(db_);
+    QSqlQuery q(db());
     q.prepare("SELECT id,asset_id,revision_id,state,error,created,updated "
               "FROM restore_log ORDER BY id DESC");
     execute(q);
@@ -1252,7 +1309,7 @@ QVector<Library::RestoreLogEntry> Library::restoreLogs() const {
 
 void Library::markRestoreLog(qint64 logId, const QString &state, const QString &error) {
     if (logId <= 0) return;
-    QSqlQuery up(db_);
+    QSqlQuery up(db());
     up.prepare("UPDATE restore_log SET state=?,error=?,updated=? WHERE id=?");
     up.addBindValue(state);
     up.addBindValue(error.isNull() ? QStringLiteral("") : error); // NOT NULL column: bind '' not null
@@ -1269,7 +1326,7 @@ void Library::markRestoreLog(qint64 logId, const QString &state, const QString &
 // is still the original, record the abort). Any other file state is an external
 // edit after the interruption: left untouched and flagged, never overwritten.
 void Library::convergeRestoreLog() {
-    QSqlQuery q(db_);
+    QSqlQuery q(db());
     q.prepare("SELECT id,asset_id,revision_id,previous_hash,target_hash,protect_revision_id "
               "FROM restore_log WHERE state='planned'");
     execute(q);
@@ -1280,7 +1337,7 @@ void Library::convergeRestoreLog() {
                         q.value(3).toString(), q.value(4).toString()});
     for (const auto &row : pending) {
         // Locate the asset row (even if deleted — the working path is still needed).
-        QSqlQuery asset(db_);
+        QSqlQuery asset(db());
         asset.prepare("SELECT name,path,deleted FROM assets WHERE id=?");
         asset.addBindValue(row.assetId);
         execute(asset);
@@ -1290,7 +1347,7 @@ void Library::convergeRestoreLog() {
         const QString stored = asset.value(1).toString();
         const QString workingPath = QFileInfo(stored).isAbsolute() ? stored : root_ + "/" + stored;
         // The target object must still exist for a forward convergence.
-        QSqlQuery rev(db_);
+        QSqlQuery rev(db());
         rev.prepare("SELECT hash FROM revisions WHERE asset_id=? AND id=?");
         rev.addBindValue(row.assetId);
         rev.addBindValue(row.revisionId);
@@ -1312,14 +1369,14 @@ void Library::convergeRestoreLog() {
             a.id = row.assetId;
             a.name = asset.value(0).toString();
             a.path = workingPath;
-            if (!db_.transaction()) { markRestoreLog(row.id, QStringLiteral("failed"), db_.lastError().text()); continue; }
+            if (!db().transaction()) { markRestoreLog(row.id, QStringLiteral("failed"), db().lastError().text()); continue; }
             try {
                 append(a, bytes, QStringLiteral("恢复历史版本 #%1").arg(row.revisionId));
                 markRestoreLog(row.id, QStringLiteral("done"));
-                if (!db_.commit()) fail(db_.lastError().text());
+                if (!db().commit()) fail(db().lastError().text());
             } catch (...) {
-                db_.rollback();
-                markRestoreLog(row.id, QStringLiteral("failed"), db_.lastError().text());
+                db().rollback();
+                markRestoreLog(row.id, QStringLiteral("failed"), db().lastError().text());
             }
         } else if (fileHash == row.prev) {
             // The file was never replaced (or was already rolled back). Nothing
@@ -1344,7 +1401,7 @@ QVector<Library::SnapshotRestoreItem> Library::planSnapshotRestore(
     for (const QString &assetId : assetIds) {
         SnapshotRestoreItem item;
         item.assetId = assetId;
-        QSqlQuery entry(db_);
+        QSqlQuery entry(db());
         entry.prepare("SELECT name,state,revision_id FROM snapshot_assets "
                       "WHERE snapshot_id=? AND asset_id=?");
         entry.addBindValue(snapshotId);
@@ -1430,7 +1487,7 @@ QVector<Library::RestoreOutcome> Library::restoreFromSnapshot(
 
 void Library::deleteAsset(const QString &assetId) {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
-    QSqlQuery find(db_);
+    QSqlQuery find(db());
     find.prepare("SELECT name,deleted,path FROM assets WHERE id=?");
     find.addBindValue(assetId);
     execute(find);
@@ -1457,9 +1514,9 @@ void Library::deleteAsset(const QString &assetId) {
     qint64 size = 0;
     const auto history = revisions(assetId);
     if (!history.isEmpty()) { hash = history.first().hash; size = history.first().size; }
-    if (!db_.transaction()) fail(db_.lastError().text());
+    if (!db().transaction()) fail(db().lastError().text());
     try {
-        QSqlQuery ins(db_);
+        QSqlQuery ins(db());
         ins.prepare("INSERT INTO revisions(asset_id,hash,created,note,size,pinned,pin_reason,tombstone) VALUES(?,?,?,?,?,0,'',1)");
         ins.addBindValue(assetId);
         ins.addBindValue(hash);
@@ -1467,13 +1524,13 @@ void Library::deleteAsset(const QString &assetId) {
         ins.addBindValue(QStringLiteral("删除"));
         ins.addBindValue(size);
         execute(ins);
-        QSqlQuery up(db_);
+        QSqlQuery up(db());
         up.prepare("UPDATE assets SET deleted=1 WHERE id=?");
         up.addBindValue(assetId);
         execute(up);
-        if (!db_.commit()) fail(db_.lastError().text());
+        if (!db().commit()) fail(db().lastError().text());
     } catch (...) {
-        db_.rollback();
+        db().rollback();
         throw;
     }
 }
@@ -1563,10 +1620,10 @@ qint64 Library::snapshotAll(const QString &note) {
     }
     if (!writing.isEmpty())
         fail(Library::tr("无法发布一致快照，以下文件仍在写入：%1").arg(writing.join(QStringLiteral("、"))));
-    if (!db_.transaction()) fail(db_.lastError().text());
+    if (!db().transaction()) fail(db().lastError().text());
     qint64 snapshotId = 0;
     try {
-        QSqlQuery q(db_);
+        QSqlQuery q(db());
         q.prepare("INSERT INTO snapshots(created,note) VALUES(?,?)");
         q.addBindValue(QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
         q.addBindValue(note.isEmpty() ? QStringLiteral("紧急快照") : note);
@@ -1586,7 +1643,7 @@ qint64 Library::snapshotAll(const QString &note) {
                 if (!object.exists() || object.size() != objectSize)
                     fail(Library::tr("无法发布一致快照，对象校验失败：%1").arg(name));
             }
-            QSqlQuery ins(db_);
+            QSqlQuery ins(db());
             ins.prepare("INSERT OR REPLACE INTO snapshot_assets"
                         "(snapshot_id,asset_id,revision_id,state,reason,folder,name,hash) VALUES(?,?,?,?,?,?,?,?)");
             ins.addBindValue(snapshotId);
@@ -1667,7 +1724,7 @@ qint64 Library::snapshotAll(const QString &note) {
         // here, history retained". The newest revision of a deleted asset is
         // the tombstone deleteAsset wrote; its object is verified like any
         // other reference.
-        QSqlQuery dead(db_);
+        QSqlQuery dead(db());
         dead.prepare("SELECT id,name,folder FROM assets WHERE deleted=1 ORDER BY name,id");
         execute(dead);
         while (dead.next()) {
@@ -1678,9 +1735,9 @@ qint64 Library::snapshotAll(const QString &note) {
                         QStringLiteral("tombstone"), QString(),
                         history.first().id, history.first().size);
         }
-        if (!db_.commit()) fail(db_.lastError().text());
+        if (!db().commit()) fail(db().lastError().text());
     } catch (...) {
-        db_.rollback();
+        db().rollback();
         throw;
     }
     return snapshotId;
@@ -1688,7 +1745,7 @@ qint64 Library::snapshotAll(const QString &note) {
 
 QVector<Snapshot> Library::snapshots() const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
-    QSqlQuery q(db_);
+    QSqlQuery q(db());
     q.prepare("SELECT s.id,s.created,s.note,"
               // P-311: counts are by exact manifest state. present and missing
               // both carry a recoverable anchor, so both count as anchored
@@ -1710,7 +1767,7 @@ QVector<Snapshot> Library::snapshots() const {
 
 QVector<SnapshotEntry> Library::snapshotEntries(qint64 snapshotId) const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
-    QSqlQuery q(db_);
+    QSqlQuery q(db());
     q.prepare("SELECT asset_id,folder,name,hash,state,reason,revision_id "
               "FROM snapshot_assets WHERE snapshot_id=? ORDER BY folder,name,asset_id");
     q.addBindValue(snapshotId);
@@ -1730,7 +1787,7 @@ QVector<SnapshotEntry> Library::snapshotEntries(qint64 snapshotId) const {
         // have their row, so this stays correct for tombstones too). The trigger
         // is an empty name only — a root-level entry legitimately has folder=''.
         if (entry.name.isEmpty()) {
-            QSqlQuery cur(db_);
+            QSqlQuery cur(db());
             cur.prepare("SELECT folder,name FROM assets WHERE id=?");
             cur.addBindValue(entry.assetId);
             execute(cur);
@@ -1858,6 +1915,79 @@ QVector<Library::BackupEntry> Library::verifyBackupPackage(const QString &packag
     return entries;
 }
 
+QVector<Library::BackupEntry> Library::restoreBackupPackage(const QString &packageDir) {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
+    // P-603: the drill runs in an independent empty library — restoring into one
+    // that already holds assets would overwrite an original library, which the
+    // rehearsal must never do.
+    if (!assets().isEmpty())
+        fail(Library::tr("恢复演练目标库非空（不覆盖既有素材库）"));
+    // The package itself must be complete and self-consistent before anything
+    // is materialized (marker + manifest + objects verified).
+    const auto entries = verifyBackupPackage(packageDir);
+    if (entries.isEmpty())
+        fail(Library::tr("备份包清单为空：%1").arg(packageDir));
+    const QDir dir(packageDir);
+    QVector<BackupEntry> restored;
+    QSet<QString> copiedObjects;
+    if (!db().transaction()) fail(db().lastError().text());
+    try {
+        for (const auto &entry : entries) {
+            const QString objectSource = dir.filePath(QStringLiteral("objects/") + entry.hash);
+            // Content dedup: one object copy per hash, verified after copy.
+            if (!copiedObjects.contains(entry.hash)) {
+                copiedObjects.insert(entry.hash);
+                copyFileStreaming(objectSource, root_ + QStringLiteral("/objects/") + entry.hash);
+                const QString copied = root_ + QStringLiteral("/objects/") + entry.hash;
+                if (QFileInfo(copied).size() != entry.size || digestFile(copied) != entry.hash)
+                    fail(Library::tr("备份包对象校验失败：%1").arg(entry.name));
+            }
+            // Reconstruct the asset with its recorded identity: the manifest's
+            // asset id, folder/name path, and latest-revision content. Revision
+            // ids are new (autoincrement) but the hash/size are preserved.
+            const QString relative = QStringLiteral("working/%1/%2").arg(entry.assetId, entry.name);
+            const QString workingPath = root_ + QLatin1Char('/') + relative;
+            if (!QDir().mkpath(QFileInfo(workingPath).absolutePath()))
+                fail(Library::tr("无法创建工作目录"));
+            copyFileStreaming(objectSource, workingPath);
+            if (digestFile(workingPath) != entry.hash)
+                fail(Library::tr("恢复后内容校验失败：%1").arg(entry.name));
+            QSqlQuery a(db());
+            a.prepare("INSERT INTO assets(id,name,path,folder) VALUES(?,?,?,?)");
+            a.addBindValue(entry.assetId);
+            a.addBindValue(entry.name);
+            a.addBindValue(relative);
+            a.addBindValue(entry.folder.isNull() ? QStringLiteral("") : entry.folder);
+            execute(a);
+            QSqlQuery facts(db());
+            facts.prepare("UPDATE assets SET format=?,width=?,height=? WHERE id=?");
+            const auto metadata = preview::metadata(objectSource);
+            facts.addBindValue(metadata.format.isEmpty()
+                                   ? QStringLiteral("")
+                                   : metadata.format.toUpper());
+            facts.addBindValue(metadata.width);
+            facts.addBindValue(metadata.height);
+            facts.addBindValue(entry.assetId);
+            execute(facts);
+            QSqlQuery r(db());
+            r.prepare("INSERT INTO revisions(asset_id,hash,created,note,size,pinned,pin_reason) "
+                      "VALUES(?,?,?,?,?,0,'')");
+            r.addBindValue(entry.assetId);
+            r.addBindValue(entry.hash);
+            r.addBindValue(QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
+            r.addBindValue(QStringLiteral("从备份包恢复演练"));
+            r.addBindValue(entry.size);
+            execute(r);
+            restored.push_back(entry);
+        }
+        if (!db().commit()) fail(db().lastError().text());
+    } catch (...) {
+        db().rollback();
+        throw;
+    }
+    return restored;
+}
+
 Library::ConsistencyReport Library::checkConsistency(
     const std::function<void(int percent, const QString &current)> &progress) const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
@@ -1867,7 +1997,7 @@ Library::ConsistencyReport Library::checkConsistency(
     QHash<QString, qint64> hashSize;
     QHash<QString, int> refs;
     {
-        QSqlQuery q(db_);
+        QSqlQuery q(db());
         q.prepare("SELECT hash,size FROM revisions");
         execute(q);
         while (q.next()) {
@@ -1942,7 +2072,7 @@ Library::SpacePreview Library::spacePreview() const {
     QHash<QString, qint64> hashSize; // hash -> declared revision size
     QSet<QString> liveAssets;
     {
-        QSqlQuery q(db_);
+        QSqlQuery q(db());
         q.prepare("SELECT asset_id,hash,size,pinned FROM revisions");
         execute(q);
         while (q.next()) {
@@ -1991,7 +2121,7 @@ int Library::rollbackAll(qint64 snapshotId) {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
     QHash<QString, Asset> byId;
     for (const auto &asset : assets()) byId.insert(asset.id, asset);
-    QSqlQuery q(db_);
+    QSqlQuery q(db());
     // P-306: an excluded entry has no anchor (revision_id 0) and is never a
     // deletion — rollback only touches present and missing entries, so a
     // restore can never damage an excluded asset's current working file.

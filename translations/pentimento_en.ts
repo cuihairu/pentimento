@@ -60,12 +60,22 @@
         <translation>Library is corrupt or the index cannot be opened: %1</translation>
     </message>
     <message>
-        <location line="+103"/>
+        <location line="+107"/>
         <source>素材库 schema 版本不兼容（%1），请使用匹配版本打开</source>
         <translation>Library schema version is incompatible (%1); open with a matching version</translation>
     </message>
     <message>
-        <location line="+29"/>
+        <location line="+34"/>
+        <source>后台连接无法打开：%1</source>
+        <translation>后台连接无法打开：%1</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>后台连接初始化失败：%1</source>
+        <translation>后台连接初始化失败：%1</translation>
+    </message>
+    <message>
+        <location line="+32"/>
         <source>素材库缺少身份标识（library_id），库可能已损坏</source>
         <translation>Library is missing its identity (library_id); the library may be corrupt</translation>
     </message>
@@ -146,7 +156,7 @@
         <translation>This path is not a valid asset library (no readable catalog.sqlite found)</translation>
     </message>
     <message>
-        <location line="+16"/>
+        <location line="+19"/>
         <source>该素材库缺少身份标识（library_id），库可能已损坏</source>
         <translation>This asset library is missing its identity (library_id); the library may be corrupt</translation>
     </message>
@@ -166,7 +176,7 @@
         <translation>History object verification failed; operation stopped</translation>
     </message>
     <message>
-        <location line="+148"/>
+        <location line="+157"/>
         <source>目标版本内容缺失或损坏，无法恢复</source>
         <translation>目标版本内容缺失或损坏，无法恢复</translation>
     </message>
@@ -328,23 +338,39 @@
     </message>
     <message>
         <location line="+2"/>
+        <location line="+32"/>
         <source>备份包对象校验失败：%1</source>
         <translation>Backup package object verification failed: %1</translation>
     </message>
     <message>
-        <location line="-1332"/>
+        <location line="-19"/>
+        <source>恢复演练目标库非空（不覆盖既有素材库）</source>
+        <translation>恢复演练目标库非空（不覆盖既有素材库）</translation>
+    </message>
+    <message>
+        <location line="+5"/>
+        <source>备份包清单为空：%1</source>
+        <translation>备份包清单为空：%1</translation>
+    </message>
+    <message>
+        <location line="+25"/>
+        <source>恢复后内容校验失败：%1</source>
+        <translation>恢复后内容校验失败：%1</translation>
+    </message>
+    <message>
+        <location line="-1387"/>
         <source>历史对象内容不一致</source>
         <translation>History object content mismatch</translation>
     </message>
     <message>
-        <location line="-458"/>
+        <location line="-503"/>
         <location line="+7"/>
         <location line="+4"/>
         <source>无法写入暂存对象：%1</source>
         <translation>Cannot write the staged object: %1</translation>
     </message>
     <message>
-        <location line="+835"/>
+        <location line="+883"/>
         <source>无法发布历史对象</source>
         <translation>Cannot publish the history object</translation>
     </message>
@@ -355,11 +381,12 @@
     </message>
     <message>
         <location line="+43"/>
+        <location line="+940"/>
         <source>无法创建工作目录</source>
         <translation>Cannot create working directory</translation>
     </message>
     <message>
-        <location line="+202"/>
+        <location line="-729"/>
         <source>无法创建恢复目录</source>
         <translation>Cannot create restore directory</translation>
     </message>
@@ -370,8 +397,8 @@
         <translation>No revision found for this asset</translation>
     </message>
     <message>
-        <location line="-589"/>
-        <location line="+971"/>
+        <location line="-601"/>
+        <location line="+983"/>
         <source>请导出到素材库之外的现有目录</source>
         <translation>Export to an existing directory outside the library</translation>
     </message>
@@ -416,12 +443,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+1001"/>
+        <location line="+1002"/>
         <source>记录版本</source>
         <translation>Record version</translation>
     </message>
     <message>
-        <location line="-1000"/>
+        <location line="-1001"/>
         <source>编辑工作副本</source>
         <translation>Edit working copy</translation>
     </message>
@@ -457,7 +484,7 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+1523"/>
+        <location line="+1524"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>Restore to anchor</translation>
@@ -523,7 +550,7 @@
         <translation>No rating</translation>
     </message>
     <message>
-        <location line="-93"/>
+        <location line="-94"/>
         <source>浏览快照…</source>
         <translation>Browse snapshot…</translation>
     </message>
@@ -546,6 +573,11 @@
         <location line="+1"/>
         <source>空间预演…</source>
         <translation>空间预演…</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>恢复演练…</source>
+        <translation>恢复演练…</translation>
     </message>
     <message>
         <location line="+19"/>
@@ -748,12 +780,12 @@ Restoring appends a new version; existing history is always kept.</translation>
         <location line="+877"/>
         <location line="+223"/>
         <location line="+152"/>
-        <location line="+246"/>
+        <location line="+322"/>
         <source>关闭</source>
         <translation>Off</translation>
     </message>
     <message>
-        <location line="-1497"/>
+        <location line="-1573"/>
         <source>每 15 分钟</source>
         <translation>Every 15 minutes</translation>
     </message>
@@ -1515,7 +1547,68 @@ I/O 错误（无法读取）：
         <translation>空间预演</translation>
     </message>
     <message>
-        <location line="+12"/>
+        <location line="+11"/>
+        <source>选择备份包目录（含 COMPLETE 标记）</source>
+        <translation>选择备份包目录（含 COMPLETE 标记）</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>选择恢复演练目标目录（须为空目录）</source>
+        <translation>选择恢复演练目标目录（须为空目录）</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <location line="+53"/>
+        <location line="+5"/>
+        <source>恢复演练</source>
+        <translation>恢复演练</translation>
+    </message>
+    <message>
+        <location line="-57"/>
+        <source>将在独立目录完整恢复备份包并逐项核对：
+备份包：%1
+目标目录：%2
+
+不覆盖原素材库；核对 空目录恢复、内容哈希、资源 ID、版本数、路径。</source>
+        <translation>将在独立目录完整恢复备份包并逐项核对：
+备份包：%1
+目标目录：%2
+
+不覆盖原素材库；核对 空目录恢复、内容哈希、资源 ID、版本数、路径。</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>正在执行恢复演练（后台进行）…</source>
+        <translation>正在执行恢复演练（后台进行）…</translation>
+    </message>
+    <message>
+        <location line="+45"/>
+        <source>恢复演练失败：%1</source>
+        <translation>恢复演练失败：%1</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>恢复演练失败：%1
+（演练目录未通过，备份不可视为可用）</source>
+        <translation>恢复演练失败：%1
+（演练目录未通过，备份不可视为可用）</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>恢复演练完成：%1（独立目录 %2）</source>
+        <translation>恢复演练完成：%1（独立目录 %2）</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>恢复演练完成：%1
+空目录恢复、内容哈希、资源 ID、版本数、路径已逐项核对。
+演练目录：%2</source>
+        <translation>恢复演练完成：%1
+空目录恢复、内容哈希、资源 ID、版本数、路径已逐项核对。
+演练目录：%2</translation>
+    </message>
+    <message>
+        <location line="+14"/>
         <source>挂载来源状态</source>
         <translation>Mounted Source Status</translation>
     </message>
@@ -1672,7 +1765,7 @@ I/O 错误（无法读取）：
 Unrecorded current content is saved first. Close the file in external editors.</translation>
     </message>
     <message>
-        <location line="-805"/>
+        <location line="-881"/>
         <location line="+5"/>
         <source>导出历史版本</source>
         <translation>Export revision</translation>
