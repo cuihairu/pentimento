@@ -30,7 +30,7 @@ QByteArray readFile(const QString &path) {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) fail(Library::tr("无法读取文件：%1").arg(path));
     // Bounded in-memory first release; do not attempt huge PSD/model imports.
-    if (file.size() > 256LL * 1024 * 1024) fail(Library::tr("首版单文件上限为 256 MiB：%1").arg(path));
+    if (file.size() > kMaxObjectBytes) fail(Library::tr("首版单文件上限为 256 MiB：%1").arg(path));
     const auto bytes = file.readAll();
     if (file.error() != QFileDevice::NoError) fail(file.errorString());
     return bytes;
@@ -74,6 +74,20 @@ void copyFileStreaming(const QString &from, const QString &to) {
     if (out.error() != QFileDevice::NoError)
         fail(Library::tr("无法写入暂存对象：%1").arg(to));
 }
+}
+
+QString digestFileBounded(const QString &path) {
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) fail(Library::tr("无法读取文件：%1").arg(path));
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    constexpr qint64 kChunk = 1 << 20; // 1 MiB
+    while (!file.atEnd()) {
+        const auto chunk = file.read(kChunk);
+        if (chunk.isEmpty() && file.error() != QFileDevice::NoError)
+            fail(Library::tr("无法读取文件：%1").arg(path));
+        hash.addData(chunk);
+    }
+    return QString::fromLatin1(hash.result().toHex());
 }
 
 Library::Library(const QString &root)
@@ -577,6 +591,12 @@ void Library::exportEvidence(const QString &hash, const QString &destination) co
     const QString canonicalRoot = QDir(root_).canonicalPath();
     if (parent.isEmpty() || parent == canonicalRoot || parent.startsWith(canonicalRoot + '/'))
         fail(Library::tr("请导出到素材库之外的现有目录"));
+    // P-319 symmetry with exportRevision: a symlink destination could resolve
+    // back into the library (objects/ or a working file) — following it would
+    // overwrite library-internal data. Refuse rather than QSaveFile replacing
+    // the link itself (which would make the two exports diverge).
+    if (QFileInfo(dest).isSymLink())
+        fail(Library::tr("导出目标是指向其他位置的链接，请选择一个真实文件路径"));
     writeFile(dest, readObject(hash));
 }
 
@@ -1673,11 +1693,15 @@ qint64 Library::snapshotAll(const QString &note) {
             }
             const auto history = revisions(asset.id);
             QFileInfo info(asset.path);
-            QByteArray current;
+            // P-302 audit (2026-11-02): the working copy is stream-hashed, never
+            // loaded whole — a large file (beyond the 256 MiB import cap) must
+            // not OOM the worker thread. A change needing an emergency anchor is
+            // stored by streaming the file straight into the object store, so
+            // no full in-memory copy is ever allocated on this path.
+            QString currentHash;
             if (info.exists() && info.isReadable()) {
                 const auto pre = fileSig(asset.path);
-                QFile file(asset.path);
-                if (file.open(QIODevice::ReadOnly)) current = file.readAll();
+                currentHash = digestFileBounded(asset.path);
                 // Torn-read guard: the manifest may only reference settled
                 // content, so a writer that touched the file during the read
                 // makes this candidate incomplete — fail it, publish nothing.
@@ -1694,12 +1718,11 @@ qint64 Library::snapshotAll(const QString &note) {
             // revision. If every revision equals the current content, the current
             // state is genuinely clean (e.g. an untouched asset), so the newest
             // revision is kept as the anchor rather than dropping the asset.
-            const QString currentHash = current.isEmpty() ? QString() : digest(current);
             qint64 anchor = 0;
             QString anchorHash;
             qint64 anchorSize = 0;
             for (const auto &rev : history) { // newest first
-                if (current.isEmpty() || rev.hash != currentHash) {
+                if (currentHash.isEmpty() || rev.hash != currentHash) {
                     anchor = rev.id; anchorHash = rev.hash; anchorSize = rev.size; break;
                 }
             }
@@ -1708,8 +1731,13 @@ qint64 Library::snapshotAll(const QString &note) {
                 anchorHash = history.first().hash;
                 anchorSize = history.first().size;
             }
-            if (!current.isEmpty() && (history.isEmpty() || history.first().hash != currentHash))
-                append(asset, current, QStringLiteral("紧急快照锚点"));
+            if (!currentHash.isEmpty() && (history.isEmpty() || history.first().hash != currentHash)) {
+                // Stream the working copy into the object store (never whole in
+                // memory), then record the emergency anchor revision.
+                storeObjectFromFile(asset.path, currentHash);
+                recordRevision(asset, currentHash, QFileInfo(asset.path).size(),
+                               QStringLiteral("紧急快照锚点"));
+            }
             if (!anchor) continue; // no clean history to recover to
             // P-310/P-311: a working copy that is gone (external removal) is
             // "missing" — recoverable from the anchored revision, never a

@@ -432,6 +432,25 @@ private slots:
         QVERIFY(QFile::link(inLib, link));
         QVERIFY_EXCEPTION_THROWN(library.exportRevision(asset.id, rev2.id, link), std::runtime_error);
     }
+    // 审核发现（2026-11-02）: exportEvidence must enforce the same symlink
+    // guard as exportRevision — the "never write into the library" invariant
+    // is identical on both export paths.
+    void exportEvidenceRefusesSymlinkDestination() {
+        QTemporaryDir dir;
+        put(dir.filePath("asset.dat"), "evidence");
+        Library library(dir.filePath("library"));
+        const auto asset = library.importFile(dir.filePath("asset.dat"));
+        const auto hash = library.revisions(asset.id).first().hash;
+        const QString out = dir.filePath("out/evidence.txt");
+        QDir().mkpath(dir.filePath("out"));
+        library.exportEvidence(hash, out);
+        QCOMPARE(get(out), QByteArray("evidence"));
+        // A symlink destination is refused just like exportRevision, even
+        // though its parent directory is outside the library.
+        const QString link = dir.filePath("out/link.txt");
+        QVERIFY(QFile::link(library.objectPath(hash), link));
+        QVERIFY_EXCEPTION_THROWN(library.exportEvidence(hash, link), std::runtime_error);
+    }
     // P-320: a crash between the file replacement and the index commit (file =
     // target, log row still 'planned') is converged FORWARD on reopen — the
     // restore revision is completed, the log row becomes 'done'.
@@ -753,6 +772,35 @@ private slots:
             QCOMPARE(preview.alreadyImported(), 1);
             QCOMPARE(preview.candidates.size(), 2);
         }
+    }
+    // 审核发现（2026-11-02）: rescanPreview must stream-hash the source file,
+    // not read it whole — a large file must never OOM the worker thread. The
+    // hash still classifies the content correctly for a fresh/imported check.
+    void rescanPreviewStreamHashesLargeFile() {
+        QTemporaryDir dir;
+        const QString source = dir.filePath("share");
+        QVERIFY(QDir().mkpath(source));
+        // A file beyond the 256 MiB import cap: rescan preview must not load it
+        // whole (would OOM the worker), but must still classify it as fresh.
+        const QString big = source + "/big.bin";
+        {
+            QFile f(big);
+            QVERIFY(f.open(QIODevice::WriteOnly));
+            QByteArray chunk(1 << 20, 'x'); // 1 MiB
+            const qint64 total = 257LL * 1024 * 1024; // just over the cap
+            qint64 written = 0;
+            while (written < total) {
+                const qint64 n = qMin<qint64>(chunk.size(), total - written);
+                QCOMPARE(f.write(chunk.constData(), int(n)), int(n));
+                written += n;
+            }
+            f.close();
+        }
+        Library library(dir.filePath("library"));
+        const auto preview = importer::rescanPreview(library, source);
+        QCOMPARE(preview.fresh(), 1);
+        QCOMPARE(preview.alreadyImported(), 0);
+        QVERIFY(!preview.candidates.first().hash.isEmpty());
     }
     void rescanNeverSyncsRemoteChangesIntoLocalDeletions() {
         QTemporaryDir dir;
@@ -1218,6 +1266,40 @@ private slots:
         QVERIFY(s2 != all.end());
         QCOMPARE(s2->items.size(), 3);
         QVERIFY(s2->done);
+    }
+    // 审核发现（2026-11-02）: the queue never pruned completed tasks, so a
+    // long session (auto-record submits one task per change) accumulated every
+    // lambda + result list. The completed tail is now bounded; running/pending
+    // tasks are never dropped.
+    void taskQueuePrunesCompletedTailKeepsRunning() {
+        TaskQueue queue;
+        std::atomic_int finished = 0;
+        QObject::connect(&queue, &TaskQueue::taskFinished,
+                         [&](qint64, bool, const QString &) { ++finished; });
+        // Submit more than the retention cap of quick tasks, each with a result.
+        const int many = 150;
+        for (int i = 0; i < many; ++i)
+            queue.submit(QStringLiteral("t%1").arg(i), [i](TaskQueue::Progress &p) {
+                p.addItem({QStringLiteral("r%1").arg(i), true, QString()});
+            }, /*write=*/false);
+        QTRY_COMPARE_WITH_TIMEOUT(finished.load(), many, 30000);
+        const auto statuses = queue.statuses();
+        // The retained tail is bounded; a long session never grows without limit.
+        QVERIFY(statuses.size() <= 64);
+        QVERIFY(statuses.size() >= 1);
+        // A subsequent task still runs and reports (the queue is usable).
+        std::atomic_int done2 = 0;
+        const qint64 id2 = queue.submit("after-prune", [&](TaskQueue::Progress &p) {
+            p.addItem({QStringLiteral("ok"), true, QString()});
+            ++done2;
+        }, /*write=*/false);
+        QTRY_COMPARE_WITH_TIMEOUT(done2.load(), 1, 5000);
+        const auto all = queue.statuses();
+        const auto it = std::find_if(all.begin(), all.end(),
+                                     [&](const TaskQueue::Status &s) { return s.id == id2; });
+        QVERIFY(it != all.end());
+        QVERIFY(it->done);
+        QCOMPARE(it->items.size(), 1);
     }
     void translationMechanismLoadsAndTranslates() {
         // English: a known Library-context source string must translate.
@@ -2834,6 +2916,25 @@ private slots:
         // The current live index no longer has the asset at all — the browse
         // view and the current index are never mixed.
         QVERIFY(lib.assets().isEmpty());
+    }
+    // 审核发现（2026-11-02）: snapshotAll must stream-hash the working copy
+    // (never load it whole) yet still record the emergency anchor revision for
+    // an unrecorded change — the streaming path is behavior-preserving.
+    void snapshotStreamsUnrecordedWorkingCopyAsEmergencyAnchor() {
+        QTemporaryDir dir;
+        put(dir.filePath("a.dat"), "v1");
+        Library lib(dir.filePath("lib"));
+        const auto a = lib.importFile(dir.filePath("a.dat"));
+        put(a.path, "unrecorded-big-content");
+        const qint64 snap = lib.snapshotAll(QStringLiteral("紧急"));
+        const auto entries = lib.snapshotEntries(snap);
+        QCOMPARE(entries.size(), 1);
+        QCOMPARE(entries.first().state, QStringLiteral("present"));
+        // The unrecorded content was streamed in as the emergency anchor; the
+        // newest revision now matches it, and the object verifies.
+        const auto revs = lib.revisions(a.id);
+        QCOMPARE(revs.first().note, QStringLiteral("紧急快照锚点"));
+        QCOMPARE(lib.readObject(revs.first().hash), QByteArray("unrecorded-big-content"));
     }
     void compareCanvasSharesOneTransform() {
         CompareCanvas canvas;

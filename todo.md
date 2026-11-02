@@ -204,3 +204,10 @@
   - 文档:docs「配置效果」页(双语)逐开关嵌入:说明+off 图+on 图+GIF。
   - 验收:清单内每个开关都有 off/on+GIF;流水线可重跑(配置变更随时再生成);兼作配置效果回归测试。
   - 参考:kode todo C-24 同款流水线模式(2026-11-01 用户令全舰队推广)。
+
+## 审核发现（2d80896f76c9a36182daafeee132bd17f5963aa9..HEAD 复审）
+
+- [x] 审核发现：`MainWindow::reloadAssets`/`reloadHistory` 为生成缩略图在 UI 线程对每个素材/版本调用 `library_.readObject(hash)`（`readFile` 整幅读入、上限 256 MiB），且发生在 `thumbnailFor` 的缩略图缓存命中判断之前——缓存命中只是省了解码，没有省这次整幅读取；大型库/大对象时每次刷新（选择变更、自动记录、定时快照后）都整幅读取全部对象，造成 UI 线程内存尖峰与卡顿，与 P-207「缩略图按内容哈希缓存、避免整幅解码」的目标相悖（src/mainwindow.cpp:570,666）。**已核实属实并修复**：新增 `cachedThumbnail()` 先查缓存再读对象（src/mainwindow.cpp:568-575,700），`reloadAssets`/`reloadHistory` 改用缓存优先，刷新不再整幅重读；ctest `library_history`/`desktop_keyboard_zoom` 全绿。
+- [x] 审核发现：`importer::rescanPreview` 用 `file.readAll()` 对来源目录每个文件整幅读入内存且无大小上限，与 `importFile`/`readFile` 的 256 MiB 单文件上限不一致——挂载来源里的大文件（如未纳入 256 MiB 上限的大 PSD/模型/视频）会让后台 worker 线程 OOM；`Library::snapshotAll` 同样对工作副本 `file.readAll()` 无界（src/importer.cpp:125；src/library.cpp:1680）。**已核实属实并修复**：新增共享 `digestFileBounded()` 流式哈希（src/library.cpp:78-90），`rescanPreview` 与 `snapshotAll` 改用流式哈希/流式入库（src/importer.cpp:125；src/library.cpp:1693,1722），大文件不再整幅读入；测试 `rescanPreviewStreamHashesLargeFile`/`snapshotStreamsUnrecordedWorkingCopyAsEmergencyAnchor` 绿。
+- [x] 审核发现：`TaskQueue::tasks_` 从不清理已提交任务（含其 `TaskFn` lambda、标签与结果列表），自动记录路径每次观测到新文件签名就提交一个任务；长时运行会话会无限累积这些任务（每项经 lambda 捕获 `this` 与素材数据），属缓慢的无界内存增长（src/taskqueue.cpp:83）。**已核实属实并修复**：`TaskQueue::Impl` 新增 `pruneCompletedLocked()` 保留最近 64 个已完成任务，任务完成后裁剪（src/taskqueue.cpp:54-75）；测试 `taskQueuePrunesCompletedTailKeepsRunning` 绿。
+- [x] 审核发现：`Library::exportEvidence` 缺少 `exportRevision` 对「导出目标为符号链接则拒绝」的同款检查，对同一「绝不写入库内」不变量两处导出不一致；QSaveFile 原子重命名会替换链接本身而非跟随（故当前不可利用），但该加固不一致使后续维护易在导出路径上引入差异（src/library.cpp:572 vs 1565）。**已核实属实并修复**：`exportEvidence` 补同款符号链接拒绝（src/library.cpp:574-579）；测试 `exportEvidenceRefusesSymlinkDestination` 绿。

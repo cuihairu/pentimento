@@ -567,9 +567,7 @@ void MainWindow::reloadAssets(const QString &selectId) {
         try {
             const auto revisions = library_.revisions(asset.id);
             if (!revisions.isEmpty()) {
-                const auto bytes = library_.readObject(revisions.first().hash);
-                const QImage thumb = thumbnailFor(thumbnails_, bytes, revisions.first().hash, QSize(80, 80),
-                                                  QFileInfo(asset.name).suffix().toLower());
+                const QImage thumb = cachedThumbnail(revisions.first().hash, asset.name, QSize(80, 80));
                 if (!thumb.isNull()) icon = QPixmap::fromImage(thumb);
             }
         } catch (const std::exception &) { /* corrupt object: keep placeholder */ }
@@ -584,6 +582,17 @@ void MainWindow::reloadAssets(const QString &selectId) {
     assetsList_->blockSignals(false);
     updateFilterSummary(currentFilter());
     reloadHistory();
+}
+
+QImage MainWindow::cachedThumbnail(const QString &hash, const QString &name, const QSize &size) {
+    const int version = ThumbnailCache::decoderVersion();
+    // Serve from cache first: no full-object read on every refresh (P-207).
+    QImage cached = thumbnails_.find(hash, size, version);
+    if (!cached.isNull()) return cached;
+    // Cache miss: read and verify the object bytes, then decode/cache.
+    const auto bytes = library_.readObject(hash);
+    return thumbnailFor(thumbnails_, bytes, hash, size,
+                        QFileInfo(name).suffix().toLower());
 }
 
 void MainWindow::keepSelectionVisible() {
@@ -692,8 +701,7 @@ void MainWindow::reloadHistory() {
         if (corrupt) {
             item->setIcon(style()->standardIcon(QStyle::SP_MessageBoxWarning));
         } else {
-            const QImage thumb = thumbnailFor(thumbnails_, bytes, revision.hash, QSize(80, 80),
-                                              QFileInfo(selected().name).suffix().toLower());
+            const QImage thumb = cachedThumbnail(revision.hash, selected().name, QSize(80, 80));
             if (!thumb.isNull()) item->setIcon(QPixmap::fromImage(thumb));
         }
     }

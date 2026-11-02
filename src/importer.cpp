@@ -122,9 +122,12 @@ RescanPreview rescanPreview(Library &library, const QString &root,
             preview.candidates.push_back(rc);
             continue;
         }
-        const QByteArray bytes = file.readAll();
-        rc.hash = QString::fromLatin1(
-            QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
+        // Streaming hash: a large source file (beyond the 256 MiB single-file
+        // import cap) is never loaded whole, so a mounted source cannot OOM the
+        // worker thread during a rescan preview. The same hashing path as the
+        // library's own streaming helper keeps the "already imported" comparison
+        // exact; a later confirmed import still reports the oversize error.
+        rc.hash = digestFileBounded(candidate.sourcePath);
         rc.alreadyImported = library.hasContent(rc.hash);
         preview.candidates.push_back(rc);
     }

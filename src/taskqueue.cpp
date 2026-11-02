@@ -46,6 +46,27 @@ struct TaskQueue::Impl {
     QVector<Task> tasks_;
     qint64 nextId = 1;
     std::unique_ptr<TaskWorker> worker;
+    // Retain only the most recent completed tasks so a long-running session
+    // never accumulates unbounded result lists. Auto-record submits one task per
+    // observed file change; each Task holds a lambda capturing this + asset
+    // data, so unbounded retention is a slow memory leak (P-105 audit 2026-11-02).
+    static constexpr int kMaxCompletedTasks = 64;
+
+    // Called with mutex held. The auto-record path submits one task per change
+    // and the UI only reads a task's status while it is still relevant (the
+    // per-item result is drained on taskFinished), so keeping only a bounded
+    // tail of completed tasks is safe and never drops a still-relevant status.
+    void pruneCompletedLocked() {
+        int completed = 0;
+        for (auto it = tasks_.rbegin(); it != tasks_.rend(); ++it)
+            if (it->done) ++completed;
+        int excess = completed - kMaxCompletedTasks;
+        if (excess <= 0) return;
+        for (auto it = tasks_.begin(); it != tasks_.end() && excess > 0;) {
+            if (it->done) { it = tasks_.erase(it); --excess; }
+            else ++it;
+        }
+    }
 
     TaskWorker *makeWorker(TaskQueue *owner) {
         worker = std::make_unique<TaskWorker>(
@@ -138,6 +159,7 @@ void TaskQueue::runTask(qint64 id) {
                 t.items = progress.items();
             }
         }
+        impl_->pruneCompletedLocked();
     }
     emit taskUpdated(id, progress.percent(), progress.current());
     emit taskFinished(id, ok, error);

@@ -24,6 +24,18 @@ struct WorkerDb {
     QString name;
 };
 
+// Shared bound for any single in-memory file read. The first release refuses
+// files above this cap on import (readFile) so a huge PSD/model/video is never
+// loaded whole; the same bound applies to the rescan-preview hash and the
+// snapshot working-copy read, so a mounted source cannot OOM a worker thread.
+inline constexpr qint64 kMaxObjectBytes = 256LL * 1024 * 1024;
+
+// Stream a file through SHA-256 in bounded chunks (1 MiB) without ever loading
+// it whole. Shared by library.cpp and importer.cpp so a large file is hashed
+// identically on import, rescan preview and snapshot paths. Throws
+// std::runtime_error when the file cannot be opened or read.
+QString digestFileBounded(const QString &path);
+
 struct Asset {
     QString id;
     QString name;

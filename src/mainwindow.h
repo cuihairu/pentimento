@@ -133,6 +133,11 @@ private:
     void pollSentinel();
     void reloadAssets(const QString &selectId = QString());
     void reloadHistory();
+    // P-207 audit (2026-11-02): a thumbnail is served from the disk cache when
+    // present, so a refresh never re-reads the full object bytes (up to the
+    // 256 MiB readObject cap) just to re-decode an unchanged image. Only a cache
+    // miss reads the object (via readObject, which also verifies the hash).
+    QImage cachedThumbnail(const QString &hash, const QString &name, const QSize &size);
     void reloadTags();
     void addTagToSelected();
     void removeSelectedTag();
