@@ -30,10 +30,7 @@
         <source>无法安全写入文件：%1；%2</source>
         <translation>无法安全写入文件：%1；%2</translation>
     </message>
-    <message>
-        <source>无法创建素材库目录</source>
-        <translation type="vanished">无法创建素材库目录</translation>
-    </message>
+    
     <message>
         <location line="+48"/>
         <source>该目录不是有效的素材库（未找到 catalog.sqlite），不会静默重建</source>
@@ -935,10 +932,7 @@
         <source>未记录修改</source>
         <translation>未记录修改</translation>
     </message>
-    <message>
-        <source>当前</source>
-        <translation type="vanished">当前</translation>
-    </message>
+    
     <message>
         <location line="+1"/>
         <source>已固定</source>
@@ -974,10 +968,7 @@
         <source>固定原因：%1</source>
         <translation>固定原因：%1</translation>
     </message>
-    <message>
-        <source>当前 · </source>
-        <translation type="vanished">当前 · </translation>
-    </message>
+    
     <message>
         <location line="+51"/>
         <source>已清除评分</source>
@@ -1746,24 +1737,10 @@ I/O 错误（无法读取）：
         <translation>导入完成：
 %1</translation>
     </message>
-    <message>
-        <source>已记录新版本</source>
-        <translation type="vanished">已记录新版本</translation>
-    </message>
-    <message>
-        <source>内容未变化，无需重复保存</source>
-        <translation type="vanished">内容未变化，无需重复保存</translation>
-    </message>
-    <message>
-        <source>恢复历史版本</source>
-        <translation type="vanished">恢复历史版本</translation>
-    </message>
-    <message>
-        <source>将历史内容恢复为当前工作副本，并新增一个版本。
-未记录的当前内容会先保存。请先在外部编辑器中关闭此文件。</source>
-        <translation type="vanished">将历史内容恢复为当前工作副本，并新增一个版本。
-未记录的当前内容会先保存。请先在外部编辑器中关闭此文件。</translation>
-    </message>
+    
+    
+    
+    
     <message>
         <location line="-881"/>
         <location line="+5"/>
@@ -2003,10 +1980,7 @@ I/O 错误（无法读取）：
         <source>还没有紧急快照锚点</source>
         <translation>还没有紧急快照锚点</translation>
     </message>
-    <message>
-        <source>#%1 %2 · %3 个素材</source>
-        <translation type="vanished">#%1 %2 · %3 个素材</translation>
-    </message>
+    
     <message>
         <location line="+16"/>
         <source>选择感染前锚点（回滚形成新版本，不销毁后续历史）</source>

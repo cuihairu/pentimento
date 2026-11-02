@@ -67,6 +67,7 @@ include(CTest)
 if(BUILD_TESTING)
     find_package(Qt6 REQUIRED COMPONENTS Test)
     add_executable(pentimento_tests tests/library_test.cpp src/compare_canvas.cpp src/preview_canvas.cpp)
+    target_compile_definitions(pentimento_tests PRIVATE PENTIMENTO_SOURCE_TRANSLATIONS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/translations")
     target_link_libraries(pentimento_tests PRIVATE pentimento_core Qt6::Test Qt6::Widgets)
     add_test(NAME library_history COMMAND pentimento_tests)
     # Headless CI/nightly runners have no X display; Qt Widgets tests need the

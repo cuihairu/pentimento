@@ -24,6 +24,7 @@
 #include <QFileInfo>
 #include <QImage>
 #include <QImageReader>
+#include <QRegularExpression>
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QTemporaryDir>
@@ -1233,6 +1234,61 @@ private slots:
         QCOMPARE(i18n::languagePreference(), QString("en"));
         i18n::setLanguagePreference("zh_CN");
         QCOMPARE(i18n::languagePreference(), QString("zh_CN"));
+    }
+    // P-608: the English UI must be genuinely English — no Chinese source text
+    // left as its own translation (identity) for the feature strings added by
+    // the reliability work (P-601/P-602/P-603). A Chinese-as-English string
+    // would make the English interface unreadable.
+    void bilingualTranslationsAreNotIdentityChinese() {
+        QTranslator en;
+        QVERIFY(i18n::loadTranslator(en, "en"));
+        const auto expect = [&](const char *ctx, const char *src, const char *enStr) {
+            QCOMPARE(en.translate(ctx, src), QString::fromUtf8(enStr));
+        };
+        expect("MainWindow", "一致性检查…", "Consistency check…");
+        expect("MainWindow", "空间预演…", "Space preview…");
+        expect("MainWindow", "恢复演练…", "Restore drill…");
+        expect("MainWindow", "一致性检查", "Consistency check");
+        expect("MainWindow", "空间预演", "Space preview");
+        expect("Library", "恢复演练目标库非空（不覆盖既有素材库）",
+               "Drill target library is not empty (an existing library is never overwritten)");
+        expect("Library", "备份包清单为空：%1", "Backup package manifest is empty: %1");
+        expect("MainWindow", "恢复演练失败：%1\n（演练目录未通过，备份不可视为可用）",
+               "Restore drill failed: %1\n(the drill directory did not verify; the backup must not be treated as usable)");
+        // Structural guard on the source .ts: every message whose source is
+        // Chinese must have a translation that is not Chinese (identity would
+        // leak the Chinese string into the English UI).
+        const QString tsPath =
+            QStringLiteral(PENTIMENTO_SOURCE_TRANSLATIONS_DIR "/pentimento_en.ts");
+        QFile f(tsPath);
+        QVERIFY(f.open(QIODevice::ReadOnly));
+        const QString ts = QString::fromUtf8(f.readAll());
+        static const QRegularExpression msgRe(
+            QStringLiteral("<message>(?:(?!<message>).)*?</message>"),
+            QRegularExpression::DotMatchesEverythingOption);
+        static const QRegularExpression srcRe(
+            QStringLiteral("<source>(.*?)</source>"),
+            QRegularExpression::DotMatchesEverythingOption);
+        static const QRegularExpression trRe(
+            QStringLiteral("<translation>(.*?)</translation>"),
+            QRegularExpression::DotMatchesEverythingOption);
+        auto isCjk = [](const QString &s) {
+            for (const QChar c : s)
+                if (c.unicode() >= 0x4e00 && c.unicode() <= 0x9fff) return true;
+            return false;
+        };
+        auto it = msgRe.globalMatch(ts);
+        int identityCjk = 0;
+        while (it.hasNext()) {
+            const QString block = it.next().captured(0);
+            const auto mSrc = srcRe.match(block);
+            const auto mTr = trRe.match(block);
+            if (!mSrc.hasMatch() || !mTr.hasMatch()) continue;
+            const QString src = mSrc.captured(1);
+            const QString tr = mTr.captured(1);
+            if (isCjk(src) && src == tr) ++identityCjk;
+        }
+        QCOMPARE(identityCjk, 0);
     }
     void libraryOpenCategoriesCoverSixCases() {
         QTemporaryDir dir;

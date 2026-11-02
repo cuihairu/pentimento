@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.1" language="zh_CN">
+<TS version="2.1" language="en">
 <context>
     <name>CompareCanvas</name>
     <message>
@@ -30,10 +30,7 @@
         <source>无法安全写入文件：%1；%2</source>
         <translation>Cannot safely write file: %1; %2</translation>
     </message>
-    <message>
-        <source>无法创建素材库目录</source>
-        <translation type="vanished">Cannot create library directories</translation>
-    </message>
+    
     <message>
         <location line="+48"/>
         <source>该目录不是有效的素材库（未找到 catalog.sqlite），不会静默重建</source>
@@ -64,18 +61,10 @@
         <source>素材库 schema 版本不兼容（%1），请使用匹配版本打开</source>
         <translation>Library schema version is incompatible (%1); open with a matching version</translation>
     </message>
+    
+    
     <message>
-        <location line="+34"/>
-        <source>后台连接无法打开：%1</source>
-        <translation>后台连接无法打开：%1</translation>
-    </message>
-    <message>
-        <location line="+4"/>
-        <source>后台连接初始化失败：%1</source>
-        <translation>后台连接初始化失败：%1</translation>
-    </message>
-    <message>
-        <location line="+32"/>
+        <location line="+70"/>
         <source>素材库缺少身份标识（library_id），库可能已损坏</source>
         <translation>Library is missing its identity (library_id); the library may be corrupt</translation>
     </message>
@@ -175,103 +164,27 @@
         <source>历史对象校验失败；已停止操作</source>
         <translation>History object verification failed; operation stopped</translation>
     </message>
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     <message>
-        <location line="+157"/>
-        <source>目标版本内容缺失或损坏，无法恢复</source>
-        <translation>目标版本内容缺失或损坏，无法恢复</translation>
-    </message>
-    <message>
-        <location line="+21"/>
-        <source>工作副本不可读，无法保护当前内容</source>
-        <translation>工作副本不可读，无法保护当前内容</translation>
-    </message>
-    <message>
-        <location line="+29"/>
-        <source>恢复计划已失效：工作副本已出现，请刷新预演</source>
-        <translation>恢复计划已失效：工作副本已出现，请刷新预演</translation>
-    </message>
-    <message>
-        <location line="+2"/>
-        <source>恢复计划已失效：工作副本已消失，请刷新预演</source>
-        <translation>恢复计划已失效：工作副本已消失，请刷新预演</translation>
-    </message>
-    <message>
-        <location line="+3"/>
-        <source>恢复计划已失效：工作副本已变化，请刷新预演</source>
-        <translation>恢复计划已失效：工作副本已变化，请刷新预演</translation>
-    </message>
-    <message>
-        <location line="+4"/>
-        <source>无法恢复：冲突未解决</source>
-        <translation>无法恢复：冲突未解决</translation>
-    </message>
-    <message>
-        <location line="+59"/>
-        <source>检测到外部编辑正在写入，请关闭外部编辑器后重试</source>
-        <translation>检测到外部编辑正在写入，请关闭外部编辑器后重试</translation>
-    </message>
-    <message>
-        <location line="+114"/>
-        <source>素材记录不存在</source>
-        <translation>素材记录不存在</translation>
-    </message>
-    <message>
-        <location line="+2"/>
-        <source>素材已删除，不自动复活</source>
-        <translation>素材已删除，不自动复活</translation>
-    </message>
-    <message>
-        <location line="+9"/>
-        <source>目标版本不存在</source>
-        <translation>目标版本不存在</translation>
-    </message>
-    <message>
-        <location line="+10"/>
-        <source>目标内容损坏，无法完成恢复：%1</source>
-        <translation>目标内容损坏，无法完成恢复：%1</translation>
-    </message>
-    <message>
-        <location line="+20"/>
-        <source>恢复未完成，已取消</source>
-        <translation>恢复未完成，已取消</translation>
-    </message>
-    <message>
-        <location line="+4"/>
-        <source>工作副本在中断后被外部修改，未自动处理</source>
-        <translation>工作副本在中断后被外部修改，未自动处理</translation>
-    </message>
-    <message>
-        <location line="+26"/>
-        <source>不在该快照中，跳过</source>
-        <translation>不在该快照中，跳过</translation>
-    </message>
-    <message>
-        <location line="+10"/>
-        <source>快照中该素材被排除，跳过</source>
-        <translation>快照中该素材被排除，跳过</translation>
-    </message>
-    <message>
-        <location line="+7"/>
-        <source>该素材已在快照后删除（历史保留，不自动复活）</source>
-        <translation>该素材已在快照后删除（历史保留，不自动复活）</translation>
-    </message>
-    <message>
-        <location line="+7"/>
-        <source>素材不存在，跳过</source>
-        <translation>素材不存在，跳过</translation>
-    </message>
-    <message>
-        <location line="+127"/>
-        <source>导出目标是指向其他位置的链接，请选择一个真实文件路径</source>
-        <translation>导出目标是指向其他位置的链接，请选择一个真实文件路径</translation>
-    </message>
-    <message>
-        <location line="+4"/>
-        <source>目标文件已存在；覆盖需要明确确认</source>
-        <translation>目标文件已存在；覆盖需要明确确认</translation>
-    </message>
-    <message>
-        <location line="+52"/>
+        <location line="+667"/>
         <source>无法发布一致快照，以下文件仍在写入：%1</source>
         <translation>Cannot publish a consistent snapshot, still being written: %1</translation>
     </message>
@@ -342,23 +255,11 @@
         <source>备份包对象校验失败：%1</source>
         <translation>Backup package object verification failed: %1</translation>
     </message>
+    
+    
+    
     <message>
-        <location line="-19"/>
-        <source>恢复演练目标库非空（不覆盖既有素材库）</source>
-        <translation>恢复演练目标库非空（不覆盖既有素材库）</translation>
-    </message>
-    <message>
-        <location line="+5"/>
-        <source>备份包清单为空：%1</source>
-        <translation>备份包清单为空：%1</translation>
-    </message>
-    <message>
-        <location line="+25"/>
-        <source>恢复后内容校验失败：%1</source>
-        <translation>恢复后内容校验失败：%1</translation>
-    </message>
-    <message>
-        <location line="-1387"/>
+        <location line="-1376"/>
         <source>历史对象内容不一致</source>
         <translation>History object content mismatch</translation>
     </message>
@@ -397,13 +298,108 @@
         <translation>No revision found for this asset</translation>
     </message>
     <message>
-        <location line="-601"/>
+        <location line="-915"/>
+        <source>后台连接无法打开：%1</source>
+        <translation>Background connection could not be opened: %1</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>后台连接初始化失败：%1</source>
+        <translation>Background connection initialization failed: %1</translation>
+    </message>
+    <message>
+        <location line="+310"/>
         <location line="+983"/>
         <source>请导出到素材库之外的现有目录</source>
         <translation>Export to an existing directory outside the library</translation>
     </message>
     <message>
-        <location line="-90"/>
+        <location line="-450"/>
+        <source>目标版本内容缺失或损坏，无法恢复</source>
+        <translation>Target revision content is missing or corrupt; cannot restore</translation>
+    </message>
+    <message>
+        <location line="+21"/>
+        <source>工作副本不可读，无法保护当前内容</source>
+        <translation>Working copy is unreadable; cannot preserve the current content</translation>
+    </message>
+    <message>
+        <location line="+29"/>
+        <source>恢复计划已失效：工作副本已出现，请刷新预演</source>
+        <translation>Restore plan is stale: the working copy now exists; refresh the preview</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>恢复计划已失效：工作副本已消失，请刷新预演</source>
+        <translation>Restore plan is stale: the working copy is gone; refresh the preview</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>恢复计划已失效：工作副本已变化，请刷新预演</source>
+        <translation>Restore plan is stale: the working copy changed; refresh the preview</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>无法恢复：冲突未解决</source>
+        <translation>Cannot restore: conflict unresolved</translation>
+    </message>
+    <message>
+        <location line="+59"/>
+        <source>检测到外部编辑正在写入，请关闭外部编辑器后重试</source>
+        <translation>An external editor is writing; close it and retry</translation>
+    </message>
+    <message>
+        <location line="+114"/>
+        <source>素材记录不存在</source>
+        <translation>Asset record not found</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>素材已删除，不自动复活</source>
+        <translation>Asset was deleted; not restored automatically</translation>
+    </message>
+    <message>
+        <location line="+9"/>
+        <source>目标版本不存在</source>
+        <translation>Target revision not found</translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <source>目标内容损坏，无法完成恢复：%1</source>
+        <translation>Target content is corrupt; restore could not complete: %1</translation>
+    </message>
+    <message>
+        <location line="+20"/>
+        <source>恢复未完成，已取消</source>
+        <translation>Restore incomplete; cancelled</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>工作副本在中断后被外部修改，未自动处理</source>
+        <translation>Working copy was modified externally after interruption; not handled automatically</translation>
+    </message>
+    <message>
+        <location line="+26"/>
+        <source>不在该快照中，跳过</source>
+        <translation>Not in this snapshot; skipping</translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <source>快照中该素材被排除，跳过</source>
+        <translation>Excluded from this snapshot; skipping</translation>
+    </message>
+    <message>
+        <location line="+7"/>
+        <source>该素材已在快照后删除（历史保留，不自动复活）</source>
+        <translation>Asset was deleted after this snapshot (history kept; not restored automatically)</translation>
+    </message>
+    <message>
+        <location line="+7"/>
+        <source>素材不存在，跳过</source>
+        <translation>Asset not found; skipping</translation>
+    </message>
+    <message>
+        <location line="+33"/>
         <location line="+22"/>
         <source>素材不存在</source>
         <translation>Asset not found</translation>
@@ -419,9 +415,34 @@
         <translation>Cannot remove the working copy: %1 (close the program using this file)</translation>
     </message>
     <message>
-        <location line="+66"/>
+        <location line="+58"/>
+        <source>导出目标是指向其他位置的链接，请选择一个真实文件路径</source>
+        <translation>Export target is a link to another location; choose a real file path</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>目标文件已存在；覆盖需要明确确认</source>
+        <translation>Target file exists; overwriting requires explicit confirmation</translation>
+    </message>
+    <message>
+        <location line="+4"/>
         <source>找不到历史版本</source>
         <translation>Revision not found</translation>
+    </message>
+    <message>
+        <location line="+350"/>
+        <source>恢复演练目标库非空（不覆盖既有素材库）</source>
+        <translation>Drill target library is not empty (an existing library is never overwritten)</translation>
+    </message>
+    <message>
+        <location line="+5"/>
+        <source>备份包清单为空：%1</source>
+        <translation>Backup package manifest is empty: %1</translation>
+    </message>
+    <message>
+        <location line="+25"/>
+        <source>恢复后内容校验失败：%1</source>
+        <translation>Restored content verification failed: %1</translation>
     </message>
 </context>
 <context>
@@ -490,7 +511,22 @@
         <translation>Restore to anchor</translation>
     </message>
     <message>
-        <location line="-1515"/>
+        <location line="-1521"/>
+        <source>一致性检查…</source>
+        <translation>Consistency check…</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>空间预演…</source>
+        <translation>Space preview…</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>恢复演练…</source>
+        <translation>Restore drill…</translation>
+    </message>
+    <message>
+        <location line="+4"/>
         <source>素材库</source>
         <translation>Library</translation>
     </message>
@@ -564,23 +600,11 @@
         <source>导出备份包…</source>
         <translation>Export Backup Package…</translation>
     </message>
+    
+    
+    
     <message>
-        <location line="+1"/>
-        <source>一致性检查…</source>
-        <translation>一致性检查…</translation>
-    </message>
-    <message>
-        <location line="+1"/>
-        <source>空间预演…</source>
-        <translation>空间预演…</translation>
-    </message>
-    <message>
-        <location line="+1"/>
-        <source>恢复演练…</source>
-        <translation>恢复演练…</translation>
-    </message>
-    <message>
-        <location line="+19"/>
+        <location line="+22"/>
         <source>筛选</source>
         <translation>Filter</translation>
     </message>
@@ -936,11 +960,225 @@ Restoring appends a new version; existing history is always kept.</translation>
         <translation>Unrecorded changes</translation>
     </message>
     <message>
-        <source>当前</source>
-        <translation type="vanished">Current</translation>
+        <location line="+411"/>
+        <source>将覆盖当前工作副本：未记录的当前内容会先保存为保护版本。
+空间需求：约 %1 KiB（保护 %2 KiB + 写入 %3 KiB）。
+保护的是磁盘上已保存的内容；外部编辑器未写盘的内容不受保护，请先关闭编辑器。</source>
+        <translation>Will overwrite the current working copy: unrecorded content is first kept as a protection revision.
+Space needed: about %1 KiB (preserve %2 KiB + write %3 KiB).
+What is preserved is the content already saved on disk; unsaved editor content is not protected, so close the editor first.</translation>
     </message>
     <message>
-        <location line="+1"/>
+        <location line="+7"/>
+        <source>当前工作副本缺失——将新增该文件（无内容可保护，请确认）。
+空间需求：约 %1 KiB。</source>
+        <translation>The current working copy is missing - the file will be recreated (nothing to preserve; please confirm).
+Space needed: about %1 KiB.</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>当前内容已与目标一致——无需恢复。</source>
+        <translation>Current content already matches the target - no restore needed.</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>无法恢复：%1</source>
+        <translation>Cannot restore: %1</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <location line="+455"/>
+        <source>恢复预演</source>
+        <translation>Restore preview</translation>
+    </message>
+    <message>
+        <location line="-447"/>
+        <location line="+451"/>
+        <source>确认恢复</source>
+        <translation>Confirm restore</translation>
+    </message>
+    <message>
+        <location line="+110"/>
+        <source>正在执行一致性检查（只读，后台进行）…</source>
+        <translation>Running consistency check (read-only, in background)...</translation>
+    </message>
+    <message>
+        <location line="+15"/>
+        <source>一致性检查失败：%1</source>
+        <translation>Consistency check failed: %1</translation>
+    </message>
+    <message>
+        <location line="+8"/>
+        <source>…（共 %1 项）</source>
+        <translation>... (%1 total)</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>检查完成：%1 条修订引用，%2 个对象文件，%3 个对象校验通过。
+
+问题：%4 项（缺失 %5，损坏 %6，孤立 %7，I/O %8）。</source>
+        <translation>Check complete: %1 revision references, %2 object files, %3 objects verified.
+
+Problems: %4 (missing %5, corrupt %6, orphan %7, I/O %8).</translation>
+    </message>
+    <message>
+        <location line="+7"/>
+        <source>
+
+未发现问题。</source>
+        <translation>
+
+No problems found.</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>
+
+缺失对象（被引用但无文件）：
+%1</source>
+        <translation>
+
+Missing objects (referenced but no file):
+%1</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>
+
+损坏对象（文件与哈希不符）：
+%1</source>
+        <translation>
+
+Corrupt objects (file does not match its hash):
+%1</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>
+
+孤立对象（无引用但存在文件）：
+%1</source>
+        <translation>
+
+Orphan objects (no reference but file exists):
+%1</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>
+
+I/O 错误（无法读取）：
+%1</source>
+        <translation>
+
+I/O errors (unreadable):
+%1</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>一致性检查</source>
+        <translation>Consistency check</translation>
+    </message>
+    <message>
+        <location line="+12"/>
+        <source>正在计算空间预演（只读，后台进行）…</source>
+        <translation>Computing space preview (read-only, in background)...</translation>
+    </message>
+    <message>
+        <location line="+15"/>
+        <source>空间预演失败：%1</source>
+        <translation>Space preview failed: %1</translation>
+    </message>
+    <message>
+        <location line="+13"/>
+        <source>素材：%1 个；修订：%2 条。
+
+逻辑大小（清单合计，重复计数）：%3
+物理占用（对象文件实际）：%4
+共享对象：%5 个（去重节省 %6）
+固定版本（受保护）：%7 条，占 %8
+理论可回收：%9（%10 个孤立对象）
+
+当前不做任何清理：磁盘会随版本持续增长。</source>
+        <translation>Assets: %1; revisions: %2.
+
+Logical size (manifest sum, double-counted): %3
+Physical usage (object files on disk): %4
+Shared objects: %5 (dedup saves %6)
+Pinned versions (protected): %7, taking %8
+Theoretical reclaimable: %9 (%10 orphan objects)
+
+No cleanup is performed: disk usage keeps growing with new versions.</translation>
+    </message>
+    <message>
+        <location line="+12"/>
+        <source>空间预演</source>
+        <translation>Space preview</translation>
+    </message>
+    <message>
+        <location line="+11"/>
+        <source>选择备份包目录（含 COMPLETE 标记）</source>
+        <translation>Choose the backup package directory (must contain the COMPLETE marker)</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>选择恢复演练目标目录（须为空目录）</source>
+        <translation>Choose the restore-drill target directory (must be empty)</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <location line="+53"/>
+        <location line="+5"/>
+        <source>恢复演练</source>
+        <translation>Restore drill</translation>
+    </message>
+    <message>
+        <location line="-57"/>
+        <source>将在独立目录完整恢复备份包并逐项核对：
+备份包：%1
+目标目录：%2
+
+不覆盖原素材库；核对 空目录恢复、内容哈希、资源 ID、版本数、路径。</source>
+        <translation>Will fully restore the backup package into an independent directory and verify each item:
+Package: %1
+Target directory: %2
+
+The original library is never overwritten; checks: empty-dir restore, content hash, asset ID, version count, path.</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>正在执行恢复演练（后台进行）…</source>
+        <translation>Running restore drill (in background)...</translation>
+    </message>
+    <message>
+        <location line="+45"/>
+        <source>恢复演练失败：%1</source>
+        <translation>Restore drill failed: %1</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>恢复演练失败：%1
+（演练目录未通过，备份不可视为可用）</source>
+        <translation>Restore drill failed: %1
+(the drill directory did not verify; the backup must not be treated as usable)</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>恢复演练完成：%1（独立目录 %2）</source>
+        <translation>Restore drill complete: %1 (independent directory %2)</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>恢复演练完成：%1
+空目录恢复、内容哈希、资源 ID、版本数、路径已逐项核对。
+演练目录：%2</source>
+        <translation>Restore drill complete: %1
+Empty-dir restore, content hash, asset ID, version count and path were verified item by item.
+Drill directory: %2</translation>
+    </message>
+    
+    <message>
+        <location line="-1172"/>
         <source>已固定</source>
         <translation>Pinned</translation>
     </message>
@@ -974,10 +1212,7 @@ Restoring appends a new version; existing history is always kept.</translation>
         <source>固定原因：%1</source>
         <translation>Pin reason: %1</translation>
     </message>
-    <message>
-        <source>当前 · </source>
-        <translation type="vanished">Current · </translation>
-    </message>
+    
     <message>
         <location line="+51"/>
         <source>已清除评分</source>
@@ -1271,53 +1506,15 @@ The original file and history are fully preserved and can be exported.</translat
         <source>内容未变化（当前版本 #%1），无需重复保存</source>
         <translation>Content unchanged (current version #%1); nothing to save again</translation>
     </message>
+    
+    
+    
+    
+    
+    
+    
     <message>
-        <location line="+21"/>
-        <source>将覆盖当前工作副本：未记录的当前内容会先保存为保护版本。
-空间需求：约 %1 KiB（保护 %2 KiB + 写入 %3 KiB）。
-保护的是磁盘上已保存的内容；外部编辑器未写盘的内容不受保护，请先关闭编辑器。</source>
-        <translation>将覆盖当前工作副本：未记录的当前内容会先保存为保护版本。
-空间需求：约 %1 KiB（保护 %2 KiB + 写入 %3 KiB）。
-保护的是磁盘上已保存的内容；外部编辑器未写盘的内容不受保护，请先关闭编辑器。</translation>
-    </message>
-    <message>
-        <location line="+7"/>
-        <source>当前工作副本缺失——将新增该文件（无内容可保护，请确认）。
-空间需求：约 %1 KiB。</source>
-        <translation>当前工作副本缺失——将新增该文件（无内容可保护，请确认）。
-空间需求：约 %1 KiB。</translation>
-    </message>
-    <message>
-        <location line="+4"/>
-        <source>当前内容已与目标一致——无需恢复。</source>
-        <translation>当前内容已与目标一致——无需恢复。</translation>
-    </message>
-    <message>
-        <location line="+3"/>
-        <source>无法恢复：%1</source>
-        <translation>无法恢复：%1</translation>
-    </message>
-    <message>
-        <location line="+4"/>
-        <location line="+455"/>
-        <source>恢复预演</source>
-        <translation>恢复预演</translation>
-    </message>
-    <message>
-        <location line="-447"/>
-        <location line="+451"/>
-        <source>确认恢复</source>
-        <translation>确认恢复</translation>
-    </message>
-    <message>
-        <location line="-430"/>
-        <source>目标文件已存在：%1
-覆盖？</source>
-        <translation>目标文件已存在：%1
-覆盖？</translation>
-    </message>
-    <message>
-        <location line="+29"/>
+        <location line="+97"/>
         <source>双版对比</source>
         <translation>Compare two versions</translation>
     </message>
@@ -1389,7 +1586,78 @@ The original file and history are fully preserved and can be exported.</translat
         <translation>#%1 %2 · %3 assets%4</translation>
     </message>
     <message>
-        <location line="+33"/>
+        <location line="-75"/>
+        <source>恢复选中项…</source>
+        <translation>Restore selected items...</translation>
+    </message>
+    <message>
+        <location line="+16"/>
+        <source>恢复选中项</source>
+        <translation>Restore selected items</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>请选择快照中存在的素材（已排除或已删除的条目不可恢复）。</source>
+        <translation>Select assets present in the snapshot (excluded or deleted entries cannot be restored).</translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <source>覆盖</source>
+        <translation>Overwrite</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>新增</source>
+        <translation>Add</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>跳过：%1</source>
+        <translation>Skipped: %1</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>冲突：%1</source>
+        <translation>Conflict: %1</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>空间需求：约 %1 KiB</source>
+        <translation>Space needed: about %1 KiB</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>将恢复以下选中项（写入前预演）：
+%1
+
+保护的是磁盘已保存内容；外部编辑器未写盘内容不受保护。</source>
+        <translation>Will restore the following selected items (preview before writing):
+%1
+
+What is preserved is content already saved on disk; unsaved editor content is not protected.</translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <source>· %1 —— 成功</source>
+        <translation> - %1 - success</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>· %1 —— 跳过：%2</source>
+        <translation> - %1 - skipped: %2</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>· %1 —— 失败：%2</source>
+        <translation> - %1 - failed: %2</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>恢复结果</source>
+        <translation>Restore result</translation>
+    </message>
+    <message>
+        <location line="+54"/>
         <source>选择备份目标目录（须为空或新目录）</source>
         <translation>Choose a backup target directory (must be empty or new)</translation>
     </message>
@@ -1428,187 +1696,31 @@ The package does not share the running index and is portable to another machine.
         <source>备份包已导出：%1（%2 个素材，%3 个对象，约 %4 KiB；完成标记已写入）</source>
         <translation>Backup package exported: %1 (%2 assets, %3 objects, about %4 KiB; completion marker written)</translation>
     </message>
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     <message>
-        <location line="+14"/>
-        <source>正在执行一致性检查（只读，后台进行）…</source>
-        <translation>正在执行一致性检查（只读，后台进行）…</translation>
-    </message>
-    <message>
-        <location line="+15"/>
-        <source>一致性检查失败：%1</source>
-        <translation>一致性检查失败：%1</translation>
-    </message>
-    <message>
-        <location line="+8"/>
-        <source>…（共 %1 项）</source>
-        <translation>…（共 %1 项）</translation>
-    </message>
-    <message>
-        <location line="+4"/>
-        <source>检查完成：%1 条修订引用，%2 个对象文件，%3 个对象校验通过。
-
-问题：%4 项（缺失 %5，损坏 %6，孤立 %7，I/O %8）。</source>
-        <translation>检查完成：%1 条修订引用，%2 个对象文件，%3 个对象校验通过。
-
-问题：%4 项（缺失 %5，损坏 %6，孤立 %7，I/O %8）。</translation>
-    </message>
-    <message>
-        <location line="+7"/>
-        <source>
-
-未发现问题。</source>
-        <translation>
-
-未发现问题。</translation>
-    </message>
-    <message>
-        <location line="+3"/>
-        <source>
-
-缺失对象（被引用但无文件）：
-%1</source>
-        <translation>
-
-缺失对象（被引用但无文件）：
-%1</translation>
-    </message>
-    <message>
-        <location line="+3"/>
-        <source>
-
-损坏对象（文件与哈希不符）：
-%1</source>
-        <translation>
-
-损坏对象（文件与哈希不符）：
-%1</translation>
-    </message>
-    <message>
-        <location line="+3"/>
-        <source>
-
-孤立对象（无引用但存在文件）：
-%1</source>
-        <translation>
-
-孤立对象（无引用但存在文件）：
-%1</translation>
-    </message>
-    <message>
-        <location line="+3"/>
-        <source>
-
-I/O 错误（无法读取）：
-%1</source>
-        <translation>
-
-I/O 错误（无法读取）：
-%1</translation>
-    </message>
-    <message>
-        <location line="+3"/>
-        <source>一致性检查</source>
-        <translation>一致性检查</translation>
-    </message>
-    <message>
-        <location line="+12"/>
-        <source>正在计算空间预演（只读，后台进行）…</source>
-        <translation>正在计算空间预演（只读，后台进行）…</translation>
-    </message>
-    <message>
-        <location line="+15"/>
-        <source>空间预演失败：%1</source>
-        <translation>空间预演失败：%1</translation>
-    </message>
-    <message>
-        <location line="+13"/>
-        <source>素材：%1 个；修订：%2 条。
-
-逻辑大小（清单合计，重复计数）：%3
-物理占用（对象文件实际）：%4
-共享对象：%5 个（去重节省 %6）
-固定版本（受保护）：%7 条，占 %8
-理论可回收：%9（%10 个孤立对象）
-
-当前不做任何清理：磁盘会随版本持续增长。</source>
-        <translation>素材：%1 个；修订：%2 条。
-
-逻辑大小（清单合计，重复计数）：%3
-物理占用（对象文件实际）：%4
-共享对象：%5 个（去重节省 %6）
-固定版本（受保护）：%7 条，占 %8
-理论可回收：%9（%10 个孤立对象）
-
-当前不做任何清理：磁盘会随版本持续增长。</translation>
-    </message>
-    <message>
-        <location line="+12"/>
-        <source>空间预演</source>
-        <translation>空间预演</translation>
-    </message>
-    <message>
-        <location line="+11"/>
-        <source>选择备份包目录（含 COMPLETE 标记）</source>
-        <translation>选择备份包目录（含 COMPLETE 标记）</translation>
-    </message>
-    <message>
-        <location line="+2"/>
-        <source>选择恢复演练目标目录（须为空目录）</source>
-        <translation>选择恢复演练目标目录（须为空目录）</translation>
-    </message>
-    <message>
-        <location line="+2"/>
-        <location line="+53"/>
-        <location line="+5"/>
-        <source>恢复演练</source>
-        <translation>恢复演练</translation>
-    </message>
-    <message>
-        <location line="-57"/>
-        <source>将在独立目录完整恢复备份包并逐项核对：
-备份包：%1
-目标目录：%2
-
-不覆盖原素材库；核对 空目录恢复、内容哈希、资源 ID、版本数、路径。</source>
-        <translation>将在独立目录完整恢复备份包并逐项核对：
-备份包：%1
-目标目录：%2
-
-不覆盖原素材库；核对 空目录恢复、内容哈希、资源 ID、版本数、路径。</translation>
-    </message>
-    <message>
-        <location line="+6"/>
-        <source>正在执行恢复演练（后台进行）…</source>
-        <translation>正在执行恢复演练（后台进行）…</translation>
-    </message>
-    <message>
-        <location line="+45"/>
-        <source>恢复演练失败：%1</source>
-        <translation>恢复演练失败：%1</translation>
-    </message>
-    <message>
-        <location line="+2"/>
-        <source>恢复演练失败：%1
-（演练目录未通过，备份不可视为可用）</source>
-        <translation>恢复演练失败：%1
-（演练目录未通过，备份不可视为可用）</translation>
-    </message>
-    <message>
-        <location line="+3"/>
-        <source>恢复演练完成：%1（独立目录 %2）</source>
-        <translation>恢复演练完成：%1（独立目录 %2）</translation>
-    </message>
-    <message>
-        <location line="+2"/>
-        <source>恢复演练完成：%1
-空目录恢复、内容哈希、资源 ID、版本数、路径已逐项核对。
-演练目录：%2</source>
-        <translation>恢复演练完成：%1
-空目录恢复、内容哈希、资源 ID、版本数、路径已逐项核对。
-演练目录：%2</translation>
-    </message>
-    <message>
-        <location line="+14"/>
+        <location line="+203"/>
         <source>挂载来源状态</source>
         <translation>Mounted Source Status</translation>
     </message>
@@ -1746,24 +1858,10 @@ I/O 错误（无法读取）：
         <translation>Import complete:
 %1</translation>
     </message>
-    <message>
-        <source>已记录新版本</source>
-        <translation type="vanished">New version recorded</translation>
-    </message>
-    <message>
-        <source>内容未变化，无需重复保存</source>
-        <translation type="vanished">Content unchanged; nothing to save</translation>
-    </message>
-    <message>
-        <source>恢复历史版本</source>
-        <translation type="vanished">Restore revision</translation>
-    </message>
-    <message>
-        <source>将历史内容恢复为当前工作副本，并新增一个版本。
-未记录的当前内容会先保存。请先在外部编辑器中关闭此文件。</source>
-        <translation type="vanished">Restores the historical content as the current working copy and appends a new version.
-Unrecorded current content is saved first. Close the file in external editors.</translation>
-    </message>
+    
+    
+    
+    
     <message>
         <location line="-881"/>
         <location line="+5"/>
@@ -1771,7 +1869,14 @@ Unrecorded current content is saved first. Close the file in external editors.</
         <translation>Export revision</translation>
     </message>
     <message>
-        <location line="+98"/>
+        <location line="+1"/>
+        <source>目标文件已存在：%1
+覆盖？</source>
+        <translation>Target file exists: %1
+Overwrite?</translation>
+    </message>
+    <message>
+        <location line="+97"/>
         <source>自动记录失败：%1</source>
         <translation>Auto-record failed: %1</translation>
     </message>
@@ -1922,91 +2027,30 @@ Close external editors, then roll back via &quot;Restore revision&quot; or &quot
         <source>（此快照没有条目）</source>
         <translation>(this snapshot has no entries)</translation>
     </message>
+    
+    
+    
+    
+    
+    
+    
     <message>
-        <location line="+7"/>
-        <source>恢复选中项…</source>
-        <translation>恢复选中项…</translation>
-    </message>
-    <message>
-        <location line="+16"/>
-        <source>恢复选中项</source>
-        <translation>恢复选中项</translation>
-    </message>
-    <message>
-        <location line="+1"/>
-        <source>请选择快照中存在的素材（已排除或已删除的条目不可恢复）。</source>
-        <translation>请选择快照中存在的素材（已排除或已删除的条目不可恢复）。</translation>
-    </message>
-    <message>
-        <location line="+10"/>
-        <source>覆盖</source>
-        <translation>覆盖</translation>
-    </message>
-    <message>
-        <location line="+1"/>
-        <source>新增</source>
-        <translation>新增</translation>
-    </message>
-    <message>
-        <location line="+1"/>
-        <source>跳过：%1</source>
-        <translation>跳过：%1</translation>
-    </message>
-    <message>
-        <location line="+1"/>
-        <source>冲突：%1</source>
-        <translation>冲突：%1</translation>
-    </message>
-    <message>
-        <location line="+2"/>
+        <location line="+39"/>
         <source>· %1 —— %2</source>
         <translation>· %1 —— %2</translation>
     </message>
+    
+    
+    
+    
+    
+    
     <message>
-        <location line="+2"/>
-        <source>空间需求：约 %1 KiB</source>
-        <translation>空间需求：约 %1 KiB</translation>
-    </message>
-    <message>
-        <location line="+4"/>
-        <source>将恢复以下选中项（写入前预演）：
-%1
-
-保护的是磁盘已保存内容；外部编辑器未写盘内容不受保护。</source>
-        <translation>将恢复以下选中项（写入前预演）：
-%1
-
-保护的是磁盘已保存内容；外部编辑器未写盘内容不受保护。</translation>
-    </message>
-    <message>
-        <location line="+10"/>
-        <source>· %1 —— 成功</source>
-        <translation>· %1 —— 成功</translation>
-    </message>
-    <message>
-        <location line="+2"/>
-        <source>· %1 —— 跳过：%2</source>
-        <translation>· %1 —— 跳过：%2</translation>
-    </message>
-    <message>
-        <location line="+2"/>
-        <source>· %1 —— 失败：%2</source>
-        <translation>· %1 —— 失败：%2</translation>
-    </message>
-    <message>
-        <location line="+2"/>
-        <source>恢复结果</source>
-        <translation>恢复结果</translation>
-    </message>
-    <message>
-        <location line="+13"/>
+        <location line="+35"/>
         <source>还没有紧急快照锚点</source>
         <translation>No emergency snapshot anchor yet</translation>
     </message>
-    <message>
-        <source>#%1 %2 · %3 个素材</source>
-        <translation type="vanished">#%1 %2 · %3 assets</translation>
-    </message>
+    
     <message>
         <location line="+16"/>
         <source>选择感染前锚点（回滚形成新版本，不销毁后续历史）</source>
