@@ -107,6 +107,46 @@ private slots:
         // Modal cleanup restored focus to a widget of the main window.
         QVERIFY(window.focusWidget() != nullptr);
     }
+    // UI audit evidence (todo.md 审核发现 · UI-AUDIT P2): offscreen grabs of the
+    // main window (with sample assets) and the source-state dialog, written only
+    // when PENTIMENTO_UI_AUDIT_DIR is set, so a normal test run is unaffected.
+    // The grabs feed docs/review/2026-11-02-ui-audit.md.
+    void uiAuditScreenshots() {
+        const QString dirEnv = qgetenv("PENTIMENTO_UI_AUDIT_DIR");
+        if (dirEnv.isEmpty()) QSKIP("PENTIMENTO_UI_AUDIT_DIR not set");
+        QTemporaryDir work;
+        Library library(work.filePath("library"));
+        // Three distinct sample assets (varied content + organization state) so
+        // the grid, details and history panels show a real, non-empty view.
+        for (int i = 0; i < 3; ++i) {
+            QImage img(160, 120, QImage::Format_RGB32);
+            img.fill(i == 0 ? Qt::red : i == 1 ? Qt::green : Qt::blue);
+            const QString p = work.filePath(QStringLiteral("sample%1.png").arg(i));
+            QVERIFY(img.save(p, "PNG"));
+            const auto a = library.importFile(p);
+            library.setRating(a.id, 3 + i);
+            library.addTag(a.id, i == 0 ? QStringLiteral("主角") : QStringLiteral("场景"));
+            if (i == 0) library.moveAsset(a.id, "characters");
+        }
+        MainWindow window(library);
+        window.resize(860, 540);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+        window.saveScreenshot(dirEnv + "/main.png");
+        // The source-state dialog, grabbed while it is modal.
+        QTimer::singleShot(0, [&] {
+            for (auto *w : QApplication::topLevelWidgets()) {
+                auto *d = qobject_cast<QDialog *>(w);
+                if (!d || !d->isVisible()) continue;
+                d->grab().save(dirEnv + "/source-state.png");
+                d->accept();
+            }
+        });
+        const auto actions = window.findChildren<QAction *>();
+        for (auto *a : actions)
+            if (a->text() == QStringLiteral("挂载来源状态…")) { a->trigger(); break; }
+        QVERIFY(QFileInfo::exists(dirEnv + "/main.png"));
+    }
 };
 
 int main(int argc, char **argv) {
