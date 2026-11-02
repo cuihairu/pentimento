@@ -63,7 +63,7 @@ When a local asset library is encrypted or tampered by ransomware, the product m
 - 对象与索引不在同一个跨文件事务中，进程在恢复写盘和数据库提交之间崩溃时，重开后需记录一次当前工作副本。孤立对象暂不清理，避免误删历史。
 - 同盘历史不能替代异盘备份；备份时先关闭应用，再完整复制整个素材库。
 
-产品约定见 [PRODUCT.md](PRODUCT.md)，存储与恢复边界见 [docs/architecture.md](docs/architecture.md)，后续任务见 [todo.md](todo.md)。
+产品约定见 [PRODUCT.md](PRODUCT.md)，存储与恢复边界见 [docs/zh/architecture.md](docs/zh/architecture.md)，后续任务见 [todo.md](todo.md)。
 
 ## 许可
 

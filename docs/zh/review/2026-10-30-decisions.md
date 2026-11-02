@@ -21,7 +21,7 @@
 
 阻塞分三类：P-001–P-004 共 4 项确实需要范围或输入决策；P-006–P-015 共 10 项需要原型范围、审核和批准；P-102–P-609 共 79 项共享 P-015 的开工门槛，并不意味着用户必须做 79 次技术选择。建议一次确认产品边界，把可逆的工程细节交给开发者。
 
-主要依据：`todo.md:11–123`；`docs/zh/requirements.md`（R01–R19、D-01–D-19）；`docs/zh/integrations.md`；`docs/zh/performance.md`（D-20–D-23）；`docs/zh/review-log.md`（尚无已拍板决策）；`docs/zh/desktop-prototype-spec.md`；`PRODUCT.md`、`DESIGN.md`、`README.md`、`docs/architecture.md`。README 的“当前可用”描述实验原型；TODO 明确实验代码不算交付，不能据此跳过重新验收。本文没有审查源代码正确性，也没有把文档中的能力当成实测结果。
+主要依据：`todo.md:11–123`；`docs/zh/requirements.md`（R01–R19、D-01–D-19）；`docs/zh/integrations.md`；`docs/zh/performance.md`（D-20–D-23）；`docs/zh/review-log.md`（尚无已拍板决策）；`docs/zh/desktop-prototype-spec.md`；`PRODUCT.md`、`DESIGN.md`、`README.md`、`docs/zh/architecture.md`。README 的“当前可用”描述实验原型；TODO 明确实验代码不算交付，不能据此跳过重新验收。本文没有审查源代码正确性，也没有把文档中的能力当成实测结果。
 
 **发现两处影响决策的资料问题：**
 
@@ -1514,7 +1514,7 @@
 
 ## 落档执行状态（2026-10-30）
 
-- 本文件落档为 `docs/review/2026-10-30-decisions.md`；`todo.md` 对应 93 项 BLOCKED 任务已各追加「已代决」标注（2026-10-30）。**落档标注这一步未改动任何勾选**；随后执行阶段按原验收口径勾选 9 项（见下一条），故本条「未改动」仅指标注动作本身。
+- 本文件落档为 `docs/zh/review/2026-10-30-decisions.md`；`todo.md` 对应 93 项 BLOCKED 任务已各追加「已代决」标注（2026-10-30）。**落档标注这一步未改动任何勾选**；随后执行阶段按原验收口径勾选 9 项（见下一条），故本条「未改动」仅指标注动作本身。
 - **立即执行动作已按任务书执行（exec-actions，2026-10-30）**：93 项立即动作均产出交付物（设计/定义/核对/验证记录），落在 `docs/zh/design/`（10 个文件）与 `docs/zh/performance.md` 修正，提交 **5266cd3**；逐项「执行状态」行见上文各决策卡。
 - **todo 勾选（9 项）**：P-001、P-002、P-003、P-006–P-010、P-301 满足原验收口径（证据见各设计文档对应节）；`todo.md` 与 `todo.en.md` 已同步勾选（P-608 一致性）。其余 84 项立即动作已执行，但原验收需用户输入或 P-015 批准/实现完成，保持未勾选。
 - **需用户输入，暂缓（12 项）**：P-004（含 D-20–D-23）、P-011–P-015、P-102、P-104、P-501、P-509、P-604、P-607。

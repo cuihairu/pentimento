@@ -1,6 +1,6 @@
 # V1 范围与预算（代决执行，2026-10-30）
 
-> 状态：**已代决**（2026-10-14 用户授权「按推荐拍，后续可推翻」）。依据 `docs/review/2026-10-30-decisions.md` 执行 P-001–P-004 的立即动作；本文件为范围确认记录、后端能力矩阵、NAS 范围调整记录与样本/预算清单。正文不替代 `docs/zh/requirements.md`、`docs/zh/performance.md`、`docs/zh/integrations.md`，仅落档代决结论与执行内容。
+> 状态：**已代决**（2026-10-14 用户授权「按推荐拍，后续可推翻」）。依据 `docs/zh/review/2026-10-30-decisions.md` 执行 P-001–P-004 的立即动作；本文件为范围确认记录、后端能力矩阵、NAS 范围调整记录与样本/预算清单。正文不替代 `docs/zh/requirements.md`、`docs/zh/performance.md`、`docs/zh/integrations.md`，仅落档代决结论与执行内容。
 >
 > 说明：本文件的「纳入/延后/调整」均为代决结论，用户可推翻；「需用户输入」项待用户提供数据后执行。
 

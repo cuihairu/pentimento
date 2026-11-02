@@ -10,7 +10,7 @@
 
 ## C-02 todo.en.md 缺「已代决」标注（P-608 核对项 1/2）
 
-- **冲突**：todo.md 93 项 BLOCKED 均有「已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)」；todo.en.md 无此标注、未引用 decisions 文档。
+- **冲突**：todo.md 93 项 BLOCKED 均有「已代决:按 docs/zh/review/2026-10-30-decisions.md 执行(2026-10-30)」；todo.en.md 无此标注、未引用 decisions 文档。
 - **处理**：todo.en.md 93 项同步补相同标注，并加 decisions 文档引用；与 todo.md 逐项一致。
 
 ## C-03 「94 项」计数口径（P-608 核对项 3）
