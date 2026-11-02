@@ -75,6 +75,13 @@ if(BUILD_TESTING)
     add_executable(pentimento_security_tests tests/security_test.cpp)
     target_link_libraries(pentimento_security_tests PRIVATE pentimento_core Qt6::Test)
     add_test(NAME security_sentinel COMMAND pentimento_security_tests)
+    # P-606: desktop keyboard/zoom acceptance — offscreen MainWindow checks
+    # (minimum window, core shortcuts, tab traversal, non-color-only state,
+    # dialog buttons reachable after scaling).
+    add_executable(pentimento_ui_tests tests/mainwindow_test.cpp src/mainwindow.cpp src/mainwindow.h src/compare_canvas.cpp src/compare_canvas.h src/preview_canvas.cpp src/preview_canvas.h)
+    target_include_directories(pentimento_ui_tests PRIVATE src)
+    target_link_libraries(pentimento_ui_tests PRIVATE pentimento_core Qt6::Test Qt6::Widgets)
+    add_test(NAME desktop_keyboard_zoom COMMAND pentimento_ui_tests)
 endif()
 
 include(GNUInstallDirs)
