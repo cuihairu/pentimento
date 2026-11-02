@@ -1074,6 +1074,71 @@ private slots:
         catch (const std::exception &) { refused = true; }
         QVERIFY(refused);
     }
+    // P-605: a crash during object-store write (stage: 对象写入) leaves a stale
+    // .tmp and possibly a bad object. On reopen the library must stay usable and
+    // the bad object is reported, never silently trusted (storeObjectFromFile
+    // verifies the hash before the rename, so a half-write cannot be referenced;
+    // if one is nonetheless present, consistency check flags it as corrupt).
+    void faultInterruptedObjectWriteIsReportedNotTrusted() {
+        QTemporaryDir dir;
+        const QString root = dir.filePath("library");
+        QString assetId;
+        QString hash;
+        {
+            put(dir.filePath("a.dat"), "v1");
+            Library lib(root);
+            const auto a = lib.importFile(dir.filePath("a.dat"));
+            assetId = a.id;
+            hash = lib.revisions(a.id).first().hash;
+            // Interrupted object write: a stale staging file plus a referenced
+            // object that lost its tail (as if a rename raced a crash).
+            const QString staging = root + "/objects/.tmp/partial";
+            QVERIFY(QDir().mkpath(QFileInfo(staging).absolutePath()));
+            put(staging, "half");
+            const QString objPath = root + "/objects/" + hash;
+            ::chmod(objPath.toLocal8Bit(), 0644);
+            put(objPath, "xy"); // same length, different bytes: hash mismatch
+        }
+        Library reopened(root);
+        const auto report = reopened.checkConsistency();
+        QVERIFY(report.corrupt.contains(hash));
+        QCOMPARE(report.missing.size(), 0);
+        // The working copy and catalog are intact; the library is still usable.
+        QCOMPARE(get(reopened.assets().first().path), QByteArray("v1"));
+        put(dir.filePath("b.dat"), "v2");
+        QVERIFY(!reopened.importFile(dir.filePath("b.dat")).id.isEmpty());
+        QCOMPARE(reopened.assets().size(), 2);
+    }
+    // P-605: a crash between the object store and the index commit (stage:
+    // 索引提交) leaves a complete-but-unreferenced object. On reopen it is a
+    // reported orphan — the index has no dangling revision and the library is
+    // fully usable; the orphan is the explainable residue, not a corruption.
+    void faultInterruptedIndexCommitLeavesOrphan() {
+        QTemporaryDir dir;
+        const QString root = dir.filePath("library");
+        QString assetId;
+        {
+            put(dir.filePath("a.dat"), "v1");
+            Library lib(root);
+            assetId = lib.importFile(dir.filePath("a.dat")).id;
+            // Object stored, index commit never happened: a complete object with
+            // no revision row referencing it.
+            const QString orphanHash = digestHex("staged-not-committed");
+            put(root + "/objects/" + orphanHash, "staged-not-committed");
+        }
+        Library reopened(root);
+        const auto report = reopened.checkConsistency();
+        QVERIFY(report.orphan.contains(digestHex("staged-not-committed")));
+        QCOMPARE(report.missing.size(), 0);
+        QCOMPARE(report.corrupt.size(), 0);
+        // The catalog references exactly the committed revision; no dangling
+        // reference to the orphan. The library still captures new content.
+        QCOMPARE(reopened.revisions(assetId).size(), 1);
+        const auto a = reopened.assets().first();
+        put(a.path, "v2");
+        QVERIFY(reopened.capture(a, "v2"));
+        QCOMPARE(reopened.revisions(assetId).size(), 2);
+    }
     void storageInterfaceReportsConsistentLocalInfo() {
         QTemporaryDir dir;
         put(dir.filePath("a.png"), "image-bytes");
