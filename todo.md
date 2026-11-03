@@ -199,7 +199,7 @@
 
 - [x] **UI-AUDIT · P2 · 界面审核(impeccable 流程)**:原生桌面界面此前不在 web 界面审核范围,补审——按 impeccable 审计(层级/排版/对比度 a11y/布局/边界态),报告+截图入 docs/zh/review/,坏损当场修。 **完成 2026-11-03**：报告 `docs/zh/review/2026-11-03-ui-audit.md`（14/20 Good；5 发现=P1×2+P2×3）；P1 坏损当场修——右栏包 QScrollArea+列表最小高（src/mainwindow.cpp:270-271,306-308，复测 860×540 下时间轴 15→192px）、工具栏去溢出（6 次级动作移「更多」菜单+品牌去大字号，src/mainwindow.cpp:76-95，复测 1473→833px）；P2 a11y 补 6 处 accessibleName（src/mainwindow.cpp:119,166,304-308,341）；DESIGN.md 同步；回归测试 `minimumWindowToolbarFitsAndTimelineStaysUsable` 绿；ctest 3/3 绿。
 
-- [ ] **DOC-GIF · P2 · 文档 · 配置开关效果动态图(每个开关 off→on 对比+GIF)**
+- [ ] **DOC-GIF · P2 · 文档 · 配置开关效果动态图(每个开关 off→on 对比+GIF)** （BLOCKED 2026-11-03：验收强制要求 off/on 截图与动态 GIF；本会话指令「涉及截图/图片取证改用文本描述」，且当前为无显示无头环境无法运行 GUI 截图与 ffmpeg 录屏拼接——需用户拍板：接受文本描述替代证据，或待真实显示机器上再采集）
   - 交付:枚举本仓全部「开启后有效果」的开关/配置项;自动流水线生成证据——GUI 类用 @vscode/test-electron 或应用截图(off 一张/on 一张+切换过程录屏),CLI 类用终端录屏(asciinema→GIF 或 ffmpeg);ffmpeg 缝合动态 GIF。
   - 文档:docs「配置效果」页(双语)逐开关嵌入:说明+off 图+on 图+GIF。
   - 验收:清单内每个开关都有 off/on+GIF;流水线可重跑(配置变更随时再生成);兼作配置效果回归测试。
