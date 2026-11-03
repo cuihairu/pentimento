@@ -36,6 +36,13 @@ inline constexpr qint64 kMaxObjectBytes = 256LL * 1024 * 1024;
 // std::runtime_error when the file cannot be opened or read.
 QString digestFileBounded(const QString &path);
 
+// Streaming SHA-256 that does not throw: returns false on an open/read failure
+// (a mount drop, a file deleted between stat and open) and, on success, writes
+// the hex digest and the exact number of bytes hashed. `hash`/`size` may be
+// null. The snapshot path uses this so one unreadable file degrades to
+// "missing" instead of aborting the whole batch.
+bool hashFile(const QString &path, QString *hash, qint64 *size);
+
 struct Asset {
     QString id;
     QString name;
@@ -247,6 +254,11 @@ public:
                         const QString &destination, bool overwrite = false) const;
     QString objectPath(const QString &hash) const;
     QByteArray readObject(const QString &hash) const;
+    // Verify one stored object's content hash WITHOUT loading it whole into
+    // memory (streaming). Returns false when the object is missing, unreadable
+    // or its hash mismatches — the caller keeps the corruption visible without
+    // a full up-to-256 MiB in-memory read on every UI refresh.
+    bool verifyObject(const QString &hash) const;
     // Anti-ransomware: re-apply immutability to any object left writable (idempotent).
     int hardenObjects();
     // Anti-ransomware: freeze current working state of every asset as one anchor.
@@ -465,7 +477,7 @@ private:
     // a dedup never rewrites existing content. `hash` is supplied by the
     // streaming callers so a large file is hashed once, not twice.
     QString storeObject(const QByteArray &bytes);
-    QString storeObjectFromFile(const QString &sourcePath, const QString &hash);
+    qint64 storeObjectFromFile(const QString &sourcePath, const QString &hash);
     void publishObject(const QString &tempPath, const QString &hash);
     QString tempObjectPath() const;
     // Record one revision row and refresh the asset's P-217 facts; returns the

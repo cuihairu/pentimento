@@ -669,13 +669,11 @@ void MainWindow::reloadHistory() {
     for (int i = 0; i < revisions_.size(); ++i) {
         const auto &revision = revisions_.at(i);
         const auto date = QDateTime::fromString(revision.created, Qt::ISODateWithMs).toLocalTime();
-        QByteArray bytes;
-        bool corrupt = false;
-        try {
-            bytes = library_.readObject(revision.hash);
-        } catch (const std::exception &) {
-            corrupt = true; // object missing or hash mismatch: never hidden
-        }
+        // P-207 integrity check WITHOUT loading the object whole: the object is
+        // stream-hashed, so a refresh over history never reads every revision
+        // into memory (only the thumbnail decode does, on a cache miss). A
+        // missing/mismatched object stays visible as "损坏对象" (never hidden).
+        const bool corrupt = !library_.verifyObject(revision.hash);
         // P-307/P-308: per-row markers. A restore-formed record and a restore's
         // automatic safety save are marked by their system-written notes; every
         // older revision is plainly "历史".
@@ -701,8 +699,14 @@ void MainWindow::reloadHistory() {
         if (corrupt) {
             item->setIcon(style()->standardIcon(QStyle::SP_MessageBoxWarning));
         } else {
-            const QImage thumb = cachedThumbnail(revision.hash, selected().name, QSize(80, 80));
-            if (!thumb.isNull()) item->setIcon(QPixmap::fromImage(thumb));
+            try {
+                const QImage thumb = cachedThumbnail(revision.hash, selected().name, QSize(80, 80));
+                if (!thumb.isNull()) item->setIcon(QPixmap::fromImage(thumb));
+            } catch (const std::exception &) {
+                // Object vanished between the verify and the decode: show the
+                // corrupt marker instead of failing the whole refresh.
+                item->setIcon(style()->standardIcon(QStyle::SP_MessageBoxWarning));
+            }
         }
     }
     historyList_->setCurrentRow(revisions_.isEmpty() ? -1 : 0);

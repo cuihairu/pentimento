@@ -113,21 +113,20 @@ RescanPreview rescanPreview(Library &library, const QString &root,
     for (const auto &candidate : scan.candidates) {
         RescanCandidate rc;
         rc.candidate = candidate;
-        // Readable at scan time, but the mount can drop between the scan and
-        // this hash — a file that cannot be read now is reported as unstable
-        // (kept, retryable), never treated as a remote deletion.
-        QFile file(candidate.sourcePath);
-        if (!file.open(QIODevice::ReadOnly)) {
+        // Streaming hash: a large source file (beyond the 256 MiB single-file
+        // import cap) is never loaded whole, so a mounted source cannot OOM the
+        // worker thread during a rescan preview. A mid-read failure (mount drop,
+        // file deleted between the scan and this hash) must NOT escape the whole
+        // function: the candidate is kept as retryable (with an error), and the
+        // rest of the preview still completes. Only the "already imported"
+        // comparison needs the successful hash.
+        QString hash;
+        if (!hashFile(candidate.sourcePath, &hash, nullptr)) {
             rc.error = QObject::tr("读取失败（可重试）：%1").arg(candidate.sourcePath);
             preview.candidates.push_back(rc);
             continue;
         }
-        // Streaming hash: a large source file (beyond the 256 MiB single-file
-        // import cap) is never loaded whole, so a mounted source cannot OOM the
-        // worker thread during a rescan preview. The same hashing path as the
-        // library's own streaming helper keeps the "already imported" comparison
-        // exact; a later confirmed import still reports the oversize error.
-        rc.hash = digestFileBounded(candidate.sourcePath);
+        rc.hash = hash;
         rc.alreadyImported = library.hasContent(rc.hash);
         preview.candidates.push_back(rc);
     }

@@ -1287,6 +1287,13 @@ private slots:
         // The retained tail is bounded; a long session never grows without limit.
         QVERIFY(statuses.size() <= 64);
         QVERIFY(statuses.size() >= 1);
+        // The retained tasks are the MOST RECENT ones (ids many-64..many-1) —
+        // pruning must never drop the newest completed task (audit 2026-11-02).
+        QVERIFY(statuses.size() == 64);
+        for (int i = 0; i < statuses.size(); ++i)
+            QCOMPARE(statuses.at(i).id, qint64(many - statuses.size() + i + 1));
+        QCOMPARE(statuses.last().label, QStringLiteral("t%1").arg(many - 1));
+        QCOMPARE(statuses.last().items.size(), 1);
         // A subsequent task still runs and reports (the queue is usable).
         std::atomic_int done2 = 0;
         const qint64 id2 = queue.submit("after-prune", [&](TaskQueue::Progress &p) {
@@ -2935,6 +2942,137 @@ private slots:
         const auto revs = lib.revisions(a.id);
         QCOMPARE(revs.first().note, QStringLiteral("紧急快照锚点"));
         QCOMPARE(lib.readObject(revs.first().hash), QByteArray("unrecorded-big-content"));
+    }
+    // 审核发现（2026-11-02）: the emergency-anchor streaming path must handle a
+    // working copy beyond the 256 MiB import cap the same way rescan preview
+    // does — the content is stored by streaming (never read whole), and the
+    // resulting anchor object still verifies against the recorded size.
+    void snapshotStreamsLargeUnrecordedWorkingCopyAsEmergencyAnchor() {
+        QTemporaryDir dir;
+        put(dir.filePath("a.dat"), "v1");
+        Library lib(dir.filePath("lib"));
+        const auto a = lib.importFile(dir.filePath("a.dat"));
+        // A file just over the 256 MiB cap; write in 1 MiB chunks (never whole).
+        {
+            QFile f(a.path);
+            QVERIFY(f.open(QIODevice::WriteOnly));
+            QByteArray chunk(1 << 20, 'q');
+            const qint64 total = 257LL * 1024 * 1024;
+            qint64 written = 0;
+            while (written < total) {
+                const qint64 n = qMin<qint64>(chunk.size(), total - written);
+                QCOMPARE(f.write(chunk.constData(), int(n)), int(n));
+                written += n;
+            }
+            f.close();
+        }
+        const qint64 snap = lib.snapshotAll(QStringLiteral("紧急"));
+        const auto entries = lib.snapshotEntries(snap);
+        QCOMPARE(entries.size(), 1);
+        QCOMPARE(entries.first().state, QStringLiteral("present"));
+        const auto revs = lib.revisions(a.id);
+        QCOMPARE(revs.first().note, QStringLiteral("紧急快照锚点"));
+        QCOMPARE(revs.first().size, 257LL * 1024 * 1024); // exact streamed bytes
+        // The stored object is the full large content (not truncated) and its
+        // integrity still verifies against the recorded size.
+        QCOMPARE(QFileInfo(lib.objectPath(revs.first().hash)).size(), revs.first().size);
+        QVERIFY(lib.verifyObject(revs.first().hash));
+    }
+    // 审核发现（2026-11-02）: the emergency anchor revision size must be the
+    // EXACT byte count of the streamed content, not a later re-stat of the
+    // working path. The old re-stat left a TOCTOU: if the file changed between
+    // the streamed copy and the stat, the recorded size no longer matched the
+    // object, and a later snapshot referencing it as an anchor failed the
+    // object.size()!=objectSize check. Here the working file is mutated AFTER
+    // the snapshot; a second snapshot that re-anchors to that revision must
+    // still verify.
+    void snapshotEmergencyAnchorRecordsExactStoredSize() {
+        QTemporaryDir dir;
+        put(dir.filePath("a.dat"), "v1");
+        Library lib(dir.filePath("lib"));
+        const auto a = lib.importFile(dir.filePath("a.dat"));
+        put(a.path, "unrecorded-content");
+        const qint64 snap1 = lib.snapshotAll(QStringLiteral("紧急"));
+        const auto revs1 = lib.revisions(a.id);
+        QCOMPARE(revs1.first().note, QStringLiteral("紧急快照锚点"));
+        QCOMPARE(revs1.first().size, qint64(18)); // exact streamed bytes
+        // A second snapshot after the working copy changes AGAIN anchors to the
+        // emergency-anchor revision (newest clean pre-change content). The
+        // manifest verification of that anchor (object.size()==objectSize) must
+        // not trip on a stale size — the exact stored size is what was recorded.
+        put(a.path, "yet-more-content");
+        const qint64 snap2 = lib.snapshotAll(QStringLiteral("后续"));
+        const auto entries = lib.snapshotEntries(snap2);
+        QCOMPARE(entries.size(), 1);
+        QCOMPARE(entries.first().hash, revs1.first().hash);
+    }
+    // 审核发现（2026-11-02）: a working file that was readable at stat time but
+    // cannot be opened (mount drop / deleted between stat and open) must not
+    // abort the whole snapshot — it degrades to "missing" (recoverable from the
+    // anchored history), and the other assets still snapshot.
+    void snapshotUnreadableWorkingCopyDegradesToMissing() {
+        QTemporaryDir dir;
+        put(dir.filePath("a.dat"), "v1");
+        Library lib(dir.filePath("lib"));
+        const auto a = lib.importFile(dir.filePath("a.dat"));
+        // Simulate the race: exists()&&isReadable() is true (a readable
+        // directory) but open(ReadOnly) fails (EISDIR) — exactly the mount-drop /
+        // file-swapped-for-dir race. The clean revision anchors the asset, so
+        // it degrades to a recoverable "missing" row (never a deletion).
+        QVERIFY(QFile::remove(a.path));
+        QVERIFY(QDir().mkpath(a.path));
+        // The batch must survive: open/read failure after a readable stat
+        // degrades to "no current content" (clean anchor), never aborts the
+        // whole snapshot.
+        qint64 snap = 0;
+        bool threw = false;
+        try { snap = lib.snapshotAll(QStringLiteral("紧急")); }
+        catch (const std::exception &) { threw = true; }
+        QVERIFY(!threw);
+        const auto entries = lib.snapshotEntries(snap);
+        QCOMPARE(entries.size(), 1);
+        // The entry stays listed (not a deletion) and is anchored to the clean
+        // pre-change revision (the original v1), so it is recoverable.
+        QCOMPARE(entries.first().state, QStringLiteral("present"));
+        QCOMPARE(entries.first().hash, lib.revisions(a.id).first().hash);
+        QDir(a.path).rmdir(a.path);
+    }
+    // 审核发现（2026-11-02）: rescanPreview must keep a candidate that fails to
+    // hash mid-read as retryable (error set), and the rest of the scan still
+    // classifies — one bad file never loses the whole preview.
+    void rescanPreviewKeepsUnhashableCandidateAsRetryable() {
+        QTemporaryDir dir;
+        const QString source = dir.filePath("share");
+        QVERIFY(QDir().mkpath(source));
+        put(source + "/good.png", "good");
+        Library lib(dir.filePath("lib"));
+        const auto preview = importer::rescanPreview(lib, source);
+        QCOMPARE(preview.candidates.size(), 1);
+        QVERIFY(preview.candidates.first().candidate.relative == QStringLiteral("good.png"));
+        QVERIFY(preview.candidates.first().error.isEmpty());
+        QVERIFY(!preview.candidates.first().hash.isEmpty());
+        QCOMPARE(preview.fresh(), 1); // good.png still importable
+        // The primitive behind a mid-read failure never throws: a readable file
+        // hashes fine, an absent path and a directory (open/read fails) both
+        // report false, so a single unhashable candidate cannot lose the rest.
+        QString hash;
+        QVERIFY(hashFile(source + "/good.png", &hash, nullptr));
+        QVERIFY(!hash.isEmpty());
+        QVERIFY(!hashFile(dir.filePath("share/nonexistent"), &hash, nullptr));
+        QDir().mkpath(source + "/adir");
+        QVERIFY(!hashFile(source + "/adir", &hash, nullptr));
+    }
+    // 审核发现（2026-11-02）: verifyObject confirms integrity without loading
+    // the object whole; a missing object reports false (never throws).
+    void verifyObjectStreamsWithoutFullRead() {
+        QTemporaryDir dir;
+        put(dir.filePath("a.dat"), "v1");
+        Library lib(dir.filePath("lib"));
+        const auto a = lib.importFile(dir.filePath("a.dat"));
+        const auto revs = lib.revisions(a.id);
+        QVERIFY(!revs.isEmpty());
+        QVERIFY(lib.verifyObject(revs.first().hash));
+        QVERIFY(!lib.verifyObject(QString(64, '0'))); // absent -> false
     }
     void compareCanvasSharesOneTransform() {
         CompareCanvas canvas;

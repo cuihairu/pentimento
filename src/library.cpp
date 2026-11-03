@@ -44,50 +44,57 @@ void execute(QSqlQuery &query) {
     if (!query.exec()) fail(query.lastError().text());
 }
 // P-302 streaming helpers: a large file is hashed and copied in bounded chunks
-// instead of being read whole into memory.
-QString digestFile(const QString &path) {
+// instead of being read whole into memory. `hashFile` is the sole SHA-256
+// streaming implementation (shared across TUs via library.h); it reports the
+// byte count actually consumed so a caller can record the exact size of the
+// content it hashed instead of re-stat'ing the (possibly changed) path. It
+// returns false on an open/read failure instead of throwing, so a caller that
+// wants graceful degradation (a mount drop, a file deleted between stat and
+// open) can fall back without aborting a whole batch.
+}
+
+bool hashFile(const QString &path, QString *hash, qint64 *size) {
     QFile file(path);
-    if (!file.open(QIODevice::ReadOnly)) fail(Library::tr("无法读取文件：%1").arg(path));
-    QCryptographicHash hash(QCryptographicHash::Sha256);
+    if (!file.open(QIODevice::ReadOnly)) return false;
+    QCryptographicHash h(QCryptographicHash::Sha256);
     constexpr qint64 kChunk = 1 << 20; // 1 MiB
+    qint64 total = 0;
     while (!file.atEnd()) {
         const auto chunk = file.read(kChunk);
-        if (chunk.isEmpty() && file.error() != QFileDevice::NoError)
-            fail(Library::tr("无法读取文件：%1").arg(path));
-        hash.addData(chunk);
+        if (chunk.isEmpty() && file.error() != QFileDevice::NoError) return false;
+        h.addData(chunk);
+        total += chunk.size();
     }
-    return QString::fromLatin1(hash.result().toHex());
+    if (file.error() != QFileDevice::NoError) return false;
+    if (hash) *hash = QString::fromLatin1(h.result().toHex());
+    if (size) *size = total;
+    return true;
 }
-void copyFileStreaming(const QString &from, const QString &to) {
+QString digestFileBounded(const QString &path) {
+    QString hash;
+    if (!hashFile(path, &hash, nullptr))
+        fail(Library::tr("无法读取文件：%1").arg(path));
+    return hash;
+}
+QString digestFile(const QString &path) { return digestFileBounded(path); }
+qint64 copyFileStreaming(const QString &from, const QString &to) {
     QFile in(from), out(to);
     if (!in.open(QIODevice::ReadOnly)) fail(Library::tr("无法读取文件：%1").arg(from));
     if (!out.open(QIODevice::WriteOnly)) fail(Library::tr("无法写入暂存对象：%1").arg(to));
     constexpr qint64 kChunk = 1 << 20; // 1 MiB
+    qint64 total = 0;
     while (!in.atEnd()) {
         const auto chunk = in.read(kChunk);
         if (chunk.isEmpty() && in.error() != QFileDevice::NoError)
             fail(Library::tr("无法读取文件：%1").arg(from));
         if (out.write(chunk) != chunk.size())
             fail(Library::tr("无法写入暂存对象：%1").arg(to));
+        total += chunk.size();
     }
     out.close();
     if (out.error() != QFileDevice::NoError)
         fail(Library::tr("无法写入暂存对象：%1").arg(to));
-}
-}
-
-QString digestFileBounded(const QString &path) {
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly)) fail(Library::tr("无法读取文件：%1").arg(path));
-    QCryptographicHash hash(QCryptographicHash::Sha256);
-    constexpr qint64 kChunk = 1 << 20; // 1 MiB
-    while (!file.atEnd()) {
-        const auto chunk = file.read(kChunk);
-        if (chunk.isEmpty() && file.error() != QFileDevice::NoError)
-            fail(Library::tr("无法读取文件：%1").arg(path));
-        hash.addData(chunk);
-    }
-    return QString::fromLatin1(hash.result().toHex());
+    return total;
 }
 
 Library::Library(const QString &root)
@@ -923,6 +930,16 @@ QByteArray Library::readObject(const QString &hash) const {
     return bytes;
 }
 
+bool Library::verifyObject(const QString &hash) const {
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
+    QString actual;
+    // Missing/unreadable/hash-mismatch all report false; the object is never
+    // loaded whole (streaming), so a UI refresh over history costs no large
+    // in-memory read per revision.
+    if (!hashFile(objectPath(hash), &actual, nullptr)) return false;
+    return actual == hash;
+}
+
 void Library::append(const Asset &asset, const QByteArray &bytes, const QString &note) {
     const QString hash = storeObject(bytes);
     recordRevision(asset, hash, bytes.size(), note);
@@ -947,22 +964,27 @@ QString Library::storeObject(const QByteArray &bytes) {
     return hash;
 }
 
-QString Library::storeObjectFromFile(const QString &sourcePath, const QString &hash) {
+// Returns the exact number of bytes staged, so a caller can record the revision
+// size of the content it stored (not a later re-stat of a possibly-changed
+// working copy — an audit finding flagged that TOCTOU, which would make a
+// subsequent snapshot's object.size()!=objectSize check fail).
+qint64 Library::storeObjectFromFile(const QString &sourcePath, const QString &hash) {
     const QString path = objectPath(hash);
     if (QFileInfo::exists(path)) {
         if (digestFile(path) != hash) fail(Library::tr("历史对象校验失败；已停止操作"));
         platform::makeImmutable(path);
-        return hash;
+        return QFileInfo(path).size();
     }
     const QString temp = tempObjectPath();
+    qint64 size = 0;
     try {
-        copyFileStreaming(sourcePath, temp);
+        size = copyFileStreaming(sourcePath, temp);
         publishObject(temp, hash);
     } catch (...) {
         QFile::remove(temp);
         throw;
     }
-    return hash;
+    return size;
 }
 
 void Library::publishObject(const QString &tempPath, const QString &hash) {
@@ -1701,12 +1723,18 @@ qint64 Library::snapshotAll(const QString &note) {
             QString currentHash;
             if (info.exists() && info.isReadable()) {
                 const auto pre = fileSig(asset.path);
-                currentHash = digestFileBounded(asset.path);
-                // Torn-read guard: the manifest may only reference settled
-                // content, so a writer that touched the file during the read
-                // makes this candidate incomplete — fail it, publish nothing.
-                if (fileSig(asset.path) != pre)
-                    fail(Library::tr("无法发布一致快照，文件写入未稳定：%1").arg(asset.name));
+                // An open/read failure after a readable stat (mount drop, file
+                // deleted between stat and open, EISDIR, …) degrades to
+                // "missing"; one bad file must not abort the whole batch.
+                if (hashFile(asset.path, &currentHash, nullptr)) {
+                    // Torn-read guard: the manifest may only reference settled
+                    // content, so a writer that touched the file during the read
+                    // makes this candidate incomplete — fail it, publish nothing.
+                    if (fileSig(asset.path) != pre)
+                        fail(Library::tr("无法发布一致快照，文件写入未稳定：%1").arg(asset.name));
+                } else {
+                    currentHash.clear();
+                }
             }
             // The recovery anchor must be the last CLEAN revision (pre-infection).
             // Race: scanChanges (2s) can auto-record suspected-infected bytes
@@ -1734,8 +1762,8 @@ qint64 Library::snapshotAll(const QString &note) {
             if (!currentHash.isEmpty() && (history.isEmpty() || history.first().hash != currentHash)) {
                 // Stream the working copy into the object store (never whole in
                 // memory), then record the emergency anchor revision.
-                storeObjectFromFile(asset.path, currentHash);
-                recordRevision(asset, currentHash, QFileInfo(asset.path).size(),
+                const qint64 storedSize = storeObjectFromFile(asset.path, currentHash);
+                recordRevision(asset, currentHash, storedSize,
                                QStringLiteral("紧急快照锚点"));
             }
             if (!anchor) continue; // no clean history to recover to

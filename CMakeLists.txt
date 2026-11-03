@@ -83,6 +83,7 @@ if(BUILD_TESTING)
     target_include_directories(pentimento_ui_tests PRIVATE src)
     target_link_libraries(pentimento_ui_tests PRIVATE pentimento_core Qt6::Test Qt6::Widgets)
     add_test(NAME desktop_keyboard_zoom COMMAND pentimento_ui_tests)
+    set_tests_properties(desktop_keyboard_zoom PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()
 
 include(GNUInstallDirs)
