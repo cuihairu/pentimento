@@ -127,14 +127,20 @@ private slots:
         for (auto *tb : window.findChildren<QToolBar *>()) {
             int content = 0;
             bool restoreVisible = false;
+            bool restoreHidden = false;
             for (auto *a : tb->actions()) {
                 if (auto *wd = tb->widgetForAction(a)) content += wd->sizeHint().width();
-                if (a->text() == QStringLiteral("恢复到锚点")
-                    && (!a->menu() || a->menu()->isEmpty())) restoreVisible = true;
+                if (a->text() == QStringLiteral("恢复到锚点")) {
+                    // The core security action must be an always-visible
+                    // top-level action, never folded into the "≫" overflow.
+                    restoreVisible = !a->menu() || a->menu()->isEmpty();
+                    if (auto *wd = tb->widgetForAction(a)) restoreHidden = !wd->isVisible();
+                }
             }
             QVERIFY2(content <= tb->width(),
                      qPrintable(QStringLiteral("toolbar overflow: %1 > %2").arg(content).arg(tb->width())));
             QVERIFY(restoreVisible);
+            QVERIFY2(!restoreHidden, "恢复到锚点 must not be hidden in the overflow menu");
         }
         // Right timeline column: the version list keeps a readable height even
         // at the minimum window (the enclosing scroll area releases overflow).
@@ -142,9 +148,15 @@ private slots:
         for (auto *l : window.findChildren<QListWidget *>())
             if (l->accessibleName() == QStringLiteral("历史版本")) timelineH = l->height();
         QVERIFY2(timelineH >= 120, qPrintable(QStringLiteral("timeline height %1").arg(timelineH)));
-        // The right column is scrollable (not a crushed fixed layout).
+        // The right column is scrollable (not a crushed fixed layout): the
+        // scroll area that wraps the history list actually has overflow room.
         bool hasScroll = false;
-        for (auto *s : window.findChildren<QScrollArea *>()) hasScroll = true;
+        for (auto *s : window.findChildren<QScrollArea *>()) {
+            bool holdsHistory = false;
+            for (auto *l : s->findChildren<QListWidget *>())
+                if (l->accessibleName() == QStringLiteral("历史版本")) holdsHistory = true;
+            if (holdsHistory) { hasScroll = true; break; }
+        }
         QVERIFY(hasScroll);
     }
     // UI audit evidence (todo.md 审核发现 · UI-AUDIT P2): offscreen grabs of the
