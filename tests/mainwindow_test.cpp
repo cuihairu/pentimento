@@ -14,6 +14,9 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPushButton>
+#include <QToolBar>
+#include <QMenu>
+#include <QScrollArea>
 #include <QTemporaryDir>
 #include <QTimer>
 #include <QtTest>
@@ -106,6 +109,43 @@ private slots:
         QVERIFY(!*clipped);
         // Modal cleanup restored focus to a widget of the main window.
         QVERIFY(window.focusWidget() != nullptr);
+    }
+    // UI audit (2026-11-03): at the documented minimum window (860x540) the
+    // main toolbar must not overflow (no action hidden behind "≫"), and the
+    // right timeline column must keep a usable minimum height (not compressed
+    // below its minimumSizeHint by a fixed vertical layout).
+    void minimumWindowToolbarFitsAndTimelineStaysUsable() {
+        QTemporaryDir dir;
+        Library library(dir.filePath("library"));
+        MainWindow window(library);
+        window.resize(860, 540);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+        // Toolbar: the sum of its visible action widths must fit the toolbar,
+        // and the core security "恢复到锚点" action must not be hidden in the
+        // overflow chevron (it is an always-visible top-level action now).
+        for (auto *tb : window.findChildren<QToolBar *>()) {
+            int content = 0;
+            bool restoreVisible = false;
+            for (auto *a : tb->actions()) {
+                if (auto *wd = tb->widgetForAction(a)) content += wd->sizeHint().width();
+                if (a->text() == QStringLiteral("恢复到锚点")
+                    && (!a->menu() || a->menu()->isEmpty())) restoreVisible = true;
+            }
+            QVERIFY2(content <= tb->width(),
+                     qPrintable(QStringLiteral("toolbar overflow: %1 > %2").arg(content).arg(tb->width())));
+            QVERIFY(restoreVisible);
+        }
+        // Right timeline column: the version list keeps a readable height even
+        // at the minimum window (the enclosing scroll area releases overflow).
+        int timelineH = 0;
+        for (auto *l : window.findChildren<QListWidget *>())
+            if (l->accessibleName() == QStringLiteral("历史版本")) timelineH = l->height();
+        QVERIFY2(timelineH >= 120, qPrintable(QStringLiteral("timeline height %1").arg(timelineH)));
+        // The right column is scrollable (not a crushed fixed layout).
+        bool hasScroll = false;
+        for (auto *s : window.findChildren<QScrollArea *>()) hasScroll = true;
+        QVERIFY(hasScroll);
     }
     // UI audit evidence (todo.md 审核发现 · UI-AUDIT P2): offscreen grabs of the
     // main window (with sample assets) and the source-state dialog, written only

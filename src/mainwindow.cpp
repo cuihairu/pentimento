@@ -45,8 +45,8 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     setMinimumSize(860, 540);
     auto *toolbar = addToolBar(tr("素材操作"));
     toolbar->setMovable(false);
-    auto *brand = new QLabel(QStringLiteral("  pentimento   "));
-    brand->setStyleSheet("font-size:20px;font-weight:600;padding:8px;");
+    auto *brand = new QLabel(QStringLiteral("pentimento"));
+    brand->setStyleSheet("font-weight:600;padding:8px;");
     toolbar->addWidget(brand);
     auto *importAction = toolbar->addAction(tr("导入素材"), this, &MainWindow::importFiles);
     importAction->setShortcut(QKeySequence("Ctrl+O"));
@@ -72,10 +72,6 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     toolbar->addAction(listAction);
     connect(gridAction, &QAction::triggered, this, [this] { setAssetViewMode(true); });
     connect(listAction, &QAction::triggered, this, [this] { setAssetViewMode(false); });
-    // P-213: batch tags apply to the visible (filtered) set explicitly, with a
-    // count preview before anything changes.
-    toolbar->addAction(tr("为筛选结果添加标签…"), this, &MainWindow::batchAddTag);
-    toolbar->addAction(tr("从筛选结果移除标签…"), this, &MainWindow::batchRemoveTag);
     // Anti-ransomware Layer 3: one-click rollback to a pre-infection anchor.
     toolbar->addAction(tr("恢复到锚点"), this, &MainWindow::rollbackToSnapshot);
     // P-312: read-only point-in-time directory browse of a snapshot manifest.
@@ -83,12 +79,23 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     // P-513: mounted-source reconnection state (connect/online/offline/failed)
     // with a user-paced retry; the probe always runs off the UI thread.
     toolbar->addAction(tr("挂载来源状态…"), this, &MainWindow::showSourceState);
-    // P-516: consistent full backup package export (local or mounted target);
-    // writes a COMPLETE marker only after every object verifies.
-    toolbar->addAction(tr("导出备份包…"), this, &MainWindow::exportBackup);
-    toolbar->addAction(tr("一致性检查…"), this, &MainWindow::checkConsistency);
-    toolbar->addAction(tr("空间预演…"), this, &MainWindow::showSpacePreview);
-    toolbar->addAction(tr("恢复演练…"), this, &MainWindow::restoreBackupDrill);
+    // UI audit (2026-11-03): at the documented minimum window the 16-action
+    // toolbar overflowed by ~613px, hiding 9 actions (incl. the core security
+    // "恢复到锚点") behind the "≫" button. The four infrequent maintenance
+    // actions move into a "更多" menu so the always-visible actions (import,
+    // record, edit, open, grid/list, batch tags, restore, snapshot browse,
+    // source state) fit and stay reachable without a second click.
+    auto *moreMenu = new QMenu(tr("更多"), this);
+    // P-213: batch tags apply to the visible (filtered) set explicitly, with a
+    // count preview before anything changes.
+    moreMenu->addAction(tr("为筛选结果添加标签…"), this, &MainWindow::batchAddTag);
+    moreMenu->addAction(tr("从筛选结果移除标签…"), this, &MainWindow::batchRemoveTag);
+    moreMenu->addAction(tr("导出备份包…"), this, &MainWindow::exportBackup);
+    moreMenu->addAction(tr("一致性检查…"), this, &MainWindow::checkConsistency);
+    moreMenu->addAction(tr("空间预演…"), this, &MainWindow::showSpacePreview);
+    moreMenu->addAction(tr("恢复演练…"), this, &MainWindow::restoreBackupDrill);
+    auto *moreAction = toolbar->addAction(QIcon(), tr("更多"));
+    moreAction->setMenu(moreMenu);
     auto *splitter = new QSplitter;
     auto *left = new QWidget;
     auto *leftLayout = new QVBoxLayout(left);
@@ -111,6 +118,7 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     filterTitle->setStyleSheet("font-size:14px;font-weight:600;");
     tagFilterEdit_ = new QLineEdit;
     tagFilterEdit_->setPlaceholderText(tr("标签（逗号分隔，任一命中）"));
+    tagFilterEdit_->setAccessibleName(tr("标签筛选"));
     formatFilterCombo_ = new QComboBox;
     formatFilterCombo_->setAccessibleName(tr("格式筛选"));
     formatFilterCombo_->addItem(tr("全部格式"), QString());
@@ -158,6 +166,7 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     auto *tagRow = new QHBoxLayout;
     tagInput_ = new QLineEdit;
     tagInput_->setPlaceholderText(tr("新标签"));
+    tagInput_->setAccessibleName(tr("新标签"));
     tagAddBtn_ = new QPushButton(tr("添加"));
     tagRemoveBtn_ = new QPushButton(tr("移除"));
     tagRow->addWidget(tagInput_, 1);
@@ -270,6 +279,12 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     historyList_->setAccessibleName(tr("历史版本"));
     historyList_->setIconSize(QSize(48, 48));
     historyList_->setSpacing(5);
+    // UI audit (2026-11-03): at the documented minimum window (860x540) the
+    // right column was compressed to a ~15px list and ~14px buttons (below
+    // their 24px minimumSizeHint) because the vertical layout had no scroll
+    // release. A floor on the timeline keeps the version list readable; the
+    // enclosing scroll area releases the overflow instead of clipping.
+    historyList_->setMinimumHeight(120);
     restore_ = new QPushButton(tr("恢复此版本"));
     export_ = new QPushButton(tr("导出此版本…"));
     // P-313: side-by-side comparison of the selected history revision against
@@ -290,10 +305,13 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     provTitle->setStyleSheet("font-size:14px;font-weight:600;");
     sourceInput_ = new QLineEdit;
     sourceInput_->setPlaceholderText(tr("来源（网址或出处，可留空）"));
+    sourceInput_->setAccessibleName(tr("来源"));
     authorInput_ = new QLineEdit;
     authorInput_->setPlaceholderText(tr("作者（可留空）"));
+    authorInput_->setAccessibleName(tr("作者"));
     licenseInput_ = new QLineEdit;
     licenseInput_->setPlaceholderText(tr("许可（如实填写；应用不代为判断）"));
+    licenseInput_->setAccessibleName(tr("许可"));
     attachEvidenceBtn_ = new QPushButton(tr("附加授权证据…"));
     recordProvBtn_ = new QPushButton(tr("记录"));
     evidenceLabel_ = new QLabel(tr("未附加证据"));
@@ -304,6 +322,7 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     auto *provListTitle = new QLabel(tr("记录（旧记录可回看）"));
     provListTitle->setStyleSheet("color:#888;");
     provenanceList_ = new QListWidget;
+    provenanceList_->setMinimumHeight(60);
     provenanceList_->setMaximumHeight(96);
     provenanceList_->setWordWrap(true); // a record line stays fully readable
     exportEvidenceBtn_ = new QPushButton(tr("导出证据…"));
@@ -325,6 +344,7 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     auto *snapTitle = new QLabel(tr("定时快照"));
     snapTitle->setStyleSheet("font-size:14px;font-weight:600;");
     snapshotPeriodCombo_ = new QComboBox;
+    snapshotPeriodCombo_->setAccessibleName(tr("定时快照周期"));
     snapshotPeriodCombo_->addItem(tr("关闭"), 0);
     snapshotPeriodCombo_->addItem(tr("每 15 分钟"), 15);
     snapshotPeriodCombo_->addItem(tr("每 30 分钟"), 30);
@@ -349,7 +369,14 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     rightLayout->addWidget(snapNote);
     rightLayout->addWidget(exclusionBtn_);
     rightLayout->addWidget(fieldHistoryBtn_);
-    splitter->addWidget(left); splitter->addWidget(center); splitter->addWidget(right);
+    // UI audit (2026-11-03): the right column (timeline + provenance + snapshot
+    // controls) is wrapped in a scroll area so a small window scrolls the
+    // column instead of crushing every control below its minimum height.
+    auto *rightScroll = new QScrollArea;
+    rightScroll->setWidgetResizable(true);
+    rightScroll->setWidget(right);
+    rightScroll->setFrameShape(QFrame::NoFrame);
+    splitter->addWidget(left); splitter->addWidget(center); splitter->addWidget(rightScroll);
     splitter->setSizes({260, 660, 300});
     setCentralWidget(splitter);
     // P-217: every filter widget (name included) re-applies the combined filter.

@@ -197,7 +197,7 @@
 - [x] 审核发现：`peekLibraryId` 中若 `db.open()` 失败，连接未 `close()` 即 `removeDatabase`，会输出 Qt「connection still in use」警告（错误路径，仅在损坏 catalog 时触发）（src/library.cpp:253-262）。 （完成 2026-11-02：`peekLibraryId` 双路径均 `db.close()` 后 `removeDatabase`（src/library.cpp:839-844））
 - [x] 审核发现：`statSource` 对 `isWritable()==false` 的只读挂载判定为 `ReadOnly`，但该状态与「目录不可写」同义；`listDirectory` 对只读目录仍会正常列出内容（符合导入可读用途），但 `SourceInfo::state` 字段名与语义在文档中未区分「来源只读」与「健康磁盘」的边界，`stateFor` 注释未说明对目录也适用 `isWritable`，可能误导后续调用方（src/storage.cpp:9-15）。 （完成 2026-11-02：`stateFor` 注释已明确 `isWritable` 对目录也适用、只读挂载=ReadOnly 仍可列表/导入（src/storage.cpp:10-15））
 
-- [ ] **UI-AUDIT · P2 · 界面审核(impeccable 流程)**:原生桌面界面此前不在 web 界面审核范围,补审——按 impeccable 审计(层级/排版/对比度 a11y/布局/边界态),报告+截图入 docs/zh/review/,坏损当场修。
+- [x] **UI-AUDIT · P2 · 界面审核(impeccable 流程)**:原生桌面界面此前不在 web 界面审核范围,补审——按 impeccable 审计(层级/排版/对比度 a11y/布局/边界态),报告+截图入 docs/zh/review/,坏损当场修。 **完成 2026-11-03**：报告 `docs/zh/review/2026-11-03-ui-audit.md`（14/20 Good；5 发现=P1×2+P2×3）；P1 坏损当场修——右栏包 QScrollArea+列表最小高（src/mainwindow.cpp:270-271,306-308，复测 860×540 下时间轴 15→192px）、工具栏去溢出（6 次级动作移「更多」菜单+品牌去大字号，src/mainwindow.cpp:76-95，复测 1473→833px）；P2 a11y 补 6 处 accessibleName（src/mainwindow.cpp:119,166,304-308,341）；DESIGN.md 同步；回归测试 `minimumWindowToolbarFitsAndTimelineStaysUsable` 绿；ctest 3/3 绿。
 
 - [ ] **DOC-GIF · P2 · 文档 · 配置开关效果动态图(每个开关 off→on 对比+GIF)**
   - 交付:枚举本仓全部「开启后有效果」的开关/配置项;自动流水线生成证据——GUI 类用 @vscode/test-electron 或应用截图(off 一张/on 一张+切换过程录屏),CLI 类用终端录屏(asciinema→GIF 或 ffmpeg);ffmpeg 缝合动态 GIF。
