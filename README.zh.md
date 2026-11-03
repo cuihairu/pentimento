@@ -2,7 +2,7 @@
 
 <h1 align="center">pentimento · 画迹</h1>
 
-<p align="center"><a href="docs/zh/"><img src="docs/public/badges/docs.zh.svg" alt="文档：仓库内 zh" /></a> <img src="docs/public/badges/cpp17.svg" alt="语言：C++17" /> <img src="docs/public/badges/qt6.svg" alt="框架：Qt 6" /> <img src="docs/public/badges/cmake.svg" alt="构建：CMake 3.24+" /> <img src="docs/public/badges/license.zh.svg" alt="协议：Apache-2.0" /> <img src="docs/public/badges/platform.zh.svg" alt="平台：Linux | Windows | macOS" /> <img src="docs/public/badges/status.zh.svg" alt="状态：原型阶段" /></p>
+<p align="center"><a href="https://cuihairu.github.io/pentimento/zh/"><img src="docs/public/badges/docs.zh.svg" alt="文档" /></a> <img src="docs/public/badges/cpp17.svg" alt="语言：C++17" /> <img src="docs/public/badges/qt6.svg" alt="框架：Qt 6" /> <img src="docs/public/badges/cmake.svg" alt="构建：CMake 3.24+" /> <img src="docs/public/badges/license.zh.svg" alt="协议：Apache-2.0" /> <img src="docs/public/badges/platform.zh.svg" alt="平台：Linux | Windows | macOS" /> <img src="docs/public/badges/status.zh.svg" alt="状态：原型阶段" /></p>
 
 面向游戏美术素材的本地桌面资源管理器，以历史版本浏览与恢复为核心。参考 Eagle 的素材整理习惯和 macOS 时光机的版本回溯体验，自行实现代码与界面。
 

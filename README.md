@@ -2,7 +2,7 @@
 
 <h1 align="center">pentimento · 画迹</h1>
 
-<p align="center"><a href="docs/zh/"><img src="docs/public/badges/docs.svg" alt="docs: in-repo zh" /></a> <img src="docs/public/badges/cpp17.svg" alt="language: C++17" /> <img src="docs/public/badges/qt6.svg" alt="framework: Qt 6" /> <img src="docs/public/badges/cmake.svg" alt="build: CMake 3.24+" /> <img src="docs/public/badges/license.svg" alt="license: Apache-2.0" /> <img src="docs/public/badges/platform.svg" alt="platform: Linux | Windows | macOS" /> <img src="docs/public/badges/status.svg" alt="status: prototype stage" /></p>
+<p align="center"><a href="https://cuihairu.github.io/pentimento/"><img src="docs/public/badges/docs.svg" alt="docs" /></a> <img src="docs/public/badges/cpp17.svg" alt="language: C++17" /> <img src="docs/public/badges/qt6.svg" alt="framework: Qt 6" /> <img src="docs/public/badges/cmake.svg" alt="build: CMake 3.24+" /> <img src="docs/public/badges/license.svg" alt="license: Apache-2.0" /> <img src="docs/public/badges/platform.svg" alt="platform: Linux | Windows | macOS" /> <img src="docs/public/badges/status.svg" alt="status: prototype stage" /></p>
 
 **A local desktop asset manager for game art assets, centered on version-history browsing and restore.** It takes inspiration from Eagle's asset-organizing workflow and macOS Time Machine's version rollback experience, with the code and UI implemented from scratch.
 
