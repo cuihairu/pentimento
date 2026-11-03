@@ -1,6 +1,6 @@
 [English](README.md) | [中文](README.zh.md)
 
-# pentimento · 画迹
+<h1 align="center">pentimento · 画迹</h1>
 
 <p align="center"><a href="docs/zh/"><img src="docs/public/badges/docs.zh.svg" alt="文档：仓库内 zh" /></a> <img src="docs/public/badges/cpp17.svg" alt="语言：C++17" /> <img src="docs/public/badges/qt6.svg" alt="框架：Qt 6" /> <img src="docs/public/badges/cmake.svg" alt="构建：CMake 3.24+" /> <img src="docs/public/badges/license.zh.svg" alt="协议：Apache-2.0" /> <img src="docs/public/badges/platform.zh.svg" alt="平台：Linux | Windows | macOS" /> <img src="docs/public/badges/status.zh.svg" alt="状态：原型阶段" /></p>
 
