@@ -482,6 +482,19 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     // access (one internal mutex), so the worker's captureIfStable is safe
     // alongside the UI thread's own library calls.
     captureQueue_ = std::make_unique<TaskQueue>(this);
+    // Audit (2026-11-04): history integrity verification runs on its own serial
+    // worker so a UI refresh over many large revisions never hashes every
+    // object on the UI thread. Results are cached by content hash; a second
+    // refresh over the same history costs no re-verify.
+    integrityQueue_ = std::make_unique<TaskQueue>(this);
+    connect(integrityQueue_.get(), &TaskQueue::taskFinished, this,
+            [this](qint64, bool, const QString &) {
+                integrityInFlight_ = false;
+                // A later selection may have queued more revisions while this
+                // batch ran; verify them too (one batch at a time).
+                requestIntegrity(revisions_);
+                rebuildHistory();
+            });
     auto *timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, &MainWindow::scanChanges);
     timer->start(2000);
@@ -673,6 +686,35 @@ void MainWindow::reloadHistory() {
     // (revisions() returns newest id first) — local time is display-only, so a
     // clock change or timezone shift never reorders or mixes history.
     revisions_ = asset.id.isEmpty() ? QVector<Revision>{} : library_.revisions(asset.id);
+    requestIntegrity(revisions_);
+    rebuildHistory();
+}
+
+// Audit (2026-11-04): a history refresh never hashes objects on the UI thread.
+// Any revision whose content hash is not yet in the integrity cache is queued
+// on the background worker; the UI renders from the cache immediately (a
+// not-yet-verified object shows the corrupt placeholder) and re-renders when
+// the worker reports a result. Only one verify batch is in flight at a time.
+void MainWindow::requestIntegrity(const QVector<Revision> &revisions) {
+    QSet<QString> missing;
+    {
+        QMutexLocker lock(&integrityMutex_);
+        for (const auto &revision : revisions)
+            if (!integrity_.contains(revision.hash)) missing.insert(revision.hash);
+    }
+    if (missing.isEmpty() || integrityInFlight_) return;
+    integrityInFlight_ = true;
+    auto hashes = std::make_shared<QSet<QString>>(missing);
+    integrityQueue_->submit(QStringLiteral("历史完整性校验"),
+        [this, hashes](TaskQueue::Progress &) {
+            QMutexLocker lock(&integrityMutex_);
+            for (const auto &hash : *hashes)
+                integrity_.insert(hash, library_.verifyObject(hash));
+        });
+}
+
+void MainWindow::rebuildHistory() {
+    const auto asset = selected();
     // Working-copy content markers: which revision matches the current content
     // ("当前内容"), and whether newer unrecorded changes sit in the working copy.
     QString currentHash;
@@ -696,11 +738,15 @@ void MainWindow::reloadHistory() {
     for (int i = 0; i < revisions_.size(); ++i) {
         const auto &revision = revisions_.at(i);
         const auto date = QDateTime::fromString(revision.created, Qt::ISODateWithMs).toLocalTime();
-        // P-207 integrity check WITHOUT loading the object whole: the object is
-        // stream-hashed, so a refresh over history never reads every revision
-        // into memory (only the thumbnail decode does, on a cache miss). A
-        // missing/mismatched object stays visible as "损坏对象" (never hidden).
-        const bool corrupt = !library_.verifyObject(revision.hash);
+        // P-207 integrity: read from the background-verified cache. A missing
+        // cache entry means the object has not been verified yet — treat it as
+        // corrupt for this frame (the placeholder re-renders when the result
+        // lands), so a not-yet-verified object is never silently trusted.
+        bool corrupt = true;
+        {
+            QMutexLocker lock(&integrityMutex_);
+            if (integrity_.contains(revision.hash)) corrupt = !integrity_.value(revision.hash);
+        }
         // P-307/P-308: per-row markers. A restore-formed record and a restore's
         // automatic safety save are marked by their system-written notes; every
         // older revision is plainly "历史".

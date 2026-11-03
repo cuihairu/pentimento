@@ -127,12 +127,23 @@ private:
     QHash<QString, QPair<bool, QString>> captureResults_;
     QSet<QString> pendingCapture_;
     std::unique_ptr<TaskQueue> captureQueue_;
+    // Audit (2026-11-04): history integrity is verified on a background worker
+    // (never on the UI thread — a large object is a full disk read + SHA-256).
+    // The result cache key is the content hash; a refresh over history reads
+    // the cache, and only uncached hashes queue a background verify. Declared
+    // after captureQueue_ so its worker drains before the result buffer dies.
+    QMutex integrityMutex_;
+    QHash<QString, bool> integrity_;
+    std::unique_ptr<TaskQueue> integrityQueue_;
+    bool integrityInFlight_ = false;
     std::unique_ptr<Sentinel> sentinel_;
     ThumbnailCache thumbnails_;
     Asset selected() const;
     void pollSentinel();
     void reloadAssets(const QString &selectId = QString());
     void reloadHistory();
+    void rebuildHistory(); // audit (2026-11-04): UI-side history list render
+    void requestIntegrity(const QVector<Revision> &revisions);
     // P-207 audit (2026-11-02): a thumbnail is served from the disk cache when
     // present, so a refresh never re-reads the full object bytes (up to the
     // 256 MiB readObject cap) just to re-decode an unchanged image. Only a cache
