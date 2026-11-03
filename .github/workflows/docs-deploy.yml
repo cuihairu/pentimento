@@ -31,7 +31,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: docs/pnpm-lock.yaml
       - name: Install docs dependencies
-        run: pnpm install --frozen-lockfile --config.minimum-release-age=0 --config.dangerouslyAllowAllBuilds=true
+        run: pnpm install --frozen-lockfile --config.minimum-release-age=0 --allow-build esbuild
         working-directory: docs
       - name: Build docs
         run: pnpm build

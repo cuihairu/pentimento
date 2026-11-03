@@ -2,3 +2,6 @@
 
 overrides:
   vite@<6.4.4: 6.4.4
+
+onlyBuiltDependencies:
+  - esbuild
