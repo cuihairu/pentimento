@@ -1974,8 +1974,28 @@ void MainWindow::showSourceState() {
     layout->addLayout(buttonRow);
 
     SourceConnection connection; // lives on the UI thread; probes run in the background
-    // P-510: backup-target probe is synchronous and cheap (stat + storage info);
-    // it never writes to the target, so it can run on the UI thread.
+    // P-510 + audit (2026-11-04): the backup-target probe is a stat + storage
+    // query that can block on a dead/NFS/CIFS mount (the dialog exists precisely
+    // to handle a dropped mount), so it must never run on the UI thread. A
+    // background TaskQueue serializes the probes (one at a time); the newest
+    // request wins and stale results are dropped. It never writes to the target.
+    TaskQueue targetQueue; // no parent: it is a stack object; the dialog's
+                           // destruction disconnects the taskFinished context.
+    qint64 lastTargetTask = -1;
+    auto targetResult = std::make_shared<BackupTargetInfo>();
+    QObject::connect(&targetQueue, &TaskQueue::taskFinished, &dialog,
+        [&](qint64 finished, bool, const QString &) {
+            // A stale result (a newer request was queued after this one) is
+            // dropped, never applied to the current input.
+            if (finished != lastTargetTask) return;
+            const BackupTargetInfo &t = *targetResult;
+            if (t.writable)
+                targetLabel->setText(tr("备份目标能力：可写，可用空间约 %1 MiB")
+                                         .arg(t.freeBytes / (1024.0 * 1024.0), 0, 'f', 1));
+            else
+                targetLabel->setText(tr("备份目标能力：%1").arg(t.reason));
+            targetLabel->setStyleSheet(t.writable ? "color:#2e7d32;" : "color:#c62828;");
+        });
     auto renderTarget = [&](const QString &path) {
         const QString trimmed = path.trimmed();
         if (trimmed.isEmpty()) {
@@ -1983,13 +2003,12 @@ void MainWindow::showSourceState() {
             targetLabel->setStyleSheet("color:#888;");
             return;
         }
-        const BackupTargetInfo t = probeBackupTarget(trimmed);
-        if (t.writable)
-            targetLabel->setText(tr("备份目标能力：可写，可用空间约 %1 MiB")
-                                     .arg(t.freeBytes / (1024.0 * 1024.0), 0, 'f', 1));
-        else
-            targetLabel->setText(tr("备份目标能力：%1").arg(t.reason));
-        targetLabel->setStyleSheet(t.writable ? "color:#2e7d32;" : "color:#c62828;");
+        targetLabel->setText(tr("备份目标能力：正在探测…"));
+        targetLabel->setStyleSheet("color:#666;");
+        lastTargetTask = targetQueue.submit(QStringLiteral("备份目标探测"),
+            [result = targetResult, trimmed](TaskQueue::Progress &) {
+                *result = probeBackupTarget(trimmed);
+            });
     };
     // P-515 preview result, produced on the worker and read on taskFinished.
     auto preview = std::make_shared<importer::RescanPreview>();
@@ -2043,7 +2062,6 @@ void MainWindow::showSourceState() {
         const QString path = QFileDialog::getExistingDirectory(&dialog, tr("选择备份目标目录"));
         if (path.isEmpty()) return;
         targetEdit->setText(path);
-        renderTarget(path);
     });
     // P-515: run the rescan on the background writer queue (a mounted-source
     // scan can be slow and may hang, never on the UI thread).
