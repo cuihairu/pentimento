@@ -1668,12 +1668,25 @@ void MainWindow::saveScreenshot(const QString &path) { grab().save(path); }
 void MainWindow::exportBackup() {
     const QString dir = QFileDialog::getExistingDirectory(this, tr("选择备份目标目录（须为空或新目录）"));
     if (dir.isEmpty()) return;
+    // P-510: a backup target is a separate write acceptance from the source-read
+    // state — "can be listed" is never a backup-capability verdict. Probe
+    // writability and free space before confirming; a read-only share (or an
+    // unreadable/unreachable path) is refused here, not discovered mid-export.
+    const BackupTargetInfo target = probeBackupTarget(dir);
+    if (!target.writable) {
+        QMessageBox::warning(this, tr("备份目标不可用"),
+                             tr("所选备份目标不可写：\n%1\n\n%2")
+                                 .arg(dir, target.reason));
+        return;
+    }
     if (QMessageBox::question(this, tr("导出备份包"),
                               tr("将导出一致备份包到：\n%1\n\n"
+                                 "备份目标可写，可用空间约 %2。\n"
                                  "导出期间暂停写入；清单与对象全部校验通过后才写入完成标记。\n"
                                  "目标目录必须为空（不静默覆盖既有备份）。\n"
                                  "备份包不共享运行中索引，可移植到其他机器。")
-                                  .arg(dir))
+                                  .arg(dir)
+                                  .arg(target.freeBytes / (1024.0 * 1024.0), 0, 'f', 1))
         != QMessageBox::Yes)
         return;
     statusBar()->showMessage(tr("正在导出备份包（后台进行，界面可继续操作）…"));
@@ -1935,6 +1948,22 @@ void MainWindow::showSourceState() {
     layout->addWidget(previewLabel);
     layout->addWidget(importBtn);
 
+    // P-510: the backup-target write acceptance is shown separately from the
+    // source-read state — a readable source is not automatically a writable
+    // backup destination (a read-only share can still be a valid import source).
+    auto *targetLabel = new QLabel(tr("备份目标能力：尚未选择"), &dialog);
+    targetLabel->setWordWrap(true);
+    targetLabel->setAccessibleName(tr("备份目标能力"));
+    layout->addWidget(targetLabel);
+    auto *targetRow = new QHBoxLayout;
+    auto *targetEdit = new QLineEdit(&dialog);
+    targetEdit->setPlaceholderText(tr("可选的备份目标目录（可为新目录）"));
+    targetEdit->setAccessibleName(tr("备份目标路径"));
+    auto *targetBrowse = new QPushButton(tr("选择目标…"), &dialog);
+    targetRow->addWidget(targetEdit, 1);
+    targetRow->addWidget(targetBrowse);
+    layout->addLayout(targetRow);
+
     auto *buttonRow = new QHBoxLayout;
     auto *retryBtn = new QPushButton(tr("重试"), &dialog);
     retryBtn->setEnabled(false);
@@ -1945,6 +1974,23 @@ void MainWindow::showSourceState() {
     layout->addLayout(buttonRow);
 
     SourceConnection connection; // lives on the UI thread; probes run in the background
+    // P-510: backup-target probe is synchronous and cheap (stat + storage info);
+    // it never writes to the target, so it can run on the UI thread.
+    auto renderTarget = [&](const QString &path) {
+        const QString trimmed = path.trimmed();
+        if (trimmed.isEmpty()) {
+            targetLabel->setText(tr("备份目标能力：尚未选择"));
+            targetLabel->setStyleSheet("color:#888;");
+            return;
+        }
+        const BackupTargetInfo t = probeBackupTarget(trimmed);
+        if (t.writable)
+            targetLabel->setText(tr("备份目标能力：可写，可用空间约 %1 MiB")
+                                     .arg(t.freeBytes / (1024.0 * 1024.0), 0, 'f', 1));
+        else
+            targetLabel->setText(tr("备份目标能力：%1").arg(t.reason));
+        targetLabel->setStyleSheet(t.writable ? "color:#2e7d32;" : "color:#c62828;");
+    };
     // P-515 preview result, produced on the worker and read on taskFinished.
     auto preview = std::make_shared<importer::RescanPreview>();
     bool previewDone = false;
@@ -1990,6 +2036,15 @@ void MainWindow::showSourceState() {
         connection.open(path);
     });
     QObject::connect(retryBtn, &QPushButton::clicked, &connection, &SourceConnection::retry);
+    // P-510: target-write acceptance probe — text entry or browse re-runs the
+    // read-only probe (never writes to the target).
+    QObject::connect(targetEdit, &QLineEdit::textChanged, &dialog, renderTarget);
+    QObject::connect(targetBrowse, &QPushButton::clicked, &dialog, [&] {
+        const QString path = QFileDialog::getExistingDirectory(&dialog, tr("选择备份目标目录"));
+        if (path.isEmpty()) return;
+        targetEdit->setText(path);
+        renderTarget(path);
+    });
     // P-515: run the rescan on the background writer queue (a mounted-source
     // scan can be slow and may hang, never on the UI thread).
     QObject::connect(rescanBtn, &QPushButton::clicked, &dialog, [&] {

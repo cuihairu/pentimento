@@ -39,3 +39,21 @@ SourceInfo statSource(const QString &path);
 // state Reachable/ReadOnly; content hashes are filled only for files (identity
 // is resolved by the importer, not by listing).
 QVector<SourceInfo> listDirectory(const QString &path, SourceInfo *directoryState = nullptr);
+
+// P-510: backup-target write acceptance. The source-read acceptance (reachable
+// / readable) is the SourceConnection state machine; a backup target must be
+// separately verified as writable with usable free space — a source that is
+// readable but read-only is NOT a valid backup target, and "can be listed" is
+// never a backup-capability verdict.
+struct BackupTargetInfo {
+    bool exists = false;        // the path exists (or can be created?)
+    bool writable = false;      // the process can write into it
+    bool readOnly = false;      // explicit read-only mount / mode bits
+    qint64 freeBytes = 0;       // bytes available to this user on the volume
+    QString reason;             // non-empty when not writable
+};
+
+// Probe a backup-target directory for writability and free space. Read-only:
+// never creates or modifies anything on the target (a probe must not mutate the
+// very volume it is checking).
+BackupTargetInfo probeBackupTarget(const QString &path);

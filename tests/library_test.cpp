@@ -756,6 +756,43 @@ private slots:
         for (int i = lastConnecting + 1; i < spy.size(); ++i)
             QCOMPARE(qvariant_cast<ConnectionState>(spy.at(i).at(0)), ConnectionState::Unreachable);
     }
+    void probeBackupTargetDistinguishesWriteFromRead() {
+        QTemporaryDir dir;
+        const QString writable = dir.filePath("target");
+        QVERIFY(QDir().mkpath(writable));
+        const BackupTargetInfo ok = probeBackupTarget(writable);
+        QVERIFY(ok.writable);
+        QVERIFY(!ok.readOnly);
+        QVERIFY(ok.reason.isEmpty());
+        QVERIFY(ok.freeBytes >= 0);
+
+        // An empty path is refused with a reason, never "writable".
+        const BackupTargetInfo empty = probeBackupTarget(QString());
+        QVERIFY(!empty.writable);
+        QVERIFY(!empty.reason.isEmpty());
+
+        // A not-yet-existing path under a writable parent is a creatable new
+        // directory — the P-510 "可为新目录" acceptance, not an error.
+        const BackupTargetInfo creatable = probeBackupTarget(dir.filePath("new-target"));
+        QVERIFY(creatable.writable);
+        QVERIFY(creatable.reason.isEmpty());
+
+        // A read-only directory (mode bits) is a readable source but NOT a
+        // writable backup target — the P-510 separation.
+        const QString ro = dir.filePath("ro");
+        QVERIFY(QDir().mkpath(ro));
+        QFile::setPermissions(ro, QFileDevice::ReadOwner | QFileDevice::ReadGroup | QFileDevice::ReadOther);
+        const BackupTargetInfo roInfo = probeBackupTarget(ro);
+        // Running as root, mode bits may be bypassed; only assert the read-only
+        // classification when the probe actually refuses (non-root).
+        if (!roInfo.writable) {
+            QVERIFY(roInfo.readOnly);
+            QVERIFY(!roInfo.reason.isEmpty());
+        }
+        QFile::setPermissions(ro, QFileDevice::ReadOwner | QFileDevice::WriteOwner |
+                                      QFileDevice::ReadGroup | QFileDevice::WriteGroup |
+                                      QFileDevice::ReadOther | QFileDevice::WriteOther);
+    }
     void rescanPreviewClassifiesFreshAndImported() {
         QTemporaryDir dir;
         const QString source = dir.filePath("share");
