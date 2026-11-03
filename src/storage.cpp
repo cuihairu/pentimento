@@ -77,6 +77,10 @@ BackupTargetInfo probeBackupTarget(const QString &path) {
         out.reason = QObject::tr("备份目标不可达：%1").arg(trimmed);
         return out;
     }
+    if (info.exists() && !info.isDir()) {
+        out.reason = QObject::tr("备份目标必须是目录：%1").arg(trimmed);
+        return out;
+    }
     if (!probe.isReadable()) {
         out.reason = QObject::tr("备份目标不可读：%1").arg(trimmed);
         return out;

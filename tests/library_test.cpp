@@ -771,6 +771,16 @@ private slots:
         QVERIFY(!empty.writable);
         QVERIFY(!empty.reason.isEmpty());
 
+        const QString filePath = dir.filePath("existing-file");
+        QFile file(filePath);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        QVERIFY(file.write("target") > 0);
+        file.close();
+        const BackupTargetInfo fileTarget = probeBackupTarget(filePath);
+        QVERIFY(!fileTarget.writable);
+        QVERIFY(!fileTarget.readOnly);
+        QVERIFY(!fileTarget.reason.isEmpty());
+
         // A not-yet-existing path under a writable parent is a creatable new
         // directory — the P-510 "可为新目录" acceptance, not an error.
         const BackupTargetInfo creatable = probeBackupTarget(dir.filePath("new-target"));
