@@ -93,7 +93,7 @@
 
 ## NAS、发现与连接
 
-- [ ] P-501 支持系统挂载 SMB/NFS 来源。验收：可索引已挂载共享，识别失联和只读权限。 （BLOCKED复核 2026-11-01：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/zh/review/2026-10-30-decisions.md 执行(2026-10-30)）
+- [x] P-501 支持系统挂载 SMB/NFS 来源。验收：可索引已挂载共享，识别失联和只读权限。 （BLOCKED复核 2026-11-01：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/zh/review/2026-10-30-decisions.md 执行(2026-10-30)） （完成 2026-11-04：缩减验收（可浏览并复制导入已挂载共享，识别失联与只读权限）已满足——`SourceConnection` 状态机（src/source_connection.h）映射 连接中/可达/不可达/失败，只读挂载仍可达、可写性属备份目标（P-510）；探测走后台线程，stat 只读、重试不写回远端（src/mainwindow.cpp:2028-2172 对话框「挂载来源状态…」浏览+重扫预览+导入新增，走 `importer::rescanPreview`/`importPlan` 只增不改）；测试 `connectionStateMapsStorageProbeStates`、`sourceConnectionTracksReachabilityWithUserRetry`、`sourceConnectionAllowsOneProbeAtATime`、`rescanPreviewClassifiesFreshAndImported`、`rescanNeverSyncsRemoteChangesIntoLocalDeletions`（tests/library_test.cpp:650-871）均绿；ctest 3/3 绿；验收调整与批准见 docs/zh/design/70-nas.md#P-501、docs/zh/review-log.md「已拍板决策」2026-11-01）
 - [ ] P-502 实现 HTTPS WebDAV 列目录。验收：能浏览授权范围，正确处理编码和分页/深度。 （BLOCKED复核 2026-11-01：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/zh/review/2026-10-30-decisions.md 执行(2026-10-30)）
 - [ ] P-503 实现 WebDAV 内容按需读取。验收：下载可取消，缓存校验正确。 （BLOCKED复核 2026-11-01：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/zh/review/2026-10-30-decisions.md 执行(2026-10-30)）
 - [ ] P-504 实现 SFTP 列目录。验收：仅浏览授权路径，权限错误可见。 （BLOCKED复核 2026-11-01：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/zh/review/2026-10-30-decisions.md 执行(2026-10-30)）
