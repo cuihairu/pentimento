@@ -10,6 +10,7 @@
 #include "storage.h"
 #include <QAction>
 #include <QApplication>
+#include <QDeadlineTimer>
 #include <QDialog>
 #include <QLabel>
 #include <QLineEdit>
@@ -22,6 +23,7 @@
 #include <QTemporaryDir>
 #include <QTimer>
 #include <QtTest>
+#include <functional>
 
 namespace {
 // The search box carries a distinctive accessible name (P-a11y); locate it
@@ -105,8 +107,7 @@ private slots:
 
         // A moderately large object (16 MiB) keeps the streaming SHA-256 long
         // enough that the first frame renders before the result arrives.
-        QByteArray blob;
-        blob.reserve(16 * 1024 * 1024);
+        QByteArray blob(16 * 1024 * 1024, 0);
         QRandomGenerator::global()->fillRange(reinterpret_cast<quint32 *>(blob.data()),
                                               16 * 1024 * 1024 / 4);
         const QString path = dir.filePath("blob.bin");
@@ -161,12 +162,9 @@ private slots:
             QLineEdit *edit = nullptr;
             QLabel *label = nullptr;
             QDialog *dialog = nullptr;
-            bool sawProbing = false;
-            bool sawCleared = false;
-            bool sawFileRejected = false;
+            bool ok = true;
         };
         auto state = std::make_shared<ProbeState>();
-        auto done = std::make_shared<bool>(false);
 
         QTimer::singleShot(0, [&] {
             for (auto *w : QApplication::topLevelWidgets()) {
@@ -180,32 +178,38 @@ private slots:
                         state->label = l;
                 state->dialog = d;
             }
-            if (!state->edit || !state->label || !state->dialog) return;
+            if (!state->edit || !state->label || !state->dialog) {
+                state->ok = false;
+                if (state->dialog) state->dialog->accept();
+                return;
+            }
+
+            // Poll for an observable transition instead of assuming a fixed
+            // wall-clock delay: a loaded CI may take far longer than 100 ms to
+            // run a local stat, so fixed QTimer::singleShot waits are flaky.
+            // Every wait ends in the same event loop the dialog runs in, so the
+            // modal loop stays responsive and the dialog is always closed below.
+            auto waitFor = [&](const std::function<bool()> &cond, int timeoutMs) {
+                const QDeadlineTimer deadline(timeoutMs);
+                while (!cond() && !deadline.hasExpired())
+                    QTest::qWait(10);
+                return cond();
+            };
 
             // Start a probe for a regular file; it must be refused asynchronously.
             state->edit->setText(filePath);
-            if (state->label->text().contains(QStringLiteral("正在探测")))
-                state->sawProbing = true;
+            state->ok = waitFor([&] { return state->label->text().contains(QStringLiteral("正在探测")); }, 10000) && state->ok;
 
-            // Clearing the input must invalidate the pending result and show
-            // the empty state; a late result for the old path must be dropped.
-            QTimer::singleShot(100, [&] {
-                state->edit->clear();
-                state->sawCleared = state->label->text().contains(QStringLiteral("尚未选择"));
-                QTimer::singleShot(200, [&] {
-                    // Re-enter the regular file to observe the final rejection.
-                    state->edit->setText(filePath);
-                    QTimer::singleShot(1000, [&] {
-                        state->sawFileRejected = state->label->text().contains(QStringLiteral("目录"));
-                        QVERIFY(state->sawProbing);
-                        QVERIFY(state->sawCleared);
-                        QVERIFY(state->sawFileRejected);
-                        QVERIFY(!state->label->text().contains(QStringLiteral("正在探测")));
-                        *done = true;
-                        state->dialog->accept();
-                    });
-                });
-            });
+            // Clearing the input must invalidate the pending result and show the
+            // empty state; a late result for the old path must be dropped.
+            state->edit->clear();
+            state->ok = waitFor([&] { return state->label->text().contains(QStringLiteral("尚未选择")); }, 10000) && state->ok;
+
+            // Re-enter the regular file to observe the final rejection.
+            state->edit->setText(filePath);
+            state->ok = waitFor([&] { return state->label->text().contains(QStringLiteral("目录")); }, 10000) && state->ok;
+            state->ok = state->ok && !state->label->text().contains(QStringLiteral("正在探测"));
+            state->dialog->accept();
         });
 
         bool triggered = false;
@@ -214,8 +218,8 @@ private slots:
         QVERIFY(triggered);
 
         // All assertions ran inside the modal loop (before the dialog was
-        // destroyed); reaching here means they already passed.
-        QVERIFY(*done);
+        // destroyed); reaching here means the probe sequence already completed.
+        QVERIFY2(state->ok, "backup-target probe async transitions not observed");
     }
     void tabTraversalMovesFocusThroughCoreWidgets() {
         QTemporaryDir dir;

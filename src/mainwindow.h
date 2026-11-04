@@ -151,8 +151,9 @@ private:
     // Audit (2026-11-04): the backup-target probe runs on its own background
     // worker so a dead/NFS/CIFS mount never freezes the UI thread. It is a
     // MainWindow member (not a stack object in the dialog) so closing the
-    // dialog does not destroy the queue — TaskQueue's destructor waits for the
-    // worker, which could still be blocked in statvfs on a dropped mount.
+    // dialog does not destroy the queue. blockOnShutdown=false detaches the
+    // worker at MainWindow destruction, so even at application exit a probe
+    // still blocked in statvfs on a dropped mount never freezes the UI thread.
     std::unique_ptr<TaskQueue> targetQueue_;
 #ifdef PENTIMENTO_TESTING
     // Audit (2026-11-04): counts backup-target probe submissions so a test can

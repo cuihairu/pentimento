@@ -39,7 +39,13 @@ public:
 
     using TaskFn = std::function<void(Progress &)>;
 
-    explicit TaskQueue(QObject *parent = nullptr);
+    // blockOnShutdown: when true (default) the destructor joins the worker so
+    // all queued work drains before the queue dies. When false the destructor
+    // signals stop and detaches the worker, so a task blocked in a long syscall
+    // (e.g. statvfs on a dead mount) never freezes the calling (UI) thread at
+    // teardown. The detached worker keeps the shared state alive and stops
+    // touching the queue object (see runTask's detached guard).
+    explicit TaskQueue(QObject *parent = nullptr, bool blockOnShutdown = true);
     ~TaskQueue();
 
     // Queue a task. write=true marks a writer task (import/snapshot/restore/
@@ -68,6 +74,7 @@ private:
         bool done = false;
     };
     struct Impl;
-    std::unique_ptr<Impl> impl_;
-    void runTask(qint64 id);
+    std::shared_ptr<Impl> impl_; // shared so a detached worker keeps it alive
+    bool blockOnShutdown_ = true;
+    static void runTask(const std::shared_ptr<Impl> &impl, TaskQueue *self, qint64 id);
 };

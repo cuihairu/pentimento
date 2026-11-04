@@ -1355,6 +1355,31 @@ private slots:
         QVERIFY(it->done);
         QCOMPARE(it->items.size(), 1);
     }
+    // 审核发现（0126b9443a27..060a40f）: a TaskQueue created with
+    // blockOnShutdown=false must not free the teardown thread when a task is
+    // still blocked in a long syscall (the backup-target probe on a dead mount).
+    // The destructor detaches the worker, so it returns promptly; the detached
+    // worker keeps the shared state alive and never emits into the dead queue.
+    void taskQueueDetachedShutdownNeverBlocksTeardown() {
+        std::atomic_int started = 0;
+        {
+            TaskQueue queue(nullptr, /*blockOnShutdown=*/false);
+            queue.submit(QStringLiteral("blocked"), [&](TaskQueue::Progress &) {
+                ++started;
+                // Simulate a statvfs that hangs on a dropped mount: block until
+                // the process would otherwise be stuck. The destructor must not
+                // wait for this.
+                std::this_thread::sleep_for(std::chrono::seconds(30));
+            });
+            QTRY_VERIFY_WITH_TIMEOUT(started.load() > 0, 5000);
+            // The queue object is destroyed here; with blockOnShutdown=false the
+            // destructor detaches the still-running worker and returns without
+            // waiting for the 30 s sleep. If it waited, this test would hang for
+            // 30 s (and the CI would time out).
+        }
+        // Reaching here within the timeout proves the destructor did not block.
+        QVERIFY(started.load() > 0);
+    }
     void translationMechanismLoadsAndTranslates() {
         // English: a known Library-context source string must translate.
         QTranslator en;

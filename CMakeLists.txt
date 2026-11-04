@@ -18,6 +18,9 @@ set(CMAKE_AUTOMOC ON)
 #    禁止手工 vendor 源码进仓、禁止在 CI/构建脚本里散装安装。
 #    新增依赖时在此登记，并在 docs/zh/design/35-dependencies.md 记录选型理由。
 # ---------------------------------------------------------------------------
+# std::thread requires the platform threads library (pthread on Linux); link it
+# explicitly so a detached TaskQueue worker at teardown is portable.
+find_package(Threads REQUIRED)
 find_package(Qt6 6.4 QUIET COMPONENTS Core Gui Widgets Sql)
 if(NOT Qt6_FOUND)
     message(FATAL_ERROR
@@ -50,7 +53,7 @@ endfunction()
 add_library(pentimento_core src/backend.cpp src/backend.h src/filter.h src/i18n.cpp src/i18n.h src/importer.cpp src/importer.h src/library.cpp src/library.h src/platform_immutable.cpp src/platform_immutable.h src/preview.cpp src/preview.h src/recent.cpp src/recent.h src/sentinel.cpp src/sentinel.h src/source_connection.cpp src/source_connection.h src/storage.cpp src/storage.h src/taskqueue.cpp src/taskqueue.h src/thumbnails.cpp src/thumbnails.h)
 target_include_directories(pentimento_core PUBLIC src)
 target_compile_definitions(pentimento_core PRIVATE PENTIMENTO_SOURCE_TRANSLATIONS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/translations")
-target_link_libraries(pentimento_core PUBLIC Qt6::Core Qt6::Gui Qt6::Sql)
+target_link_libraries(pentimento_core PUBLIC Qt6::Core Qt6::Gui Qt6::Sql Threads::Threads)
 add_executable(pentimento WIN32 MACOSX_BUNDLE src/main.cpp src/mainwindow.cpp src/mainwindow.h src/compare_canvas.cpp src/compare_canvas.h src/preview_canvas.cpp src/preview_canvas.h)
 target_link_libraries(pentimento PRIVATE pentimento_core Qt6::Widgets)
 set_target_properties(pentimento PROPERTIES MACOSX_BUNDLE_GUI_IDENTIFIER org.pentimento.desktop)

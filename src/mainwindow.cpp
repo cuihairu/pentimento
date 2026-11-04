@@ -499,8 +499,10 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     // query that can block on a dead/NFS/CIFS mount, so it runs on its own
     // background worker. Keeping it as a MainWindow member means closing the
     // source-state dialog never destroys the queue (and never waits on a
-    // worker that may still be blocked in statvfs).
-    targetQueue_ = std::make_unique<TaskQueue>(this);
+    // worker that may still be blocked in statvfs). blockOnShutdown=false
+    // detaches the worker at MainWindow destruction, so a probe still blocked
+    // in statvfs never freezes the UI thread even at application exit.
+    targetQueue_ = std::make_unique<TaskQueue>(this, /*blockOnShutdown=*/false);
     auto *timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, &MainWindow::scanChanges);
     timer->start(2000);

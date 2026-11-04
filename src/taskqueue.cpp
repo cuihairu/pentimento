@@ -1,51 +1,33 @@
 #include "taskqueue.h"
 
-#include <QMutex>
-#include <QThread>
 #include <condition_variable>
 #include <deque>
 #include <mutex>
+#include <thread>
 
-// Worker thread: pops submitted tasks off a FIFO and runs them serially, off the
-// UI thread. The queue's mutex guards the task list; the condition variable
-// wakes the worker when work arrives or when it should stop.
-class TaskWorker : public QThread {
-public:
-    TaskWorker(std::function<qint64()> next, std::function<void(qint64)> run,
-               std::function<void()> shutdown)
-        : next_(std::move(next)), run_(std::move(run)), shutdown_(std::move(shutdown)) {}
-
-protected:
-    void run() override {
-        for (;;) {
-            std::function<void()> job;
-            {
-                std::unique_lock<std::mutex> lock(mutex_);
-                cond_.wait(lock, [this] { return stop_ || !queue_.empty(); });
-                if (stop_ && queue_.empty()) break;
-                job = std::move(queue_.front());
-                queue_.pop_front();
-            }
-            job();
-        }
-        shutdown_();
-    }
-
-public:
-    std::mutex mutex_;
-    std::condition_variable cond_;
-    std::deque<std::function<void()>> queue_;
-    bool stop_ = false;
-    std::function<qint64()> next_;
-    std::function<void(qint64)> run_;
-    std::function<void()> shutdown_;
-};
-
+// Background worker: pops submitted tasks off a FIFO and runs them serially, off
+// the UI thread. The queue's mutex guards the task list and the job queue; the
+// condition variable wakes the worker when work arrives or when it should stop.
+//
+// The worker is a std::thread so the owning TaskQueue can either join it on
+// shutdown (blockOnShutdown=true, the default: all queued work drains before the
+// queue dies) or detach it (blockOnShutdown=false: a task blocked in a long
+// syscall such as statvfs on a dead mount never freezes the teardown thread).
+// The detached worker keeps the shared Impl alive and is guarded by the alive
+// flag so it never emits into a destroyed TaskQueue.
 struct TaskQueue::Impl {
-    QMutex mutex;             // guards tasks_ and nextId_
+    std::mutex mutex;             // guards tasks_, nextId_, stop_ and queue_
+    std::condition_variable cond;
+    std::deque<std::function<void()>> queue_;
     QVector<Task> tasks_;
     qint64 nextId = 1;
-    std::unique_ptr<TaskWorker> worker;
+    bool stop_ = false;
+    std::thread worker;
+    // Guards `alive` and any signal emission back into the owning TaskQueue.
+    // The destructor sets alive=false under this mutex before the QObject dies,
+    // so a detached worker never emits into a destroyed queue.
+    std::mutex emitMutex;
+    bool alive = true;
     // Retain only the most recent completed tasks so a long-running session
     // never accumulates unbounded result lists. Auto-record submits one task per
     // observed file change; each Task holds a lambda capturing this + asset
@@ -68,51 +50,67 @@ struct TaskQueue::Impl {
         }
     }
 
-    TaskWorker *makeWorker(TaskQueue *owner) {
-        worker = std::make_unique<TaskWorker>(
-            [this]() -> qint64 { QMutexLocker lock(&mutex); return nextId++; },
-            [owner](qint64 id) { owner->runTask(id); },
-            []() {});
-        return worker.get();
+    void loop() {
+        for (;;) {
+            std::function<void()> job;
+            {
+                std::unique_lock<std::mutex> lock(mutex);
+                cond.wait(lock, [this] { return stop_ || !queue_.empty(); });
+                if (stop_ && queue_.empty()) break;
+                job = std::move(queue_.front());
+                queue_.pop_front();
+            }
+            job();
+        }
     }
 };
 
-TaskQueue::TaskQueue(QObject *parent) : QObject(parent), impl_(new Impl) {
-    auto *worker = impl_->makeWorker(this);
-    worker->start();
+TaskQueue::TaskQueue(QObject *parent, bool blockOnShutdown)
+    : QObject(parent), impl_(std::make_shared<Impl>()), blockOnShutdown_(blockOnShutdown) {
+    const std::shared_ptr<Impl> impl = impl_;
+    impl->worker = std::thread([impl] { impl->loop(); });
 }
 
 TaskQueue::~TaskQueue() {
+    // Prevent any in-flight or queued task from emitting into this QObject as it
+    // dies. The emitMutex also serialises against the worker's own emit section,
+    // so the worker never touches `this` after the object memory is freed.
     {
-        std::lock_guard<std::mutex> lock(impl_->worker->mutex_);
-        impl_->worker->stop_ = true;
+        std::lock_guard<std::mutex> lock(impl_->emitMutex);
+        impl_->alive = false;
     }
-    impl_->worker->cond_.notify_all();
-    impl_->worker->wait();
+    {
+        std::lock_guard<std::mutex> lock(impl_->mutex);
+        impl_->stop_ = true;
+    }
+    impl_->cond.notify_all();
+    if (blockOnShutdown_) {
+        if (impl_->worker.joinable()) impl_->worker.join();
+    } else {
+        if (impl_->worker.joinable()) impl_->worker.detach();
+    }
 }
 
 qint64 TaskQueue::submit(const QString &label, TaskFn fn, bool write) {
     Q_UNUSED(write); // V1 serializes all tasks; writer-vs-read overlap is impossible by construction.
     qint64 id;
     {
-        QMutexLocker lock(&impl_->mutex);
+        std::lock_guard<std::mutex> lock(impl_->mutex);
         id = impl_->nextId++;
         Task task;
         task.id = id;
         task.label = label;
         task.fn = std::move(fn);
         impl_->tasks_.push_back(std::move(task));
+        const std::shared_ptr<Impl> impl = impl_;
+        impl_->queue_.push_back([impl, self = this, id] { TaskQueue::runTask(impl, self, id); });
     }
-    {
-        std::lock_guard<std::mutex> lock(impl_->worker->mutex_);
-        impl_->worker->queue_.push_back([this, id] { runTask(id); });
-    }
-    impl_->worker->cond_.notify_one();
+    impl_->cond.notify_one();
     return id;
 }
 
 void TaskQueue::cancel(qint64 id) {
-    QMutexLocker lock(&impl_->mutex);
+    std::lock_guard<std::mutex> lock(impl_->mutex);
     for (auto &task : impl_->tasks_) {
         if (task.id == id) {
             task.cancelled->store(true);
@@ -121,11 +119,11 @@ void TaskQueue::cancel(qint64 id) {
     }
 }
 
-void TaskQueue::runTask(qint64 id) {
+void TaskQueue::runTask(const std::shared_ptr<Impl> &impl, TaskQueue *self, qint64 id) {
     Task task;
     {
-        QMutexLocker lock(&impl_->mutex);
-        for (auto &t : impl_->tasks_) {
+        std::lock_guard<std::mutex> lock(impl->mutex);
+        for (auto &t : impl->tasks_) {
             if (t.id == id) {
                 task = t;
                 t.running = true;
@@ -150,8 +148,8 @@ void TaskQueue::runTask(qint64 id) {
         error = QStringLiteral("未知错误");
     }
     {
-        QMutexLocker lock(&impl_->mutex);
-        for (auto &t : impl_->tasks_) {
+        std::lock_guard<std::mutex> lock(impl->mutex);
+        for (auto &t : impl->tasks_) {
             if (t.id == id) {
                 t.running = false;
                 t.done = true;
@@ -159,14 +157,18 @@ void TaskQueue::runTask(qint64 id) {
                 t.items = progress.items();
             }
         }
-        impl_->pruneCompletedLocked();
+        impl->pruneCompletedLocked();
     }
-    emit taskUpdated(id, progress.percent(), progress.current());
-    emit taskFinished(id, ok, error);
+    // Emit only while the owning queue is alive; the emitMutex serialises this
+    // against the destructor, so the worker never emits into a destroyed queue.
+    std::lock_guard<std::mutex> emitLock(impl->emitMutex);
+    if (!impl->alive || !self) return;
+    emit self->taskUpdated(id, progress.percent(), progress.current());
+    emit self->taskFinished(id, ok, error);
 }
 
 QVector<TaskQueue::Status> TaskQueue::statuses() const {
-    QMutexLocker lock(&impl_->mutex);
+    std::lock_guard<std::mutex> lock(impl_->mutex);
     QVector<Status> out;
     for (const auto &t : impl_->tasks_)
         out.push_back({t.id, t.label, t.percent, t.running, t.done, t.items});
