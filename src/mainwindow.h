@@ -136,6 +136,12 @@ private:
     QHash<QString, bool> integrity_;
     std::unique_ptr<TaskQueue> integrityQueue_;
     bool integrityInFlight_ = false;
+    // Audit (2026-11-04): the backup-target probe runs on its own background
+    // worker so a dead/NFS/CIFS mount never freezes the UI thread. It is a
+    // MainWindow member (not a stack object in the dialog) so closing the
+    // dialog does not destroy the queue — TaskQueue's destructor waits for the
+    // worker, which could still be blocked in statvfs on a dropped mount.
+    std::unique_ptr<TaskQueue> targetQueue_;
     std::unique_ptr<Sentinel> sentinel_;
     ThumbnailCache thumbnails_;
     Asset selected() const;

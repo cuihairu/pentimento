@@ -495,6 +495,12 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
                 requestIntegrity(revisions_);
                 rebuildHistory();
             });
+    // Audit (2026-11-04): the backup-target probe is a stat + QStorageInfo
+    // query that can block on a dead/NFS/CIFS mount, so it runs on its own
+    // background worker. Keeping it as a MainWindow member means closing the
+    // source-state dialog never destroys the queue (and never waits on a
+    // worker that may still be blocked in statvfs).
+    targetQueue_ = std::make_unique<TaskQueue>(this);
     auto *timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, &MainWindow::scanChanges);
     timer->start(2000);
@@ -707,9 +713,26 @@ void MainWindow::requestIntegrity(const QVector<Revision> &revisions) {
     auto hashes = std::make_shared<QSet<QString>>(missing);
     integrityQueue_->submit(QStringLiteral("历史完整性校验"),
         [this, hashes](TaskQueue::Progress &) {
+            // Audit (2026-11-04): verify each object without holding the cache
+            // mutex — verifyObject is a streaming SHA-256 over a whole object
+            // (up to 256 MiB) and must never block rebuildHistory's UI thread
+            // for the entire batch. Only the final result merge takes the lock.
+            QHash<QString, bool> results;
+            for (const auto &hash : *hashes) {
+                // Audit (2026-11-04): a malformed/non-hex hash makes
+                // Library::objectPath throw before the file is opened. Catch
+                // that here and record it as corrupt (false), otherwise the
+                // completion callback would keep seeing a missing cache entry
+                // and infinitely requeue the same broken hash.
+                try {
+                    results.insert(hash, library_.verifyObject(hash));
+                } catch (...) {
+                    results.insert(hash, false);
+                }
+            }
             QMutexLocker lock(&integrityMutex_);
-            for (const auto &hash : *hashes)
-                integrity_.insert(hash, library_.verifyObject(hash));
+            for (auto it = results.cbegin(); it != results.cend(); ++it)
+                integrity_.insert(it.key(), it.value());
         });
 }
 
@@ -2025,11 +2048,11 @@ void MainWindow::showSourceState() {
     // to handle a dropped mount), so it must never run on the UI thread. A
     // background TaskQueue serializes the probes (one at a time); the newest
     // request wins and stale results are dropped. It never writes to the target.
-    TaskQueue targetQueue; // no parent: it is a stack object; the dialog's
-                           // destruction disconnects the taskFinished context.
     qint64 lastTargetTask = -1;
     auto targetResult = std::make_shared<BackupTargetInfo>();
-    QObject::connect(&targetQueue, &TaskQueue::taskFinished, &dialog,
+    // The queue is a MainWindow member (targetQueue_), so the dialog's
+    // destruction never waits on a worker still probing a dropped mount.
+    QObject::connect(targetQueue_.get(), &TaskQueue::taskFinished, &dialog,
         [&](qint64 finished, bool, const QString &) {
             // A stale result (a newer request was queued after this one) is
             // dropped, never applied to the current input.
@@ -2047,11 +2070,16 @@ void MainWindow::showSourceState() {
         if (trimmed.isEmpty()) {
             targetLabel->setText(tr("备份目标能力：尚未选择"));
             targetLabel->setStyleSheet("color:#888;");
+            // Audit (2026-11-04): invalidate any in-flight result so a stale
+            // probe for a previously entered path is never applied after the
+            // input was cleared (finished == lastTargetTask would otherwise
+            // still match and overwrite the "尚未选择" state).
+            lastTargetTask = -1;
             return;
         }
         targetLabel->setText(tr("备份目标能力：正在探测…"));
         targetLabel->setStyleSheet("color:#666;");
-        lastTargetTask = targetQueue.submit(QStringLiteral("备份目标探测"),
+        lastTargetTask = targetQueue_->submit(QStringLiteral("备份目标探测"),
             [result = targetResult, trimmed](TaskQueue::Progress &) {
                 *result = probeBackupTarget(trimmed);
             });
