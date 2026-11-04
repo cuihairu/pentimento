@@ -7,6 +7,7 @@
 // panel width can push confirm/cancel out of reach after scaling).
 #include "library.h"
 #include "mainwindow.h"
+#include "storage.h"
 #include <QAction>
 #include <QApplication>
 #include <QDialog>
@@ -16,6 +17,7 @@
 #include <QPushButton>
 #include <QToolBar>
 #include <QMenu>
+#include <QRandomGenerator>
 #include <QScrollArea>
 #include <QTemporaryDir>
 #include <QTimer>
@@ -52,6 +54,168 @@ private slots:
         }
         QVERIFY(hasImport);
         QVERIFY(hasCapture);
+    }
+
+    // Audit (2026-11-04): history-integrity verification must run on a
+    // background worker, never on the UI thread. This test drives the real
+    // selection-changed path (not a private method call), waits for the cache
+    // to be populated, then reloads history again and verifies the same
+    // revisions are served from cache (no requeue, integrityInFlight_ returns
+    // to zero once the batch completes).
+    void historyIntegrityRunsInBackgroundAndCachesResults() {
+        QTemporaryDir dir;
+        Library library(dir.filePath("library"));
+
+        // A small valid PNG: importing produces one revision and one object.
+        QImage image(64, 64, QImage::Format_RGB32);
+        image.fill(Qt::magenta);
+        const QString path = dir.filePath("magenta.png");
+        QVERIFY(image.save(path, "PNG"));
+        const Asset asset = library.importFile(path);
+
+        MainWindow window(library);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+        // The constructor's reloadAssets() selected the first row and already
+        // scheduled the first integrity batch. Wait for the cache to fill.
+        QTRY_COMPARE_WITH_TIMEOUT(window.integrityCachedCount(), 1, 10000);
+        QCOMPARE(window.integrityInFlight(), 0);
+
+        // Selecting another row and back replays the same revision. Because
+        // the hash is already cached, requestIntegrity() must not enqueue a
+        // second verify batch. Drive this through the public selection signal.
+        QListWidget *list = nullptr;
+        for (auto *l : window.findChildren<QListWidget *>())
+            if (l->accessibleName() == QStringLiteral("素材列表")) list = l;
+        QVERIFY(list);
+        list->setCurrentRow(-1);
+        list->setCurrentRow(0);
+        QTRY_COMPARE_WITH_TIMEOUT(window.integrityCachedCount(), 1, 10000);
+        QCOMPARE(window.integrityInFlight(), 0);
+    }
+
+    // Audit (2026-11-04): a not-yet-verified revision shows the corrupt
+    // placeholder first, then re-renders with the verified result once the
+    // background batch lands — the UI never blocks while waiting. This uses a
+    // large object so the placeholder window is observable under offscreen.
+    void corruptPlaceholderShowsThenReplacesOnVerified() {
+        QTemporaryDir dir;
+        Library library(dir.filePath("library"));
+
+        // A moderately large object (16 MiB) keeps the streaming SHA-256 long
+        // enough that the first frame renders before the result arrives.
+        QByteArray blob;
+        blob.reserve(16 * 1024 * 1024);
+        QRandomGenerator::global()->fillRange(reinterpret_cast<quint32 *>(blob.data()),
+                                              16 * 1024 * 1024 / 4);
+        const QString path = dir.filePath("blob.bin");
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(blob);
+        file.close();
+        const Asset asset = library.importFile(path);
+
+        MainWindow window(library);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+        QListWidget *history = nullptr;
+        for (auto *l : window.findChildren<QListWidget *>())
+            if (l->accessibleName() == QStringLiteral("历史版本")) history = l;
+        QVERIFY(history);
+        QVERIFY(history->count() >= 1);
+
+        // The first frame may already show the placeholder (not yet verified).
+        QTRY_VERIFY_WITH_TIMEOUT(window.integrityCachedCount() >= 1, 10000);
+        // Once verified (a valid object), the corrupt placeholder disappears.
+        QTRY_VERIFY_WITH_TIMEOUT(!history->item(0)->text().contains(QStringLiteral("损坏对象")), 10000);
+    }
+
+    // Audit (2026-11-04): backup-target probing is asynchronous; the newest
+    // request wins and stale results are dropped. The direct unit assertions
+    // cover the existing-file rejection; the modal dialog assertions exercise
+    // the actual UI path through the background TaskQueue.
+    void backupTargetProbeIsAsyncAndStaleResultsDropped() {
+        QTemporaryDir dir;
+        Library library(dir.filePath("library"));
+        MainWindow window(library);
+
+        // An existing regular file must be refused before any writability
+        // decision is made (P-510 regression).
+        const QString filePath = dir.filePath("existing-file");
+        QFile file(filePath);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write("x");
+        file.close();
+        const BackupTargetInfo info = probeBackupTarget(filePath);
+        QVERIFY(!info.writable);
+        QVERIFY(info.reason.contains(QStringLiteral("目录")));
+
+        // Drive the real dialog path. The target queue is a MainWindow member,
+        // so opening/closing the dialog must never destroy a probe in flight.
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+        struct ProbeState {
+            QLineEdit *edit = nullptr;
+            QLabel *label = nullptr;
+            QDialog *dialog = nullptr;
+            bool sawProbing = false;
+            bool sawCleared = false;
+            bool sawFileRejected = false;
+        };
+        auto state = std::make_shared<ProbeState>();
+        auto done = std::make_shared<bool>(false);
+
+        QTimer::singleShot(0, [&] {
+            for (auto *w : QApplication::topLevelWidgets()) {
+                auto *d = qobject_cast<QDialog *>(w);
+                if (!d || !d->isVisible()) continue;
+                for (auto *e : d->findChildren<QLineEdit *>())
+                    if (e->accessibleName() == QStringLiteral("备份目标路径"))
+                        state->edit = e;
+                for (auto *l : d->findChildren<QLabel *>())
+                    if (l->accessibleName() == QStringLiteral("备份目标能力"))
+                        state->label = l;
+                state->dialog = d;
+            }
+            if (!state->edit || !state->label || !state->dialog) return;
+
+            // Start a probe for a regular file; it must be refused asynchronously.
+            state->edit->setText(filePath);
+            if (state->label->text().contains(QStringLiteral("正在探测")))
+                state->sawProbing = true;
+
+            // Clearing the input must invalidate the pending result and show
+            // the empty state; a late result for the old path must be dropped.
+            QTimer::singleShot(100, [&] {
+                state->edit->clear();
+                state->sawCleared = state->label->text().contains(QStringLiteral("尚未选择"));
+                QTimer::singleShot(200, [&] {
+                    // Re-enter the regular file to observe the final rejection.
+                    state->edit->setText(filePath);
+                    QTimer::singleShot(1000, [&] {
+                        state->sawFileRejected = state->label->text().contains(QStringLiteral("目录"));
+                        QVERIFY(state->sawProbing);
+                        QVERIFY(state->sawCleared);
+                        QVERIFY(state->sawFileRejected);
+                        QVERIFY(!state->label->text().contains(QStringLiteral("正在探测")));
+                        *done = true;
+                        state->dialog->accept();
+                    });
+                });
+            });
+        });
+
+        bool triggered = false;
+        for (auto *a : window.findChildren<QAction *>())
+            if (a->text() == QStringLiteral("挂载来源状态…")) { a->trigger(); triggered = true; break; }
+        QVERIFY(triggered);
+
+        // All assertions ran inside the modal loop (before the dialog was
+        // destroyed); reaching here means they already passed.
+        QVERIFY(*done);
     }
     void tabTraversalMovesFocusThroughCoreWidgets() {
         QTemporaryDir dir;

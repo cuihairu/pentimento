@@ -2079,6 +2079,9 @@ void MainWindow::showSourceState() {
         }
         targetLabel->setText(tr("备份目标能力：正在探测…"));
         targetLabel->setStyleSheet("color:#666;");
+#ifdef PENTIMENTO_TESTING
+        ++targetProbeSubmissions_;
+#endif
         lastTargetTask = targetQueue_->submit(QStringLiteral("备份目标探测"),
             [result = targetResult, trimmed](TaskQueue::Progress &) {
                 *result = probeBackupTarget(trimmed);

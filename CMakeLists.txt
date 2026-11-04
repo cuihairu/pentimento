@@ -81,6 +81,7 @@ if(BUILD_TESTING)
     # dialog buttons reachable after scaling).
     add_executable(pentimento_ui_tests tests/mainwindow_test.cpp src/mainwindow.cpp src/mainwindow.h src/compare_canvas.cpp src/compare_canvas.h src/preview_canvas.cpp src/preview_canvas.h)
     target_include_directories(pentimento_ui_tests PRIVATE src)
+    target_compile_definitions(pentimento_ui_tests PRIVATE PENTIMENTO_TESTING=1)
     target_link_libraries(pentimento_ui_tests PRIVATE pentimento_core Qt6::Test Qt6::Widgets)
     add_test(NAME desktop_keyboard_zoom COMMAND pentimento_ui_tests)
     set_tests_properties(desktop_keyboard_zoom PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

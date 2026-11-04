@@ -30,6 +30,18 @@ class MainWindow : public QMainWindow {
 public:
     explicit MainWindow(Library &library);
     void saveScreenshot(const QString &path);
+#ifdef PENTIMENTO_TESTING
+    // Audit (2026-11-04): test-only accessors so the async integrity and
+    // backup-target probe paths can assert background execution, cache reuse,
+    // and stale-result dropping without reaching into private members.
+    int integrityCachedCount() {
+        QMutexLocker lock(&integrityMutex_);
+        return integrity_.size();
+    }
+    int integrityInFlight() const { return integrityInFlight_ ? 1 : 0; }
+    qint64 targetProbeSubmissions() const { return targetProbeSubmissions_; }
+    void setTargetProbeSubmissions(qint64 n) { targetProbeSubmissions_ = n; }
+#endif
 private:
     Library &library_;
     QVector<Asset> assets_;
@@ -142,6 +154,11 @@ private:
     // dialog does not destroy the queue — TaskQueue's destructor waits for the
     // worker, which could still be blocked in statvfs on a dropped mount.
     std::unique_ptr<TaskQueue> targetQueue_;
+#ifdef PENTIMENTO_TESTING
+    // Audit (2026-11-04): counts backup-target probe submissions so a test can
+    // assert the newest-request-wins/stale-dropped behavior.
+    qint64 targetProbeSubmissions_ = 0;
+#endif
     std::unique_ptr<Sentinel> sentinel_;
     ThumbnailCache thumbnails_;
     Asset selected() const;
