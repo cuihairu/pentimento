@@ -44,8 +44,8 @@ A core requirement added 2026-10-31: when the local asset library is encrypted o
 
 ## Automatic recording
 
-A UI timer checks file size and mtime; a read happens once they have stayed the same twice in a row (2-second intervals), and an already-processed signature is not fully hashed again. Writes that do not change the on-disk signature may be missed, and a write that pauses mid-write beyond the window may be recorded. Editor awareness, file watchers, a stable-read double check, and a background task queue are future work.
+A UI timer checks file size and mtime; a read happens once they have stayed the same twice in a row (2-second intervals), and an already-processed signature is not fully hashed again. Writes that do not change the on-disk signature may be missed, and a write that pauses mid-write beyond the window may be recorded. Editor awareness and file watchers are future work. The stable-read double check (`src/library.cpp`) and a background task queue (`src/taskqueue.{h,cpp}`, used for capture/integrity/probe workers) have landed since this section was first written.
 
 ## Versioning and backup
 
-Per-asset content history has landed; metadata versions, whole-library snapshots, deletion tombstones, batch point-in-time restore, and retention policies have not. The object store must be backed up together with SQLite; only a cold backup taken while the app is closed is supported. A library cannot be moved to a new path directly (working paths are currently absolute).
+Per-asset content history, whole-library snapshot anchors (`snapshotAll`/`snapshots`), batch point-in-time restore (`rollbackAll`, the "Restore to anchor" path), scheduled snapshots (off by default), snapshot exclusion rules, per-field metadata history (P-309, read-only review), and one-click backup-package export (`exportBackupPackage`) have landed. Deletion tombstones and retention policies have not. The object store must be backed up together with SQLite; only a cold backup taken while the app is closed is supported. A library cannot be moved to a new path directly (working paths are currently absolute).

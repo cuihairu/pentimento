@@ -31,9 +31,10 @@ On macOS the bundle entry point is `build/dev/pentimento.app/Contents/MacOS/pent
 
 - Asset list, name search, image previews, and a version timeline with thumbnails.
 - Manual version notes; duplicate content never produces a duplicate version.
+- Side-by-side or sliding-divider version comparison; tags; per-field metadata history (read-only review).
 - Browse and export historical versions; restore preserves all existing history.
 - Restore/export verify historical object hashes; an accidentally deleted working copy can be recovered from history.
 
 ## First-release boundaries
 
-This is a runnable early prototype, not a full asset-manager replacement and not a system-level backup tool. Automatic recording only works while the app runs; PSDs, models, and similar files keep their history as raw bytes without layer parsing; tags, batch folder import, and AI recognition are not yet available. Same-disk history is not a substitute for off-disk backup — to back up, close the app first, then copy the entire library. See [Configuration](/configuration) for the boundaries around restore.
+This is a runnable early prototype, not a full asset-manager replacement and not a system-level backup tool. Automatic recording only works while the app runs; PSDs, models, and similar files keep their history as raw bytes without layer parsing; AI recognition is not yet available, and batch folder import has a core scan pipeline but no UI entry yet. Same-disk history is not a substitute for off-disk backup — to back up, close the app first, then copy the entire library. See [Configuration](/configuration) for the boundaries around restore.

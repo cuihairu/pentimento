@@ -248,3 +248,5 @@
 ## 审核发现（060a40f5..HEAD 只审）
 
 - [x] 审核发现：本轮 diff 未见问题（060a40f5..HEAD）。（完成 2026-11-05：逐项复核 `60da985` 的 TaskQueue detach/`emitMutex` 生命周期、目标探测轮询与 16 MiB blob 测试，未见缺陷；ctest 3/3 绿：library_history 316.62s、security_sentinel 6.44s、desktop_keyboard_zoom 23.94s）
+
+- [x] 审核发现：本轮 diff 未见问题（60da985b..HEAD）。（完成 2026-11-05：审计修复 F1–F12 逐条对码复核（snapshotAll/rollbackAll/exportBackupPackage=i src/library.h、i18n=src/i18n.{h,cpp}、taskqueue 入 CMakeLists），无反向改码；门禁 `cmake --build --preset dev` 绿 + `ctest --preset dev` 3/3 绿（library_history 239.57s、security_sentinel 8.73s、desktop_keyboard_zoom 26.27s）+ `pnpm run build`（docs 站）绿）

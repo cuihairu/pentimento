@@ -40,4 +40,4 @@ library.lock     单进程写锁
 
 - 构建 preset 在 `CMakePresets.json`（`dev` 配置/构建/测试 preset）；CMake 是唯一构建入口，所有目标 ISO C++17、禁编译器扩展。
 - Qt 不在默认搜索路径时传 `-DCMAKE_PREFIX_PATH=/path/to/Qt/6.x/platform`。
-- 语言偏好由应用保存；切换界面语言在重启后生效。
+- 语言偏好保存在 QSettings（`ui/language`，默认 `zh_CN`），启动时加载；应用内尚无语言切换入口（`setLanguagePreference` 无界面调用方），切换需在应用外修改该设置。

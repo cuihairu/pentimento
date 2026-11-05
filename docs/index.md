@@ -25,7 +25,7 @@ features:
     details: Browse and export historical versions. Restoring saves any not-yet-recorded current content first, then adds a new version — existing history is preserved.
   - icon: 🔒
     title: Anti-ransomware defenses
-    details: An append-only, read-once object store, a batch-modification sentinel that snapshots before infection spreads, and one-click whole-tree rollback to the last clean anchor.
+    details: An append-only, read-only, hash-verified object store, a batch-modification sentinel that snapshots before infection spreads, and one-click whole-tree rollback to the last clean anchor.
   - icon: 🧬
     title: SHA-256 content addressing
     details: Identical file content reuses objects. SQLite keeps the index, QSaveFile gives atomic writes, and a library-level lock restricts access to one process.

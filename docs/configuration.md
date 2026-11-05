@@ -40,4 +40,4 @@ The design leans toward false positives: normal small edits stay quiet, legitima
 
 - Build presets live in `CMakePresets.json` (`dev` configure/build/test presets); CMake is the only build entry, all targets use ISO C++17 with compiler extensions disabled.
 - If Qt is not on the default search path, pass `-DCMAKE_PREFIX_PATH=/path/to/Qt/6.x/platform`.
-- Language preference is saved in the app; switching the UI language takes effect after a restart.
+- Language preference is stored in QSettings (`ui/language`, default `zh_CN`) and applied at startup; there is no in-app switcher yet (`setLanguagePreference` has no UI caller), so switching means editing the setting outside the app.
