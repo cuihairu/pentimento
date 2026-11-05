@@ -1,5 +1,7 @@
 [English](README.md) | [中文](README.zh.md)
 
+<p align="center"><img src="docs/public/logo.svg" width="64" height="64" alt="pentimento logo" /></p>
+
 <h1 align="center">pentimento · 画迹</h1>
 
 <p align="center"><a href="https://cuihairu.github.io/pentimento/"><img src="docs/public/badges/docs.svg" alt="docs" /></a> <img src="docs/public/badges/cpp17.svg" alt="language: C++17" /> <img src="docs/public/badges/qt6.svg" alt="framework: Qt 6" /> <img src="docs/public/badges/cmake.svg" alt="build: CMake 3.24+" /> <img src="docs/public/badges/license.svg" alt="license: Apache-2.0" /> <img src="docs/public/badges/platform.svg" alt="platform: Linux | Windows | macOS" /> <img src="docs/public/badges/status.svg" alt="status: prototype stage" /></p>
@@ -14,6 +16,8 @@
 - Asset list, name search, image previews, and a version timeline with thumbnails.
 - Manual version notes; while the app runs, working copies are checked every two seconds, and a change is recorded once size/mtime stays stable for two consecutive checks — identical content does not produce a duplicate version.
 - Browse and export historical versions; restoring adds a new version, saving any not-yet-recorded current content first, so existing history is preserved.
+- Side-by-side or sliding-divider version comparison; tags (single and batch); per-field metadata history (read-only review).
+- Scheduled whole-tree snapshots (off by default, 15/30/60-minute periods), snapshot exclusion rules, and one-click consistent backup-package export.
 - SHA-256 content addressing: identical file content reuses objects; SQLite keeps the index, QSaveFile gives atomic writes, and a library-level lock restricts access to one process.
 - Restore/export verifies historical object hashes; if a working copy is accidentally deleted it can be recovered from history.
 
@@ -46,7 +50,7 @@ This is a runnable early prototype — not a full Eagle replacement, and not a s
 
 - Automatic recording only works while the app is running; file-stability detection is heuristic and does not guarantee capture of every editor save, and content not written to disk in the editor cannot be recorded. Close external editors before restoring so they don't overwrite the restore result.
 - Image previews depend on the local Qt image plugins. PSDs, models, and similar files keep their history as raw bytes, but layers are not parsed and models are not rendered. Single-file limit is 256 MiB; I/O and thumbnails currently run on the UI thread — small libraries are the priority for trial use.
-- Currently single-asset version history; whole-library point-in-time restore, metadata history, side-by-side/slider comparison, tags, batch folder import, and AI recognition are not yet available.
+- Whole-library point-in-time restore exists today as "Restore to anchor" (snapshot anchors, whole-tree rollback) rather than arbitrary time travel; AI recognition is not yet available, and batch folder import has a core scan pipeline but no UI entry yet.
 - This release uses managed copy-in import; rename/move tracking, external directory indexing, library migration, history cleanup, and remote backup are not implemented. Working-file paths are currently absolute, so a library cannot be moved wholesale and continue editing.
 - Objects and the index are not in a single cross-file transaction; if the process crashes between restoring to disk and committing the database, the current working copy must be recorded once after reopening. Orphaned objects are not cleaned up for now, to avoid deleting history by mistake.
 - Same-disk history is not a substitute for off-disk backup; to back up, close the app first, then copy the entire library.

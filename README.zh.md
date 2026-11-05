@@ -1,5 +1,7 @@
 [English](README.md) | [中文](README.zh.md)
 
+<p align="center"><img src="docs/public/logo.svg" width="64" height="64" alt="pentimento logo" /></p>
+
 <h1 align="center">pentimento · 画迹</h1>
 
 <p align="center"><a href="https://cuihairu.github.io/pentimento/zh/"><img src="docs/public/badges/docs.zh.svg" alt="文档" /></a> <img src="docs/public/badges/cpp17.svg" alt="语言：C++17" /> <img src="docs/public/badges/qt6.svg" alt="框架：Qt 6" /> <img src="docs/public/badges/cmake.svg" alt="构建：CMake 3.24+" /> <img src="docs/public/badges/license.zh.svg" alt="协议：Apache-2.0" /> <img src="docs/public/badges/platform.zh.svg" alt="平台：Linux | Windows | macOS" /> <img src="docs/public/badges/status.zh.svg" alt="状态：原型阶段" /></p>
@@ -14,6 +16,8 @@
 - 素材列表、名称搜索、图片预览和带缩略图的版本时间轴。
 - 手动记录版本说明；应用运行时，每两秒检查工作副本，连续两次大小/修改时间稳定后记录变化，相同内容不重复生成版本。
 - 浏览、导出历史版本；恢复时新增版本，先保存尚未记录的当前内容，保留原历史。
+- 版本对比（并排或滑动分割线）；标签（单个与批量）；逐字段元数据历史（只读回看）。
+- 定时整库快照（默认关闭，15/30/60 分钟周期）、快照排除规则，以及一键导出一致性备份包。
 - SHA-256 内容寻址，相同文件内容复用对象；SQLite 保存索引，QSaveFile 原子写入，库级锁限制单进程访问。
 - 恢复/导出校验历史对象哈希；误删工作副本后可从历史恢复。
 
@@ -46,7 +50,7 @@ macOS 的 bundle 入口为 `build/dev/pentimento.app/Contents/MacOS/pentimento`�
 
 - 自动记录仅在应用运行时生效；文件稳定判断是启发式，不保证捕获每次编辑器保存，编辑器中未写盘的内容无法记录。恢复前先关闭外部编辑器，避免它覆盖恢复结果。
 - 图片预览取决于本机 Qt 图像插件。PSD、模型等文件可按原始字节保留历史，但当前不解析图层、不渲染模型。单文件限 256 MiB；I/O 与缩略图目前在 UI 线程，小型素材库试用优先。
-- 当前为单素材版本历史，尚无整库时间点恢复、元数据历史、并排/滑动对比、标签、批量文件夹导入与 AI 识别。
+- 整库时间点恢复以「恢复到锚点」（快照锚点、整树回滚）形态提供，尚不支持任意时间点穿越；AI 识别尚未提供，批量文件夹导入核心扫描管线已备但尚无界面入口。
 - 本版使用管理式复制导入；改名/移动追踪、外部目录索引、库迁移、历史清理和远端备份尚未实现。工作文件路径当前为绝对路径，不能直接移动整个库后继续编辑。
 - 对象与索引不在同一个跨文件事务中，进程在恢复写盘和数据库提交之间崩溃时，重开后需记录一次当前工作副本。孤立对象暂不清理，避免误删历史。
 - 同盘历史不能替代异盘备份；备份时先关闭应用，再完整复制整个素材库。

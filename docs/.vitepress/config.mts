@@ -3,6 +3,7 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   base: '/pentimento/',
   title: 'pentimento',
+  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/pentimento/favicon.svg' }]],
   description:
     'A local desktop asset manager for game art assets, centered on version-history browsing and restore.',
   srcExclude: [
@@ -62,6 +63,7 @@ export default defineConfig({
     }
   },
   themeConfig: {
+    logo: '/logo.svg',
     socialLinks: [{ icon: 'github', link: 'https://github.com/cuihairu/pentimento' }]
   }
 })
