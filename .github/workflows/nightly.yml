@@ -10,7 +10,9 @@ permissions:
 
 jobs:
   linux:
-    runs-on: ubuntu-latest
+    # ubuntu-latest (24.04) ships Qt 6.4 whose qtga plugin misreports 32-bit TGA
+    # (Indexed8) and fails content sniffing; 26.04 = Qt 6.10 is the dev baseline
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v4
 
