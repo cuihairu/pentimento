@@ -2,3 +2,4 @@
 /.cache/
 *.user
 .DS_Store
+/dist/

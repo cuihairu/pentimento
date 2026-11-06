@@ -10,19 +10,26 @@ permissions:
 
 jobs:
   linux:
-    # ubuntu-latest (24.04) ships Qt 6.4 whose qtga plugin misreports 32-bit TGA
-    # (Indexed8) and fails content sniffing; 26.04 = Qt 6.10 is the dev baseline
-    runs-on: ubuntu-26.04
+    # Build on the oldest supported Ubuntu runner, but use the Qt 6.10 dev
+    # baseline: Ubuntu 24.04's Qt 6.4 qtga plugin misreports 32-bit TGA.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Qt6
+      - name: Install Qt 6.10.2
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.10.2'
+          modules: 'qtimageformats'
+          cache: true
+
+      - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends qt6-base-dev qt6-base-dev-tools libqt6sql6-sqlite qt6-image-formats-plugins ninja-build
+          sudo apt-get install -y --no-install-recommends ninja-build
 
       - name: Configure
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
 
       - name: Build
         run: cmake --build build
@@ -32,19 +39,23 @@ jobs:
 
       - name: Package
         run: |
-          mkdir -p dist
           BIN=$(find build -maxdepth 3 -type f -name pentimento -executable | head -1)
           test -n "$BIN"
-          cp "$BIN" dist/pentimento-linux-x64
-          cp README.md LICENSE dist/
-          cd dist && sha256sum * > SHA256SUMS
+          ./scripts/package-linux.sh "$BIN" dist
+          QT_QPA_PLATFORM=offscreen ./dist/pentimento-linux-x64/pentimento --help >/dev/null
+          test -f dist/pentimento-linux-x64/lib/libQt6Core.so.6
+          test -f dist/pentimento-linux-x64/plugins/platforms/libqxcb.so
+          test -f dist/pentimento-linux-x64/plugins/sqldrivers/libqsqlite.so
+          LD_LIBRARY_PATH="$PWD/dist/pentimento-linux-x64/lib" \
+            ldd ./dist/pentimento-linux-x64/bin/pentimento | grep -F "$PWD/dist/pentimento-linux-x64/lib/libQt6Core.so.6"
+          (cd dist && sha256sum pentimento-linux-x64.tar.gz > SHA256SUMS)
 
       - name: Upload to rolling nightly release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete nightly --yes --cleanup-tag 2>/dev/null || true
-          gh release create nightly dist/* \
+          gh release create nightly dist/pentimento-linux-x64.tar.gz dist/SHA256SUMS \
             --prerelease --latest=false \
             --title "rolling nightly" \
-            --notes "滚动夜间构建（自最新 main）。未经充分验证，供试用；版本号以正式发布为准。"
+            --notes "滚动夜间构建（自最新 main）。Linux 包已捆绑 Qt 6.10.2 运行库与插件。未经充分验证，供试用；版本号以正式发布为准。"
