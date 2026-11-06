@@ -118,7 +118,7 @@
 - [ ] P-604 验证 NAS 发现与协议兼容矩阵。验收：记录已测设备、系统、协议、失败与限制，不假称全兼容。 （BLOCKED复核 2026-11-01：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/zh/review/2026-10-30-decisions.md 执行(2026-10-30)）（复核 2026-11-04：P-015 批准范围=本地核心 V1，本项需真实 NAS 设备/挂载环境与测试矩阵）（复核 2026-11-06：仍缺真实 NAS 设备/挂载环境与测试矩阵）
 - [x] P-605 验证故障与恢复场景。验收：磁盘满、断网、中断、损坏及冲突各有结果证据。 （BLOCKED复核 2026-11-01：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/zh/review/2026-10-30-decisions.md 执行(2026-10-30)）（完成 2026-11-02）
 - [x] P-606 验证桌面键盘与缩放。验收：关键流程键盘可完成，缩放后控件可用。 （BLOCKED复核 2026-11-01：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/zh/review/2026-10-30-decisions.md 执行(2026-10-30)）（完成 2026-11-02）
-- [ ] P-607 验证 macOS/Windows/Linux 构建。验收：三系统分别记录构建、插件部署和已知限制。 （BLOCKED复核 2026-11-01：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/zh/review/2026-10-30-decisions.md 执行(2026-10-30)）（复核 2026-11-04：P-015 批准范围=本地核心 V1，本项需 macOS/Windows 真实测试机）（复核 2026-11-06：仍缺 macOS/Windows 真实测试机）
+- [ ] P-607 验证 macOS/Windows/Linux 构建。验收：三系统分别记录构建、插件部署和已知限制。 （BLOCKED复核 2026-11-01：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/zh/review/2026-10-30-decisions.md 执行(2026-10-30)）（复核 2026-11-04：P-015 批准范围=本地核心 V1，本项需 macOS/Windows 真实测试机）（复核 2026-11-07：Windows 真实测试机在位=openclaw/imac/.5，Windows+Linux 构建腿可在其上执行；macOS 无机器保持跳过）
 - [x] P-608 验证中英界面与文档一致性。验收：同需求 ID、任务状态、能力限制逐项一致。 （BLOCKED复核 2026-11-01：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/zh/review/2026-10-30-decisions.md 执行(2026-10-30)）（完成 2026-11-02）
 - [x] P-609 执行 V1 用户旅程验收。验收：完成 requirements 中全部场景，未通过项保持未完成。 （BLOCKED复核 2026-11-01：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/zh/review/2026-10-30-decisions.md 执行(2026-10-30)）（完成 2026-11-02：自动化旅程证据 `v1UserJourneyAcceptanceWalkthrough`；R12–R18/P-204/P-410/P-411/P-501/P-604/P-607 保持未通过，见 80-reliability#P-609）
 
@@ -270,3 +270,5 @@
 - 审核发现：本轮 diff 未见问题（c2cd3cb6..HEAD）。不属实：c2cd3cb6..HEAD 实际含 00419b1/dd2614c 将 nightly.yml 改为 Ubuntu 26.04 系统 Qt 6.10 动态链接且只发布裸可执行文件的问题（即下一条属实发现），并非「未见问题」。
 
 - [x] 审核发现：nightly 改在 Ubuntu 26.04 的 Qt 6.10 上动态链接却只发布可执行文件，使用 Ubuntu 24.04 系统 Qt 6.4 的用户将无法运行该产物，且发布包未提供所需新版 Qt 运行库（.github/workflows/nightly.yml:15）。（完成 2026-11-06：核实属实——00419b1/dd2614c 将 nightly.yml 改为 Ubuntu 26.04 + 系统 apt Qt 6.10（qt6-image-formats-plugins），Package 步骤仅 `cp "$BIN" dist/pentimento-linux-x64` 不捆绑 Qt 运行库，Ubuntu 24.04/Qt 6.4 用户无法运行。已修复：nightly.yml 回退 ubuntu-24.04 并用 install-qt-action 装 Qt 6.10.2（qtimageformats），Package 改用 scripts/package-linux.sh 捆绑 Qt 运行库与插件（lib/libQt6Core.so.6、plugins/platforms/libqxcb.so、plugins/sqldrivers/libqsqlite.so、plugins/imageformats）；`QT_QPA_PLATFORM=offscreen ./dist/pentimento-linux-x64/pentimento --help` 通过，ldd 解析到捆绑 libQt6Core.so.6。门禁 `cmake --build --preset dev` 绿（ninja no work to do）+ `ctest --preset dev` 3/3 绿：library_history 41.35s、security_sentinel 0.42s、desktop_keyboard_zoom 3.86s）
+- [ ] 审核发现：打包脚本仅收集 Qt 安装目录内的依赖，未捆绑或说明 xcb 平台插件所需的 libxcb-cursor.so.0 等系统库，在缺少这些库的 Ubuntu 24.04 桌面环境中程序无法启动，而 offscreen 检查无法发现此问题（scripts/package-linux.sh:79）。
+- [ ] 审核发现：发布包捆绑了 Qt 运行库及插件却只附带项目的 Apache-2.0 许可证，缺少 Qt 第三方许可声明及对应许可证文本（scripts/package-linux.sh:44）。
