@@ -80,7 +80,7 @@
 ## Git、SVN、时光机
 
 - [x] P-401 识别并连接本地 Git 仓库。验收：显示仓库、分支/提交及工作区状态，不修改仓库。 （已代决:按 docs/zh/review/2026-10-30-decisions.md 执行(2026-10-30)；完成 2026-11-08，commit aa35917；测试 git_source_readonly 3/3 通过：identifyReportsRepoAndHead/branchesListCurrentAndHeads/statusReflectsWorktreeWithoutWriting；实现 src/git_source.cpp:57-134，测试 tests/git_source_test.cpp:79-130；仓库指纹前后一致证明只读；真实项目样本仍留手动验收）
-- [ ] P-402 读取 Git 文件树与日志。验收：选定提交可关联素材路径和历史。 （BLOCKED复核 2026-11-01：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/zh/review/2026-10-30-decisions.md 执行(2026-10-30)）（复核 2026-11-04：P-015 批准范围=本地核心 V1，本项属 V1.x 延后且需真实 Git/SVN 样本或环境）（复核 2026-11-06：仍缺真实 Git/SVN 样本与环境——属 V1.x 延后）
+- [x] P-402 读取 Git 文件树与日志。验收：选定提交可关联素材路径和历史。 （已代决:按 docs/zh/review/2026-10-30-decisions.md 执行(2026-10-30)；完成 2026-11-08，commit 616de12；测试 git_source_readonly 5/5 通过（含 logListsCommitsNewestFirst/treeListsCommitFilesWithSubdir）；实现 src/git_source.cpp:136-216，测试 tests/git_source_test.cpp:132-182；真实项目样本仍留手动验收）
 - [ ] P-403 提取 Git 历史文件。验收：指定提交字节正确，提取到临时/导出位置。 （BLOCKED复核 2026-11-01：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/zh/review/2026-10-30-decisions.md 执行(2026-10-30)）（复核 2026-11-04：P-015 批准范围=本地核心 V1，本项属 V1.x 延后且需真实 Git/SVN 样本或环境）（复核 2026-11-06：仍缺真实 Git/SVN 样本与环境——属 V1.x 延后）
 - [ ] P-404 识别 LFS 指针与缺失对象。验收：指针不能被误当图像预览，缺失原因可见。 （BLOCKED复核 2026-11-01：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/zh/review/2026-10-30-decisions.md 执行(2026-10-30)）（复核 2026-11-04：P-015 批准范围=本地核心 V1，本项属 V1.x 延后且需真实 Git/SVN 样本或环境）（复核 2026-11-06：仍缺真实 Git/SVN 样本与环境——属 V1.x 延后）
 - [ ] P-405 实现 LFS 明确同意后的按需获取。验收：用户同意后获取对象并校验，拒绝则保持缺失状态。 （BLOCKED复核 2026-11-01：缺用户批准（P-015 进入实现阶段未获批））（已代决:按 docs/zh/review/2026-10-30-decisions.md 执行(2026-10-30)）（复核 2026-11-04：P-015 批准范围=本地核心 V1，本项属 V1.x 延后且需真实 Git/SVN 样本或环境）（复核 2026-11-06：仍缺真实 Git/SVN 样本与环境——属 V1.x 延后）
