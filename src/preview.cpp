@@ -73,7 +73,14 @@ QString detectedFormat(const QString &path) {
     QImageReader reader(path);
     reader.setDecideFormatFromContent(true);
     const QString fmt = reader.format(); // recognized from content, never from the extension
-    if (!fmt.isEmpty()) return fmt;
+    if (!fmt.isEmpty()) {
+        // Some Qt builds' qico heuristic claims TGA content (the TGA header's
+        // leading bytes look like an ICO directory); the TrueVision footer is
+        // the authoritative signature in that disagreement.
+        if (fmt == QStringLiteral("ico") && hasTgaFooter(path))
+            return QStringLiteral("tga");
+        return fmt;
+    }
     return hasTgaFooter(path) ? QStringLiteral("tga") : QString();
 }
 
@@ -99,6 +106,8 @@ Metadata metadata(const QString &path, const QString &formatHint) {
     if (!formatHint.isEmpty() &&
         QImageReader::supportedImageFormats().contains(formatHint.toLatin1())) {
         reader.setFormat(formatHint.toLatin1());
+    } else if (hasTgaFooter(path)) {
+        reader.setFormat(QByteArrayLiteral("tga")); // footer-authoritative content
     } else {
         reader.setDecideFormatFromContent(true);
     }
