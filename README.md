@@ -34,6 +34,8 @@ ctest --preset dev
 
 On macOS the bundle entry point is `build/dev/pentimento.app/Contents/MacOS/pentimento`. If your Qt install is not on the default search path, add `-DCMAKE_PREFIX_PATH=/path/to/Qt/6.x/platform` to the configure command. Qt Creator can also open `CMakeLists.txt` directly.
 
+**Linux tarball runtime dependencies.** The packaged app bundles the Qt runtime and the xcb/X11 helper libraries (including `libxcb-cursor.so.0`, which minimal desktop installs often lack). The `pentimento` launcher verifies all shared libraries resolve before starting and prints per-distro install hints if something is missing; if a package was built on a machine without `libxcb-cursor.so.0`, install it manually: `libxcb-cursor0` (Ubuntu/Debian), `xcb-util-cursor` (Fedora, Arch), plus `libxkbcommon-x11-0` where not bundled.
+
 Without `--library`, the library lives under Qt's AppLocalDataLocation as `library/`. A library contains `catalog.sqlite`, `objects/`, and `working/`; open a file in the library with "Edit working copy", and after editing it is recorded automatically or via "Record version". The original file imported into the library is never updated by edits.
 
 ## Security defense (anti-ransomware)

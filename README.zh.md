@@ -34,6 +34,8 @@ ctest --preset dev
 
 macOS 的 bundle 入口为 `build/dev/pentimento.app/Contents/MacOS/pentimento`。Qt 安装目录不在默认搜索路径时，配置命令添加 `-DCMAKE_PREFIX_PATH=/path/to/Qt/6.x/platform`。Qt Creator 也可直接打开 `CMakeLists.txt`。
 
+**Linux 压缩包运行依赖。** 发布包内置 Qt 运行库与 xcb/X11 助手库（含最小安装桌面常缺的 `libxcb-cursor.so.0`）。`pentimento` 启动器会在启动前校验全部共享库可解析，缺失时打印各发行版的安装提示；若包在缺少该库的机器上构建，请手动安装：`libxcb-cursor0`（Ubuntu/Debian）、`xcb-util-cursor`（Fedora、Arch），以及未捆绑时的 `libxkbcommon-x11-0`。
+
 不传 `--library` 时使用 Qt AppLocalDataLocation 下的 `library/`。素材库内有 `catalog.sqlite`、`objects/`、`working/`；通过“编辑工作副本”打开库内文件，编辑完成后自动记录或点击“记录版本”。编辑导入前的原文件不会更新库内副本。
 
 ## 安全防线（防勒索病毒）

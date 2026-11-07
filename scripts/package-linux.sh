@@ -66,23 +66,45 @@ copy_qt_library() {
     fi
 }
 
-collect_qt_dependencies() {
-    file=$1
-    ldd "$file" 2>/dev/null | awk '/=> \// {print $3}' | while IFS= read -r dependency; do
-        case "$dependency" in
-            "$qt_libs"/*) copy_qt_library "$dependency" ;;
-        esac
+# Transitive dependency collection. Running ldd on the binary and plugins
+# alone only covers their direct NEEDED entries: the xcb platform plugin
+# hands off to libQt6XcbQpa, whose own NEEDED list is the xcb/X11 helper
+# stack (libxcb-cursor, libxcb-icccm, libxcb-keysyms, libxkbcommon-x11,
+# ...). Skipping that layer ships a package that cannot start on a clean
+# desktop (review finding 2026-10-30: Ubuntu 24.04 startup failure). Keep
+# sweeping every ELF we ship until a pass copies nothing new.
+pass=0
+while [ "$pass" -lt 8 ]; do
+    copied=0
+    for file in $(find "$package_dir/bin" "$package_dir/plugins" "$package_dir/lib" \
+            -type f \( -name '*.so*' -o -name pentimento \)); do
+        for dependency in $(ldd "$file" 2>/dev/null | awk '/=> \// {print $3}'); do
+            case "$dependency" in
+                "$qt_libs"/*) ;;
+                *) continue ;;
+            esac
+            if [ ! -e "$package_dir/lib/$(basename "$dependency")" ]; then
+                copy_qt_library "$dependency"
+                copied=1
+            fi
+        done
     done
-}
+    [ "$copied" -eq 1 ] || break
+    pass=$((pass + 1))
+done
 
-collect_qt_dependencies "$package_dir/bin/pentimento"
-find "$package_dir/plugins" -type f -name '*.so' -exec sh -c \
-    'for file do ldd "$file" 2>/dev/null; done' sh {} + |
-    awk '/=> \// {print $3}' | sort -u | while IFS= read -r dependency; do
-        case "$dependency" in
-            "$qt_libs"/*) copy_qt_library "$dependency" ;;
-        esac
-    done
+# Qt loads libxcb-cursor for the xcb platform plugin, and some Qt builds
+# reference it only via dlopen, which no ldd sweep can see. Bundle it
+# explicitly when the build machine has it; warn when it does not, so the
+# packager knows the target system must provide libxcb-cursor0 itself.
+cursor_lib=$(ldconfig -p 2>/dev/null | awk '/libxcb-cursor\.so\.0 \(/ {print $NF; exit}')
+if [ -n "$cursor_lib" ] && [ ! -e "$package_dir/lib/libxcb-cursor.so.0" ]; then
+    cp -a "$cursor_lib" "$package_dir/lib/"
+fi
+if [ ! -e "$package_dir/lib/libxcb-cursor.so.0" ]; then
+    echo "warning: libxcb-cursor.so.0 not found on build machine;" >&2
+    echo "warning: target desktop systems need the libxcb-cursor0 (Ubuntu) / xcb-util-cursor (Fedora, Arch) package" >&2
+fi
 
 if ! find "$package_dir/lib" -maxdepth 1 -name 'libQt6Core.so*' -print -quit | grep -q .; then
     echo "error: Qt runtime libraries were not bundled" >&2
@@ -95,6 +117,25 @@ set -eu
 appdir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 export LD_LIBRARY_PATH="$appdir/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export QT_PLUGIN_PATH="$appdir/plugins"
+
+# Startup self-check: resolve the NEEDED entries of every shipped ELF under
+# the environment this launcher sets up. If a system library is missing
+# (too-old or minimal desktop), report it with an install hint instead of
+# letting the dynamic loader abort with a cryptic error.
+missing=$(for file in "$appdir"/bin/pentimento "$appdir"/plugins/*/*.so; do
+    ldd "$file" 2>/dev/null
+done | awk '/not found/ {print $1}' | sort -u)
+if [ -n "$missing" ]; then
+    echo "pentimento: missing system libraries:" >&2
+    for lib in $missing; do
+        echo "  $lib" >&2
+    done
+    echo "hint (Ubuntu/Debian): sudo apt install libxcb-cursor0 libxkbcommon-x11-0" >&2
+    echo "hint (Fedora):        sudo dnf install xcb-util-cursor libxkbcommon-x11" >&2
+    echo "hint (Arch):          sudo pacman -S xcb-util-cursor libxkbcommon" >&2
+    exit 1
+fi
+
 exec "$appdir/bin/pentimento" "$@"
 EOF
 chmod +x "$package_dir/pentimento"
