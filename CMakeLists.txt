@@ -21,10 +21,10 @@ set(CMAKE_AUTOMOC ON)
 # std::thread requires the platform threads library (pthread on Linux); link it
 # explicitly so a detached TaskQueue worker at teardown is portable.
 find_package(Threads REQUIRED)
-find_package(Qt6 6.4 QUIET COMPONENTS Core Gui Widgets Sql)
+find_package(Qt6 6.4 QUIET COMPONENTS Core Gui Widgets Sql Network)
 if(NOT Qt6_FOUND)
     message(FATAL_ERROR
-        "Qt 6.4+ 未找到（需要组件：Core Gui Widgets Sql）。"
+        "Qt 6.4+ 未找到（需要组件：Core Gui Widgets Sql Network）。"
         "Linux 请先: sudo apt install qt6-base-dev qt6-base-dev-tools libqt6sql6-sqlite；"
         "详见 docs/zh/design/35-dependencies.md")
 endif()
@@ -50,10 +50,10 @@ endfunction()
 #   GIT_REPOSITORY https://github.com/richgel999/miniz.git
 #   GIT_TAG        3.0.2)
 
-add_library(pentimento_core src/backend.cpp src/backend.h src/filter.h src/git_source.cpp src/git_source.h src/i18n.cpp src/i18n.h src/importer.cpp src/importer.h src/library.cpp src/library.h src/platform_immutable.cpp src/platform_immutable.h src/preview.cpp src/preview.h src/recent.cpp src/recent.h src/sentinel.cpp src/sentinel.h src/source_connection.cpp src/source_connection.h src/storage.cpp src/storage.h src/svn_source.cpp src/svn_source.h src/taskqueue.cpp src/taskqueue.h src/thumbnails.cpp src/thumbnails.h)
+add_library(pentimento_core src/backend.cpp src/backend.h src/filter.h src/git_source.cpp src/git_source.h src/i18n.cpp src/i18n.h src/importer.cpp src/importer.h src/library.cpp src/library.h src/platform_immutable.cpp src/platform_immutable.h src/preview.cpp src/preview.h src/recent.cpp src/recent.h src/remote_address.cpp src/remote_address.h src/sentinel.cpp src/sentinel.h src/source_connection.cpp src/source_connection.h src/storage.cpp src/storage.h src/svn_source.cpp src/svn_source.h src/taskqueue.cpp src/taskqueue.h src/thumbnails.cpp src/thumbnails.h)
 target_include_directories(pentimento_core PUBLIC src)
 target_compile_definitions(pentimento_core PRIVATE PENTIMENTO_SOURCE_TRANSLATIONS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/translations")
-target_link_libraries(pentimento_core PUBLIC Qt6::Core Qt6::Gui Qt6::Sql Threads::Threads)
+target_link_libraries(pentimento_core PUBLIC Qt6::Core Qt6::Gui Qt6::Sql Qt6::Network Threads::Threads)
 add_executable(pentimento WIN32 MACOSX_BUNDLE src/main.cpp src/mainwindow.cpp src/mainwindow.h src/compare_canvas.cpp src/compare_canvas.h src/preview_canvas.cpp src/preview_canvas.h)
 target_link_libraries(pentimento PRIVATE pentimento_core Qt6::Widgets)
 set_target_properties(pentimento PROPERTIES MACOSX_BUNDLE_GUI_IDENTIFIER org.pentimento.desktop)
@@ -91,6 +91,11 @@ if(BUILD_TESTING)
     target_link_libraries(pentimento_svn_tests PRIVATE pentimento_core Qt6::Test Qt6::Core)
     add_test(NAME svn_source_readonly COMMAND pentimento_svn_tests)
     set_tests_properties(svn_source_readonly PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # P-509: manual address parsing — pure logic, no I/O.
+    add_executable(pentimento_remote_tests tests/remote_source_test.cpp)
+    target_link_libraries(pentimento_remote_tests PRIVATE pentimento_core Qt6::Test)
+    add_test(NAME remote_address_parse COMMAND pentimento_remote_tests)
+    set_tests_properties(remote_address_parse PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     # P-606: desktop keyboard/zoom acceptance — offscreen MainWindow checks
     # (minimum window, core shortcuts, tab traversal, non-color-only state,
     # dialog buttons reachable after scaling).
