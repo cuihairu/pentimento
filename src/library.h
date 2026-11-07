@@ -440,6 +440,44 @@ public:
     // content is not a decodable image — never fabricated.
     QString assetFormat(const QString &assetId) const;
     QSize assetSize(const QString &assetId) const;
+    // --- External directory indexing (P-204) ------------------------------------
+    // An external root is a directory OUTSIDE the library that is indexed
+    // without being copied: catalog rows record path/size/mtime/SHA-256, and
+    // the indexed tree is only ever READ (stat + streaming hash). Nothing is
+    // written into the source directory and no object is copied into objects/
+    // — this is catalog metadata about a tree the user owns elsewhere, not an
+    // import. Identity is (root, relative path): a renamed file shows up as a
+    // new entry while the old entry flips to Missing on the next refresh
+    // (rows are kept, never silently dropped). Symlinks are not followed, so
+    // an external index can never walk out of or loop inside the root.
+    struct ExternalRoot {
+        qint64 id = 0;
+        QString path;      // canonical absolute path
+        QString addedAt;   // ISO stamp
+    };
+    enum class ExternalAssetState { Present, Missing, Unreadable };
+    struct ExternalAsset {
+        QString relPath;
+        QString hash;      // hex SHA-256; stays from the last good read
+        qint64 size = 0;
+        qint64 mtimeMs = 0;
+        ExternalAssetState state = ExternalAssetState::Present;
+    };
+    // Register a directory for indexing. Throws when the path is not a
+    // readable directory, lies inside the library itself, or is already
+    // registered.
+    qint64 addExternalRoot(const QString &path);
+    // Drop a root and its index rows. Catalog-side only; the source directory
+    // and its files are never touched. Throws when the root id is unknown.
+    void removeExternalRoot(qint64 rootId);
+    QVector<ExternalRoot> externalRoots() const;
+    // Walk the root and refresh every entry: present files are upserted with
+    // their current size/mtime/hash, entries whose file disappeared flip to
+    // Missing (rows kept), files that cannot be read flip to Unreadable
+    // (keeping the last good hash). Returns the number of files indexed in
+    // this pass. Synchronous by design — the caller picks the thread.
+    int indexExternalRoot(qint64 rootId);
+    QVector<ExternalAsset> externalAssets(qint64 rootId) const;
     // Read a library's identity from its catalog WITHOUT taking the write lock.
     // Used when re-locating a missing library: verify this is the same library
     // (same id) before opening it at the new path. Throws when the directory is

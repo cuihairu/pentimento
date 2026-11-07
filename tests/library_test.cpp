@@ -3414,6 +3414,114 @@ private slots:
         QCOMPARE(reopened.snapshots().size(), 2);
         QVERIFY(reopened.tags(heroId).contains("主角"));
     }
+    // P-204: external directory indexing. The acceptance is that index mode
+    // never copies and never modifies the source: the walk reads (stat +
+    // streaming hash), records (root, rel_path, size, mtime, hash) rows in
+    // the catalog, and refreshes flip vanished files to missing instead of
+    // dropping rows. Identity is the path — a rename is a new entry.
+    void externalIndexReadsSourcesWithoutCopying() {
+        QTemporaryDir work;
+        Library library(work.filePath("library"));
+        QTemporaryDir source;
+        const QByteArray a = QByteArrayLiteral("external-alpha-bytes\n");
+        const QByteArray b = QByteArrayLiteral("external-beta-bytes\n");
+        const QString aPath = source.filePath("alpha.png");
+        const QString bPath = source.filePath("sub/beta.dat");
+        QVERIFY(QDir(source.path()).mkpath("sub"));
+        put(aPath, a);
+        put(bPath, b);
+        const qint64 aMtime = QFileInfo(aPath).lastModified().toMSecsSinceEpoch();
+        const qint64 bMtime = QFileInfo(bPath).lastModified().toMSecsSinceEpoch();
+
+        const qint64 rootId = library.addExternalRoot(source.path());
+        QVERIFY(rootId > 0);
+        QCOMPARE(library.indexExternalRoot(rootId), 2);
+        // No copy: objects/ holds only the catalog's own bookkeeping — the
+        // walk must not import a single byte from the indexed tree.
+        QCOMPARE(QDir(QDir(work.filePath("library")).filePath("objects"))
+                     .entryList(QDir::Files).size(), 0);
+        // No modification: bytes and mtimes of both source files unchanged.
+        QCOMPARE(get(aPath), a);
+        QCOMPARE(get(bPath), b);
+        QCOMPARE(QFileInfo(aPath).size(), qint64(a.size()));
+        QCOMPARE(QFileInfo(aPath).lastModified().toMSecsSinceEpoch(), aMtime);
+        QCOMPARE(QFileInfo(bPath).lastModified().toMSecsSinceEpoch(), bMtime);
+        // The index describes the tree faithfully.
+        const auto assets = library.externalAssets(rootId);
+        QCOMPARE(assets.size(), 2);
+        QCOMPARE(assets.at(0).relPath, QStringLiteral("alpha.png"));
+        QCOMPARE(assets.at(0).hash, digestHex(a));
+        QCOMPARE(assets.at(0).size, qint64(a.size()));
+        QCOMPARE(assets.at(0).mtimeMs, aMtime);
+        QVERIFY(assets.at(0).state == Library::ExternalAssetState::Present);
+        QCOMPARE(assets.at(1).relPath, QStringLiteral("sub/beta.dat"));
+        QCOMPARE(assets.at(1).hash, digestHex(b));
+        QVERIFY(assets.at(1).state == Library::ExternalAssetState::Present);
+        // Refresh is idempotent: no duplicate rows, count still 2.
+        QCOMPARE(library.indexExternalRoot(rootId), 2);
+        QCOMPARE(library.externalAssets(rootId).size(), 2);
+        QCOMPARE(library.externalRoots().size(), 1);
+        QCOMPARE(library.externalRoots().first().path, QDir(source.path()).canonicalPath());
+    }
+    void externalIndexRefreshKeepsIdentityAndMarksMissing() {
+        QTemporaryDir work;
+        Library library(work.filePath("library"));
+        QTemporaryDir source;
+        put(source.filePath("keep.png"), "kept");
+        put(source.filePath("gone.txt"), "vanishing");
+        const qint64 rootId = library.addExternalRoot(source.path());
+        library.indexExternalRoot(rootId);
+        // Vanish one file: its row survives (state missing), the other stays.
+        QVERIFY(QFile::remove(source.filePath("gone.txt")));
+        QCOMPARE(library.indexExternalRoot(rootId), 1);
+        auto assets = library.externalAssets(rootId);
+        QCOMPARE(assets.size(), 2);
+        QCOMPARE(assets.at(0).relPath, QStringLiteral("gone.txt"));
+        QVERIFY(assets.at(0).state == Library::ExternalAssetState::Missing);
+        QCOMPARE(assets.at(0).hash, digestHex("vanishing")); // last good read
+        QCOMPARE(assets.at(1).relPath, QStringLiteral("keep.png"));
+        QVERIFY(assets.at(1).state == Library::ExternalAssetState::Present);
+        // Identity is the path: renaming keep.png creates a new entry; the
+        // old name flips to missing and no row is dropped.
+        QVERIFY(QDir(source.path()).rename(QStringLiteral("keep.png"), QStringLiteral("renamed.png")));
+        library.indexExternalRoot(rootId);
+        assets = library.externalAssets(rootId);
+        QCOMPARE(assets.size(), 3);
+        QVERIFY(assets.at(0).state == Library::ExternalAssetState::Missing);   // gone.txt
+        QVERIFY(assets.at(1).state == Library::ExternalAssetState::Missing);   // keep.png
+        QCOMPARE(assets.at(2).relPath, QStringLiteral("renamed.png"));
+        QVERIFY(assets.at(2).state == Library::ExternalAssetState::Present);
+        QCOMPARE(assets.at(2).hash, digestHex("kept"));
+    }
+    void externalRootValidationAndRemoval() {
+        QTemporaryDir work;
+        Library library(work.filePath("library"));
+        QTemporaryDir source;
+        put(source.filePath("f.png"), "x");
+        // A non-directory / nonexistent path is rejected.
+        QVERIFY_EXCEPTION_THROWN(library.addExternalRoot(source.filePath("f.png")),
+                                 std::runtime_error);
+        QVERIFY_EXCEPTION_THROWN(library.addExternalRoot(source.filePath("missing")),
+                                 std::runtime_error);
+        // Roots inside the library are rejected: the index describes trees
+        // the catalog does not own.
+        QVERIFY_EXCEPTION_THROWN(library.addExternalRoot(work.filePath("library")),
+                                 std::runtime_error);
+        QVERIFY_EXCEPTION_THROWN(library.addExternalRoot(work.filePath("library/objects")),
+                                 std::runtime_error);
+        // The same directory cannot be registered twice.
+        const qint64 rootId = library.addExternalRoot(source.path());
+        QVERIFY_EXCEPTION_THROWN(library.addExternalRoot(source.path()), std::runtime_error);
+        library.indexExternalRoot(rootId);
+        // Unknown ids fail loudly on every operation.
+        QVERIFY_EXCEPTION_THROWN(library.removeExternalRoot(rootId + 123), std::runtime_error);
+        QVERIFY_EXCEPTION_THROWN(library.indexExternalRoot(rootId + 123), std::runtime_error);
+        // Removal is catalog-side only; the source tree keeps its file.
+        library.removeExternalRoot(rootId);
+        QVERIFY(library.externalRoots().isEmpty());
+        QVERIFY(library.externalAssets(rootId).isEmpty());
+        QVERIFY(QFileInfo::exists(source.filePath("f.png")));
+    }
 };
 
 // A QApplication is required: P-313's CompareCanvas is a widget and cannot be

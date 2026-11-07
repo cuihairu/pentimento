@@ -218,6 +218,7 @@ private:
     void browseSnapshot();
     void rollbackToSnapshot();
     void showSourceState();
+    void indexExternalDirectory();
     void exportBackup();
     void checkConsistency();
     void showSpacePreview();

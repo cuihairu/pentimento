@@ -90,6 +90,7 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     // count preview before anything changes.
     moreMenu->addAction(tr("为筛选结果添加标签…"), this, &MainWindow::batchAddTag);
     moreMenu->addAction(tr("从筛选结果移除标签…"), this, &MainWindow::batchRemoveTag);
+    moreMenu->addAction(tr("索引外部目录…"), this, &MainWindow::indexExternalDirectory);
     moreMenu->addAction(tr("导出备份包…"), this, &MainWindow::exportBackup);
     moreMenu->addAction(tr("一致性检查…"), this, &MainWindow::checkConsistency);
     moreMenu->addAction(tr("空间预演…"), this, &MainWindow::showSpacePreview);
@@ -2203,4 +2204,46 @@ void MainWindow::showSourceState() {
     });
     QObject::connect(closeBtn, &QPushButton::clicked, &dialog, &QDialog::accept);
     dialog.exec();
+}
+
+// P-204: index a directory OUTSIDE the library without copying it. The
+// indexed tree is only ever read — the catalog records path/size/mtime/hash
+// so browsing and consistency views can account for the source, and a
+// refresh flips vanished entries to "missing" instead of dropping them.
+void MainWindow::indexExternalDirectory() {
+    const QString dir = QFileDialog::getExistingDirectory(
+        this, tr("选择要索引的外部目录（不复制、不修改文件）"));
+    if (dir.isEmpty()) return;
+    qint64 rootId = 0;
+    try {
+        rootId = library_.addExternalRoot(dir);
+    } catch (const std::exception &) {
+        // Already registered: refresh that root instead of failing.
+        const QString canonical = QDir(dir).canonicalPath();
+        bool found = false;
+        for (const auto &root : library_.externalRoots()) {
+            if (root.path == canonical) {
+                rootId = root.id;
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            QMessageBox::warning(this, tr("无法索引该目录"),
+                                 tr("目录不可读或位于素材库内部。"));
+            return;
+        }
+    }
+    int missing = 0;
+    try {
+        const int indexed = library_.indexExternalRoot(rootId);
+        const auto assets = library_.externalAssets(rootId);
+        for (const auto &asset : assets)
+            if (asset.state == Library::ExternalAssetState::Missing) ++missing;
+        QMessageBox::information(this, tr("外部目录索引"),
+            tr("已索引 %1 个文件（仅读取，未复制、未修改来源）。\n目录：%2\n记录共 %3 条，其中缺失 %4 条。")
+                .arg(indexed).arg(dir).arg(assets.size()).arg(missing));
+    } catch (const std::exception &error) {
+        report(error);
+    }
 }
