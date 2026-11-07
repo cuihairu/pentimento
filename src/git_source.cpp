@@ -43,6 +43,16 @@ QString trimmed(const QByteArray &data) {
     return QString::fromUtf8(data).trimmed();
 }
 
+// Error text for a failed git call: git writes errors to stderr, so read
+// that first and fall back to stdout (some commands report on stdout).
+QString gitErrorText(const QString &repoPath, const QStringList &args) {
+    QByteArray out, err;
+    runGit(repoPath, args, &out, &err);
+    QString text = trimmed(err);
+    if (text.isEmpty()) text = trimmed(out);
+    return text;
+}
+
 // .git/lfs/objects/aa/bb/<rest> — the content store for one LFS object.
 QString lfsObjectPath(const QString &repoPath, const QString &oid) {
     if (oid.size() < 4) return QString();
@@ -88,7 +98,7 @@ QVector<Branch> branches(const QString &path, QString *error) {
                       QStringLiteral("--format=%(refname:short)%00%(objectname)%00%(HEAD)"),
                       QStringLiteral("refs/heads")},
                &out, nullptr) != 0) {
-        if (error) *error = trimmed(runGitOut(path, {QStringLiteral("for-each-ref")}));
+        if (error) *error = gitErrorText(path, {QStringLiteral("for-each-ref")});
         return result;
     }
     const QString current = identify(path).currentBranch;
@@ -118,7 +128,7 @@ QVector<StatusEntry> status(const QString &path, QString *error) {
                       QStringLiteral("--no-optional-locks"),
                       QStringLiteral("status"), QStringLiteral("--porcelain")},
                &out, nullptr) != 0) {
-        if (error) *error = trimmed(runGitOut(path, {QStringLiteral("status")}));
+        if (error) *error = gitErrorText(path, {QStringLiteral("status")});
         return result;
     }
     for (const QByteArray &line : out.split('\n')) {
@@ -127,6 +137,78 @@ QVector<StatusEntry> status(const QString &path, QString *error) {
         StatusEntry entry;
         entry.code = text.left(2);
         entry.path = text.mid(3);
+        result.push_back(entry);
+    }
+    if (error) error->clear();
+    return result;
+}
+
+QVector<LogEntry> log(const QString &path, int limit, QString *error) {
+    QVector<LogEntry> result;
+    if (limit < 1) limit = 1;
+    QByteArray out;
+    // %x1f separates fields, %x1e separates records: subject/author may
+    // contain spaces but almost never RS/US, so this parses unambiguously.
+    // %at is committer time (unix seconds).
+    if (runGit(path, {QStringLiteral("log"),
+                      QStringLiteral("--format=%H%x1f%an%x1f%ae%x1f%at%x1f%s%x1e"),
+                      QStringLiteral("--max-count=%1").arg(limit)},
+               &out, nullptr) != 0) {
+        if (error) *error = gitErrorText(path, {QStringLiteral("log")});
+        return result;
+    }
+    for (const QByteArray &record : out.split(char(0x1e))) {
+        const QStringList fields = QString::fromUtf8(record).split(QChar(0x1f));
+        if (fields.size() < 5 || fields.at(0).isEmpty()) continue;
+        LogEntry entry;
+        entry.commit = fields.at(0);
+        entry.author = fields.at(1);
+        entry.email = fields.at(2);
+        bool ok = false;
+        const qint64 secs = fields.at(3).toLongLong(&ok);
+        entry.whenMs = ok ? secs * 1000 : 0;
+        entry.subject = fields.at(4);
+        result.push_back(entry);
+    }
+    if (error) error->clear();
+    return result;
+}
+
+QVector<TreeEntry> tree(const QString &path, const QString &commit,
+                        const QString &subdir, QString *error) {
+    QVector<TreeEntry> result;
+    const QString rev = commit.isEmpty() ? QStringLiteral("HEAD") : commit;
+    QStringList args{QStringLiteral("-c"), QStringLiteral("core.quotepath=false"),
+                     QStringLiteral("ls-tree"), QStringLiteral("-r"),
+                     QStringLiteral("--long"), QStringLiteral("--full-tree"), rev};
+    if (!subdir.isEmpty()) {
+        args << QStringLiteral("--") << subdir;
+    }
+    QByteArray out;
+    if (runGit(path, args, &out, nullptr) != 0) {
+        if (error) *error = gitErrorText(path, {QStringLiteral("ls-tree"), rev});
+        return result;
+    }
+    // Each line: "<mode> <type> <sha> <size>\t<path>".
+    for (const QByteArray &line : out.split('\n')) {
+        const int tab = line.indexOf('\t');
+        if (tab < 0) continue;
+        const QString meta = QString::fromUtf8(line.left(tab));
+        const QString entryPath = QString::fromUtf8(line.mid(tab + 1));
+        // --long right-aligns the blob size with spaces, so skip empties.
+        const QStringList parts = meta.split(QRegularExpression(QStringLiteral("\\s+")),
+                                             Qt::SkipEmptyParts);
+        if (parts.size() < 3) continue;
+        TreeEntry entry;
+        entry.mode = parts.at(0);
+        entry.type = parts.at(1);
+        entry.hash = parts.at(2);
+        if (entry.type == QLatin1String("blob") && parts.size() >= 4) {
+            bool ok = false;
+            const qint64 size = parts.at(3).toLongLong(&ok);
+            entry.size = ok ? size : -1;
+        }
+        entry.path = entryPath;
         result.push_back(entry);
     }
     if (error) error->clear();
