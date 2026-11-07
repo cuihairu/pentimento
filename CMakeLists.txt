@@ -50,7 +50,7 @@ endfunction()
 #   GIT_REPOSITORY https://github.com/richgel999/miniz.git
 #   GIT_TAG        3.0.2)
 
-add_library(pentimento_core src/backend.cpp src/backend.h src/filter.h src/git_source.cpp src/git_source.h src/i18n.cpp src/i18n.h src/importer.cpp src/importer.h src/library.cpp src/library.h src/platform_immutable.cpp src/platform_immutable.h src/preview.cpp src/preview.h src/recent.cpp src/recent.h src/remote_address.cpp src/remote_address.h src/sentinel.cpp src/sentinel.h src/source_connection.cpp src/source_connection.h src/storage.cpp src/storage.h src/svn_source.cpp src/svn_source.h src/taskqueue.cpp src/taskqueue.h src/thumbnails.cpp src/thumbnails.h)
+add_library(pentimento_core src/backend.cpp src/backend.h src/discovery.cpp src/discovery.h src/filter.h src/git_source.cpp src/git_source.h src/i18n.cpp src/i18n.h src/importer.cpp src/importer.h src/library.cpp src/library.h src/platform_immutable.cpp src/platform_immutable.h src/preview.cpp src/preview.h src/recent.cpp src/recent.h src/remote_address.cpp src/remote_address.h src/sentinel.cpp src/sentinel.h src/source_connection.cpp src/source_connection.h src/storage.cpp src/storage.h src/svn_source.cpp src/svn_source.h src/taskqueue.cpp src/taskqueue.h src/thumbnails.cpp src/thumbnails.h)
 target_include_directories(pentimento_core PUBLIC src)
 target_compile_definitions(pentimento_core PRIVATE PENTIMENTO_SOURCE_TRANSLATIONS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/translations")
 target_link_libraries(pentimento_core PUBLIC Qt6::Core Qt6::Gui Qt6::Sql Qt6::Network Threads::Threads)
@@ -96,6 +96,11 @@ if(BUILD_TESTING)
     target_link_libraries(pentimento_remote_tests PRIVATE pentimento_core Qt6::Test)
     add_test(NAME remote_address_parse COMMAND pentimento_remote_tests)
     set_tests_properties(remote_address_parse PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # P-508: discovery merge/expiry — pure logic, no I/O.
+    add_executable(pentimento_discovery_tests tests/discovery_test.cpp)
+    target_link_libraries(pentimento_discovery_tests PRIVATE pentimento_core Qt6::Test)
+    add_test(NAME discovery_merge_expiry COMMAND pentimento_discovery_tests)
+    set_tests_properties(discovery_merge_expiry PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     # P-606: desktop keyboard/zoom acceptance — offscreen MainWindow checks
     # (minimum window, core shortcuts, tab traversal, non-color-only state,
     # dialog buttons reachable after scaling).
