@@ -271,4 +271,30 @@ bool objectPresent(const QString &path, const QString &filePath,
     return true;
 }
 
+bool fetchLfs(const QString &path, const QString &filePath,
+              const QString &commit, QString *error) {
+    const QString rev = commit.isEmpty() ? QStringLiteral("HEAD") : commit;
+    // git lfs fetch takes [options] [remote [ref]] — the first positional is
+    // the remote NAME (not a ref), so detect it instead of assuming origin.
+    QString remote = trimmed(runGitOut(path, {QStringLiteral("remote")}));
+    const int nl = remote.indexOf(QLatin1Char('\n'));
+    if (nl >= 0) remote = remote.left(nl);
+    QStringList args{QStringLiteral("lfs"), QStringLiteral("fetch"),
+                     QStringLiteral("--include=") + filePath};
+    if (!remote.isEmpty()) args << remote;
+    args << rev;
+    QByteArray out, err;
+    // git lfs fetch downloads objects into .git/lfs/objects only — the
+    // worktree is never touched. The include glob narrows it to one file.
+    if (runGit(path, args, &out, &err) != 0) {
+        if (error) {
+            *error = trimmed(err);
+            if (error->isEmpty()) *error = trimmed(out);
+        }
+        return false;
+    }
+    if (error) error->clear();
+    return true;
+}
+
 } // namespace git_source

@@ -26,6 +26,20 @@ bool run(const QString &dir, const QStringList &args, QByteArray *out = nullptr)
     return git.exitCode() == 0;
 }
 
+bool runEnv(const QString &dir, const QStringList &args,
+            const QProcessEnvironment &env, QByteArray *out = nullptr) {
+    QProcess git;
+    git.setProgram(QStringLiteral("git"));
+    git.setArguments(args);
+    git.setWorkingDirectory(dir);
+    git.setProcessEnvironment(env);
+    git.start();
+    if (!git.waitForStarted(5000)) return false;
+    if (!git.waitForFinished(60000)) { git.kill(); git.waitForFinished(2000); return false; }
+    if (out) *out = git.readAllStandardOutput();
+    return git.exitCode() == 0;
+}
+
 // Build a repository with one commit on `main` holding `assets/hero.png`.
 bool makeRepo(const QString &dir, QString *head = nullptr) {
     if (!run(dir, {QStringLiteral("init"), QStringLiteral("-b"), QStringLiteral("main")}))
@@ -274,6 +288,61 @@ private slots:
         // A plain blob is not a pointer, and nothing was written anywhere.
         QVERIFY(!git_source::isLfsPointer(QByteArrayLiteral("not-a-pointer")));
         QCOMPARE(repoFingerprint(dir.path()), before);
+    }
+    void fetchLfsWithConsent() {
+        QProcess lfs;
+        lfs.setProgram(QStringLiteral("git"));
+        lfs.setArguments({QStringLiteral("lfs"), QStringLiteral("version")});
+        lfs.start();
+        if (!lfs.waitForStarted(5000) || !lfs.waitForFinished(5000) || lfs.exitCode() != 0)
+            QSKIP("git-lfs not on PATH");
+        // A source repo with an LFS object, pushed to a bare remote.
+        QTemporaryDir originDir;
+        QString head;
+        QVERIFY(makeLfsRepo(originDir.path(), &head));
+        const QString remote = originDir.path() + "/origin.git";
+        QVERIFY(run(originDir.path(), {QStringLiteral("init"), QStringLiteral("-q"),
+                                       QStringLiteral("-b"), QStringLiteral("main"),
+                                       QStringLiteral("--bare"), remote}));
+        QVERIFY(run(originDir.path(), {QStringLiteral("remote"), QStringLiteral("add"),
+                                       QStringLiteral("origin"), remote}));
+        QVERIFY(run(originDir.path(), {QStringLiteral("push"), QStringLiteral("-q"),
+                                       QStringLiteral("origin"), QStringLiteral("main")}));
+        // Clone WITHOUT smudging: the commit has the pointer, the object is absent.
+        QTemporaryDir cloneDir;
+        const QString clone = cloneDir.path() + "/clone";
+        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+        env.insert(QStringLiteral("GIT_LFS_SKIP_SMUDGE"), QStringLiteral("1"));
+        QVERIFY(runEnv(cloneDir.path(), {QStringLiteral("clone"), QStringLiteral("-q"),
+                                         remote, clone}, env));
+        QVERIFY(run(clone, {QStringLiteral("lfs"), QStringLiteral("install"),
+                            QStringLiteral("--local")}));
+        QString error;
+        QVERIFY(!git_source::objectPresent(clone, QStringLiteral("assets/big.png"),
+                                           QStringLiteral("HEAD"), &error));
+        // The worktree holds the pointer before fetch, and is left untouched.
+        QFile worktree(clone + "/assets/big.png");
+        QVERIFY(worktree.open(QIODevice::ReadOnly));
+        const QByteArray pointerBefore = worktree.readAll();
+        worktree.close();
+        QVERIFY(git_source::isLfsPointer(pointerBefore));
+        // Consent-gated fetch (the test IS the caller's consent): object appears.
+        QVERIFY(git_source::fetchLfs(clone, QStringLiteral("assets/big.png"),
+                                     QStringLiteral("HEAD"), &error));
+        QVERIFY(error.isEmpty());
+        QVERIFY(git_source::objectPresent(clone, QStringLiteral("assets/big.png"),
+                                          QStringLiteral("HEAD"), &error));
+        QVERIFY(error.isEmpty());
+        QByteArray bytes;
+        QVERIFY(git_source::extract(clone, QStringLiteral("HEAD"),
+                                    QStringLiteral("assets/big.png"), &bytes, &error));
+        QVERIFY(error.isEmpty());
+        QCOMPARE(bytes, QByteArrayLiteral("PNG-big-bytes"));
+        // Only .git/lfs was written: the worktree file is still the pointer.
+        QFile after(clone + "/assets/big.png");
+        QVERIFY(after.open(QIODevice::ReadOnly));
+        QCOMPARE(after.readAll(), pointerBefore);
+        after.close();
     }
 };
 
