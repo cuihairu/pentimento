@@ -24,7 +24,8 @@ export default defineConfig({
           { text: 'Home', link: '/' },
           { text: 'Quickstart', link: '/quickstart' },
           { text: 'Configuration', link: '/configuration' },
-          { text: 'Architecture', link: '/architecture' }
+          { text: 'Architecture', link: '/architecture' },
+          { text: 'Glossary', link: '/glossary' }
         ],
         sidebar: [
           {
@@ -32,7 +33,8 @@ export default defineConfig({
             items: [
               { text: 'Quickstart', link: '/quickstart' },
               { text: 'Configuration', link: '/configuration' },
-              { text: 'Architecture', link: '/architecture' }
+              { text: 'Architecture', link: '/architecture' },
+              { text: 'Glossary', link: '/glossary' }
             ]
           }
         ]
@@ -47,7 +49,8 @@ export default defineConfig({
           { text: '首页', link: '/zh/' },
           { text: '快速开始', link: '/zh/quickstart' },
           { text: '配置', link: '/zh/configuration' },
-          { text: '架构', link: '/zh/architecture' }
+          { text: '架构', link: '/zh/architecture' },
+          { text: '术语表', link: '/zh/glossary' }
         ],
         sidebar: [
           {
@@ -55,7 +58,8 @@ export default defineConfig({
             items: [
               { text: '快速开始', link: '/zh/quickstart' },
               { text: '配置', link: '/zh/configuration' },
-              { text: '架构', link: '/zh/architecture' }
+              { text: '架构', link: '/zh/architecture' },
+              { text: '术语表', link: '/zh/glossary' }
             ]
           }
         ]

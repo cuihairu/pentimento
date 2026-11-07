@@ -272,3 +272,30 @@
 - [x] 审核发现：nightly 改在 Ubuntu 26.04 的 Qt 6.10 上动态链接却只发布可执行文件，使用 Ubuntu 24.04 系统 Qt 6.4 的用户将无法运行该产物，且发布包未提供所需新版 Qt 运行库（.github/workflows/nightly.yml:15）。（完成 2026-11-06：核实属实——00419b1/dd2614c 将 nightly.yml 改为 Ubuntu 26.04 + 系统 apt Qt 6.10（qt6-image-formats-plugins），Package 步骤仅 `cp "$BIN" dist/pentimento-linux-x64` 不捆绑 Qt 运行库，Ubuntu 24.04/Qt 6.4 用户无法运行。已修复：nightly.yml 回退 ubuntu-24.04 并用 install-qt-action 装 Qt 6.10.2（qtimageformats），Package 改用 scripts/package-linux.sh 捆绑 Qt 运行库与插件（lib/libQt6Core.so.6、plugins/platforms/libqxcb.so、plugins/sqldrivers/libqsqlite.so、plugins/imageformats）；`QT_QPA_PLATFORM=offscreen ./dist/pentimento-linux-x64/pentimento --help` 通过，ldd 解析到捆绑 libQt6Core.so.6。门禁 `cmake --build --preset dev` 绿（ninja no work to do）+ `ctest --preset dev` 3/3 绿：library_history 41.35s、security_sentinel 0.42s、desktop_keyboard_zoom 3.86s）
 - [ ] 审核发现：打包脚本仅收集 Qt 安装目录内的依赖，未捆绑或说明 xcb 平台插件所需的 libxcb-cursor.so.0 等系统库，在缺少这些库的 Ubuntu 24.04 桌面环境中程序无法启动，而 offscreen 检查无法发现此问题（scripts/package-linux.sh:79）。
 - [ ] 审核发现：发布包捆绑了 Qt 运行库及插件却只附带项目的 Apache-2.0 许可证，缺少 Qt 第三方许可声明及对应许可证文本（scripts/package-linux.sh:44）。
+
+
+## 源码分层分析 2026-11-07
+
+当前 HEAD：`d7ce96cc536682f8f40a49117ad45779c7ce83c6`。文档落位：`docs/glossary.md`、`docs/zh/glossary.md`，以及两份架构文档新增的 L1–L7 小节与拆分理由。
+
+### 抽象层清单
+
+- L1 应用入口与桌面外壳——启动解析、主窗口/对话框、图像展示控件、文档站导航与用户文案（代表模块 `src/mainwindow.h:28`）。
+- L2 素材库领域与持久化——校验/迁移目录、管理素材/版本/快照/恢复，并保证目录、不可变对象、工作副本一致（代表模块 `src/library.h:145`）。
+- L3 导入、来源与备份服务——扫描、确认导入、只读来源探测、备份目标探测和可验证备份包（代表模块 `src/importer.h:10`）。
+- L4 运行时服务与安全——串行队列、快照调度、勒索特征哨兵、平台加固和后端能力门控（代表模块 `src/taskqueue.h:10`）。
+- L5 媒体智能与预览——受限解码、格式/尺寸元数据、内容寻址缩略图和共享变换对比（代表模块 `src/preview.h:12`）。
+- L6 进程、文件系统与平台边界——受限哈希、原子写入、目录/锁操作与 OS 不可变抽象（代表模块 `src/platform_immutable.h:17`）。
+- L7 验证层——核心/安全/UI 三套 Qt Test，分别覆盖领域行为、勒索回路和桌面生命周期（代表模块 `CMakeLists.txt:69`）。
+
+### 超大文件候选
+
+- [ ] LAY-001 [P1] 拆分 `tests/library_test.cpp`（3427 行）——单一测试类覆盖领域、服务、平台、翻译与画布 88 个场景，按领域/服务/媒体/平台拆套件可缩短反馈面（`tests/library_test.cpp:124`）。
+- [ ] LAY-002 [P1] 拆分 `src/library.cpp`（2215 行）——单个类同时承载 catalog schema、对象存储、版本、恢复日志、快照、备份包和一致性审计，域服务边界可按不变量拆分（`src/library.cpp:100`）。
+- [ ] LAY-003 [P1] 拆分 `src/mainwindow.cpp`（2206 行）——构造、筛选/元数据、预览、恢复、快照、备份与挂载来源对话框集中在一个窗口类，功能面板和对话框可下沉为独立控制器（`src/mainwindow.cpp:50`）。
+
+### 目录与分类问题
+
+- `src/snapshot_schedule.h:13` 是纯运行时服务，但只提供 `.h`；当前仓库按 target 而非目录分层尚可接受，未来若继续增长应建立 services/ 子目录并同步 CMake 清单。
+- `docs/architecture.md:5` 描述 pentimento_core 为 Qt Core/Sql 且无 Widgets，实际 core target 还公有链接 Qt6::Gui 并被媒体层使用；该行应改为 Qt Core/Gui/Sql（`CMakeLists.txt:56`）。
+- `docs/zh/architecture.md:5` 同样把 core 描述为仅 Qt Core/Sql，与 target 链接面不一致；中英文描述需同步修正（`CMakeLists.txt:56`）。
