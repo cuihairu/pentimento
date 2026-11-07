@@ -299,3 +299,7 @@
 - `src/snapshot_schedule.h:13` 是纯运行时服务，但只提供 `.h`；当前仓库按 target 而非目录分层尚可接受，未来若继续增长应建立 services/ 子目录并同步 CMake 清单。
 - `docs/architecture.md:5` 描述 pentimento_core 为 Qt Core/Sql 且无 Widgets，实际 core target 还公有链接 Qt6::Gui 并被媒体层使用；该行应改为 Qt Core/Gui/Sql（`CMakeLists.txt:56`）。
 - `docs/zh/architecture.md:5` 同样把 core 描述为仅 Qt Core/Sql，与 target 链接面不一致；中英文描述需同步修正（`CMakeLists.txt:56`）。
+
+## P-015 闸门放行（2026-11-08 用户令「为啥不推进」= 明确批准进入实现）
+
+- 2026-11-08 用户质问 pentimento 为何不推进，视为对进入实现阶段的明确批准（P-015 放行）。实现按 docs/zh/review/2026-10-30-decisions.md 已代决边界执行，逐项即 commit+push；有损/危险动作（真删、覆盖用户数据）仍单项请示。
