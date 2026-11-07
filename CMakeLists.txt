@@ -50,7 +50,7 @@ endfunction()
 #   GIT_REPOSITORY https://github.com/richgel999/miniz.git
 #   GIT_TAG        3.0.2)
 
-add_library(pentimento_core src/backend.cpp src/backend.h src/filter.h src/git_source.cpp src/git_source.h src/i18n.cpp src/i18n.h src/importer.cpp src/importer.h src/library.cpp src/library.h src/platform_immutable.cpp src/platform_immutable.h src/preview.cpp src/preview.h src/recent.cpp src/recent.h src/sentinel.cpp src/sentinel.h src/source_connection.cpp src/source_connection.h src/storage.cpp src/storage.h src/taskqueue.cpp src/taskqueue.h src/thumbnails.cpp src/thumbnails.h)
+add_library(pentimento_core src/backend.cpp src/backend.h src/filter.h src/git_source.cpp src/git_source.h src/i18n.cpp src/i18n.h src/importer.cpp src/importer.h src/library.cpp src/library.h src/platform_immutable.cpp src/platform_immutable.h src/preview.cpp src/preview.h src/recent.cpp src/recent.h src/sentinel.cpp src/sentinel.h src/source_connection.cpp src/source_connection.h src/storage.cpp src/storage.h src/svn_source.cpp src/svn_source.h src/taskqueue.cpp src/taskqueue.h src/thumbnails.cpp src/thumbnails.h)
 target_include_directories(pentimento_core PUBLIC src)
 target_compile_definitions(pentimento_core PRIVATE PENTIMENTO_SOURCE_TRANSLATIONS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/translations")
 target_link_libraries(pentimento_core PUBLIC Qt6::Core Qt6::Gui Qt6::Sql Threads::Threads)
@@ -85,6 +85,12 @@ if(BUILD_TESTING)
     target_link_libraries(pentimento_git_tests PRIVATE pentimento_core Qt6::Test Qt6::Core)
     add_test(NAME git_source_readonly COMMAND pentimento_git_tests)
     set_tests_properties(git_source_readonly PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # P-406..P-408: read-only SVN source access. Tests build throwaway repos
+    # with the real svn/svnadmin binaries; QSKIP when absent.
+    add_executable(pentimento_svn_tests tests/svn_source_test.cpp)
+    target_link_libraries(pentimento_svn_tests PRIVATE pentimento_core Qt6::Test Qt6::Core)
+    add_test(NAME svn_source_readonly COMMAND pentimento_svn_tests)
+    set_tests_properties(svn_source_readonly PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     # P-606: desktop keyboard/zoom acceptance — offscreen MainWindow checks
     # (minimum window, core shortcuts, tab traversal, non-color-only state,
     # dialog buttons reachable after scaling).
