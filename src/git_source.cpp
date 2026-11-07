@@ -60,6 +60,14 @@ QString lfsObjectPath(const QString &repoPath, const QString &oid) {
         .arg(oid.left(2), oid.mid(2, 2), oid.mid(4)));
 }
 
+// "oid sha256:<64 hex>" from a git-lfs pointer stanza, empty when absent.
+QString lfsOidFromPointer(const QByteArray &bytes) {
+    const QRegularExpression re(QStringLiteral("^oid sha256:([0-9a-f]{64})$"),
+                                QRegularExpression::MultilineOption);
+    const auto m = re.match(QString::fromUtf8(bytes));
+    return m.hasMatch() ? m.captured(1) : QString();
+}
+
 } // namespace
 
 namespace git_source {
@@ -213,6 +221,41 @@ QVector<TreeEntry> tree(const QString &path, const QString &commit,
     }
     if (error) error->clear();
     return result;
+}
+
+bool isLfsPointer(const QByteArray &bytes) {
+    const QString text = QString::fromUtf8(bytes);
+    return text.startsWith(QLatin1String("version https://git-lfs.github.com/spec/v1"))
+        && text.contains(QLatin1String("oid sha256:"));
+}
+
+bool extract(const QString &path, const QString &commit, const QString &filePath,
+             QByteArray *bytes, QString *error) {
+    const QString rev = commit.isEmpty() ? QStringLiteral("HEAD") : commit;
+    QByteArray out, err;
+    // <rev>:<path> resolves in the object DB, not the worktree — read-only.
+    if (runGit(path, {QStringLiteral("show"), rev + QLatin1Char(':') + filePath},
+               &out, &err) != 0) {
+        if (error) {
+            *error = trimmed(err);
+            if (error->isEmpty()) *error = trimmed(out);
+        }
+        return false;
+    }
+    *bytes = out;
+    // A git-lfs pointer is returned as the pointer text (never silently the
+    // object); when the object is already stored locally, hand back the real
+    // bytes from .git/lfs/objects without touching the worktree.
+    if (isLfsPointer(out)) {
+        const QString oid = lfsOidFromPointer(out);
+        const QString objPath = lfsObjectPath(path, oid);
+        if (!oid.isEmpty() && QFile::exists(objPath)) {
+            QFile obj(objPath);
+            if (obj.open(QIODevice::ReadOnly)) *bytes = obj.readAll();
+        }
+    }
+    if (error) error->clear();
+    return true;
 }
 
 } // namespace git_source

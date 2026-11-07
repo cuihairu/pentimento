@@ -136,6 +136,79 @@ private slots:
         QCOMPARE(dirty.first().code, QStringLiteral("??"));
         QCOMPARE(repoFingerprint(dir.path()), before2);
     }
+    void logListsCommitsNewestFirst() {
+        QTemporaryDir dir;
+        QString head;
+        QVERIFY(makeRepo(dir.path(), &head));
+        QString error;
+        const auto entries = git_source::log(dir.path(), 10, &error);
+        QVERIFY(error.isEmpty());
+        QCOMPARE(entries.size(), 1);
+        QCOMPARE(entries.first().commit, head);
+        QCOMPARE(entries.first().subject, QStringLiteral("add hero"));
+        QCOMPARE(entries.first().author, QStringLiteral("Test"));
+        QCOMPARE(entries.first().email, QStringLiteral("t@example.com"));
+        QVERIFY(entries.first().whenMs > 0);
+    }
+    void treeListsCommitFilesWithSubdir() {
+        QTemporaryDir dir;
+        QString head;
+        QVERIFY(makeRepo(dir.path(), &head));
+        const QByteArray before = repoFingerprint(dir.path());
+        QString error;
+        const auto all = git_source::tree(dir.path(), head, QString(), &error);
+        QVERIFY(error.isEmpty());
+        QCOMPARE(all.size(), 1);
+        QCOMPARE(all.first().path, QStringLiteral("assets/hero.png"));
+        QCOMPARE(all.first().mode, QStringLiteral("100644"));
+        QCOMPARE(all.first().type, QStringLiteral("blob"));
+        QCOMPARE(all.first().size, qint64(7));
+        // Narrowing to a subdir still yields the same repo-relative path.
+        const auto assets = git_source::tree(dir.path(), head,
+                                             QStringLiteral("assets"), &error);
+        QVERIFY(error.isEmpty());
+        QCOMPARE(assets.size(), 1);
+        QCOMPARE(assets.first().path, QStringLiteral("assets/hero.png"));
+        // A bad commit is reported, and nothing was written.
+        const auto bad = git_source::tree(dir.path(), QStringLiteral("nope"), QString(), &error);
+        QVERIFY(!error.isEmpty());
+        QVERIFY(bad.isEmpty());
+        QCOMPARE(repoFingerprint(dir.path()), before);
+    }
+    void extractReturnsCommitBytes() {
+        QTemporaryDir dir;
+        QString head;
+        QVERIFY(makeRepo(dir.path(), &head));
+        const QByteArray before = repoFingerprint(dir.path());
+        QByteArray bytes;
+        QString error;
+        QVERIFY(git_source::extract(dir.path(), head,
+                                    QStringLiteral("assets/hero.png"), &bytes, &error));
+        QVERIFY(error.isEmpty());
+        QCOMPARE(bytes, QByteArrayLiteral("hero-v1"));
+        QCOMPARE(repoFingerprint(dir.path()), before);
+        // The worktree file is not the source of truth: rewrite it and the
+        // commit bytes must be unchanged (read from the object DB).
+        QFile hero(dir.path() + "/assets/hero.png");
+        QVERIFY(hero.open(QIODevice::WriteOnly));
+        hero.write("worktree-only");
+        hero.close();
+        QVERIFY(git_source::extract(dir.path(), head,
+                                    QStringLiteral("assets/hero.png"), &bytes, &error));
+        QVERIFY(error.isEmpty());
+        QCOMPARE(bytes, QByteArrayLiteral("hero-v1"));
+    }
+    void extractReportsBadPath() {
+        QTemporaryDir dir;
+        QString head;
+        QVERIFY(makeRepo(dir.path(), &head));
+        QByteArray bytes;
+        QString error;
+        QVERIFY(!git_source::extract(dir.path(), head,
+                                     QStringLiteral("assets/nope.png"), &bytes, &error));
+        QVERIFY(!error.isEmpty());
+        QVERIFY(bytes.isEmpty());
+    }
 };
 
 int main(int argc, char **argv) {
