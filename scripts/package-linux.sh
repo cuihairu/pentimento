@@ -73,6 +73,12 @@ copy_qt_library() {
 # ...). Skipping that layer ships a package that cannot start on a clean
 # desktop (review finding 2026-10-30: Ubuntu 24.04 startup failure). Keep
 # sweeping every ELF we ship until a pass copies nothing new.
+#
+# glibc and its companion libraries are version-locked to the target
+# system's dynamic loader; shipping them inside a directory that
+# LD_LIBRARY_PATH puts ahead of the system path breaks startup on
+# machines with a different glibc. The compiler runtime (libstdc++,
+# libgcc_s, libatomic) is forward-compatible, so it stays bundled.
 pass=0
 while [ "$pass" -lt 8 ]; do
     copied=0
@@ -82,6 +88,10 @@ while [ "$pass" -lt 8 ]; do
             case "$dependency" in
                 "$qt_libs"/*) ;;
                 *) continue ;;
+            esac
+            case "$(basename "$dependency")" in
+                libc.so*|libm.so*|libdl.so*|libpthread.so*|librt.so*|libresolv.so*|\
+                libanl.so*|libutil.so*|ld-linux*) continue ;;
             esac
             if [ ! -e "$package_dir/lib/$(basename "$dependency")" ]; then
                 copy_qt_library "$dependency"
