@@ -53,11 +53,12 @@ QString gitErrorText(const QString &repoPath, const QStringList &args) {
     return text;
 }
 
-// .git/lfs/objects/aa/bb/<rest> — the content store for one LFS object.
+// .git/lfs/objects/aa/bb/<oid> — git-lfs stores each object under two
+// two-hex-char directories with the FULL oid as the file name.
 QString lfsObjectPath(const QString &repoPath, const QString &oid) {
     if (oid.size() < 4) return QString();
     return QDir(repoPath).filePath(QStringLiteral(".git/lfs/objects/%1/%2/%3")
-        .arg(oid.left(2), oid.mid(2, 2), oid.mid(4)));
+        .arg(oid.left(2), oid.mid(2, 2), oid));
 }
 
 // "oid sha256:<64 hex>" from a git-lfs pointer stanza, empty when absent.
@@ -254,6 +255,18 @@ bool extract(const QString &path, const QString &commit, const QString &filePath
             if (obj.open(QIODevice::ReadOnly)) *bytes = obj.readAll();
         }
     }
+    if (error) error->clear();
+    return true;
+}
+
+bool objectPresent(const QString &path, const QString &filePath,
+                   const QString &commit, QString *error) {
+    QByteArray bytes;
+    if (!extract(path, commit, filePath, &bytes, error)) return false;
+    // extract() returns the pointer text when the LFS object is not stored
+    // locally and the real bytes when it is — so a pointer result means the
+    // object is absent, and any non-pointer result means it is present.
+    if (isLfsPointer(bytes)) return false;
     if (error) error->clear();
     return true;
 }

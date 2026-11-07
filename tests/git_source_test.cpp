@@ -50,6 +50,35 @@ bool makeRepo(const QString &dir, QString *head = nullptr) {
     return true;
 }
 
+// Like makeRepo but tracks *.png through git-lfs: the commit holds a pointer
+// and the object is stored under .git/lfs/objects (real bytes in the worktree).
+bool makeLfsRepo(const QString &dir, QString *head = nullptr) {
+    if (!run(dir, {QStringLiteral("init"), QStringLiteral("-b"), QStringLiteral("main")}))
+        return false;
+    if (!run(dir, {QStringLiteral("config"), QStringLiteral("user.email"), QStringLiteral("t@example.com")}))
+        return false;
+    if (!run(dir, {QStringLiteral("config"), QStringLiteral("user.name"), QStringLiteral("Test")}))
+        return false;
+    if (!run(dir, {QStringLiteral("lfs"), QStringLiteral("install"), QStringLiteral("--local")}))
+        return false;
+    if (!run(dir, {QStringLiteral("lfs"), QStringLiteral("track"), QStringLiteral("*.png")}))
+        return false;
+    QDir(dir).mkpath(QStringLiteral("assets"));
+    QFile big(dir + "/assets/big.png");
+    if (!big.open(QIODevice::WriteOnly)) return false;
+    big.write("PNG-big-bytes");
+    big.close();
+    if (!run(dir, {QStringLiteral("add"), QStringLiteral("assets/big.png")})) return false;
+    if (!run(dir, {QStringLiteral("commit"), QStringLiteral("-m"), QStringLiteral("add big")}))
+        return false;
+    if (head) {
+        QByteArray out;
+        run(dir, {QStringLiteral("rev-parse"), QStringLiteral("HEAD")}, &out);
+        *head = QString::fromUtf8(out).trimmed();
+    }
+    return true;
+}
+
 // Snapshot of everything a "read-only" call must not change: HEAD bytes,
 // refs, index presence and mtime, and the worktree file list.
 QByteArray repoFingerprint(const QString &dir) {
@@ -208,6 +237,43 @@ private slots:
                                      QStringLiteral("assets/nope.png"), &bytes, &error));
         QVERIFY(!error.isEmpty());
         QVERIFY(bytes.isEmpty());
+    }
+    void lfsPointerAndMissingObject() {
+        QProcess lfs;
+        lfs.setProgram(QStringLiteral("git"));
+        lfs.setArguments({QStringLiteral("lfs"), QStringLiteral("version")});
+        lfs.start();
+        if (!lfs.waitForStarted(5000) || !lfs.waitForFinished(5000) || lfs.exitCode() != 0)
+            QSKIP("git-lfs not on PATH");
+        QTemporaryDir dir;
+        QString head;
+        QVERIFY(makeLfsRepo(dir.path(), &head));
+        const QByteArray before = repoFingerprint(dir.path());
+        QString error;
+        // Committed under LFS: the object is stored locally, so the pointer
+        // is not treated as an image and the real bytes are extracted.
+        QByteArray bytes;
+        QVERIFY(git_source::extract(dir.path(), head,
+                                    QStringLiteral("assets/big.png"), &bytes, &error));
+        QVERIFY(error.isEmpty());
+        QCOMPARE(bytes, QByteArrayLiteral("PNG-big-bytes"));
+        QVERIFY(git_source::objectPresent(dir.path(),
+                                          QStringLiteral("assets/big.png"), head, &error));
+        QVERIFY(error.isEmpty());
+        QVERIFY(!git_source::isLfsPointer(bytes));
+        // Remove the object store: the pointer is now "missing" and extract
+        // must return the pointer text, never an empty or wrong buffer.
+        QVERIFY(QDir(dir.path() + "/.git/lfs/objects").removeRecursively());
+        QVERIFY(!git_source::objectPresent(dir.path(),
+                                           QStringLiteral("assets/big.png"), head, &error));
+        QVERIFY(git_source::extract(dir.path(), head,
+                                    QStringLiteral("assets/big.png"), &bytes, &error));
+        QVERIFY(error.isEmpty());
+        QVERIFY(git_source::isLfsPointer(bytes));
+        QVERIFY(bytes.startsWith("version https://git-lfs.github.com/spec/v1"));
+        // A plain blob is not a pointer, and nothing was written anywhere.
+        QVERIFY(!git_source::isLfsPointer(QByteArrayLiteral("not-a-pointer")));
+        QCOMPARE(repoFingerprint(dir.path()), before);
     }
 };
 
