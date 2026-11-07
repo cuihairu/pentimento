@@ -3353,8 +3353,11 @@ private slots:
 
             // --- 对比 (R09): the two recorded versions render side by side.
             QImage left, right;
-            QVERIFY(left.loadFromData(library.readObject(v1Hash)));
-            QVERIFY(right.loadFromData(library.readObject(library.revisions(hero.id).first().hash)));
+            // Content sniffing of extension-less TGA objects is not portable
+            // across Qt builds (some qico builds claim the header); the asset's
+            // recorded format is what the app decodes with, so pass it here too.
+            QVERIFY(left.loadFromData(library.readObject(v1Hash), "TGA"));
+            QVERIFY(right.loadFromData(library.readObject(library.revisions(hero.id).first().hash), "TGA"));
             CompareCanvas canvas;
             canvas.resize(400, 300);
             canvas.setImages(left, right);
