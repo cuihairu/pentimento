@@ -8,6 +8,18 @@
 
 namespace {
 const QByteArray kPsdSignature = QByteArrayLiteral("8BPS");
+/* TrueVision 2.0 footer signature: the only content marker TGA carries
+ * (no magic in the header), so content-based sniffing can fall back to it
+ * when the runtime's qtga plugin declines the heuristic-only canRead. */
+const QByteArray kTgaFooterSignature = QByteArrayLiteral("TRUEVISION-XFILE");
+
+bool hasTgaFooter(const QString &path) {
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) return false;
+    if (f.size() < 18 + 26) return false; // header + footer minimum
+    if (!f.seek(f.size() - 26)) return false;
+    return f.read(26).contains(kTgaFooterSignature);
+}
 }
 
 namespace preview {
@@ -22,42 +34,55 @@ qreal fitScale(const QSize &imageSize, const QSize &viewportSize, int margin) {
 }
 
 Decoded decode(const QString &path, const QString &formatHint, qint64 pixelBudget) {
-    Decoded out;
-    QImageReader reader(path);
-    if (!formatHint.isEmpty() &&
-        QImageReader::supportedImageFormats().contains(formatHint.toLatin1())) {
-        reader.setFormat(formatHint.toLatin1()); // authoritative (signature-less TGA)
-    } else {
-        reader.setDecideFormatFromContent(true); // fallback: sniff the content
-    }
-    reader.setAutoTransform(true);
-    const QSize size = reader.size();
-    if (!size.isValid()) return out;
-    const qint64 pixels = qint64(size.width()) * size.height();
-    if (pixels > pixelBudget && pixels > 0) {
-        // Uniform downscale to fit the budget; aspect ratio is preserved and the
-        // source file is untouched, so a huge image degrades gracefully.
-        const qreal factor = qSqrt(qreal(pixelBudget) / qreal(pixels));
-        reader.setScaledSize(QSize(qMax(1, int(size.width() * factor)),
-                                   qMax(1, int(size.height() * factor))));
-        out.reduced = true;
-    }
-    out.image = reader.read();
-    out.valid = !out.image.isNull();
+    // Resolve the format: the hint is authoritative (signature-less TGA);
+    // otherwise sniff the content, falling back to the TrueVision footer
+    // signature when the runtime's qtga canRead heuristic declines real TGA
+    // content (heuristic behavior varies across Qt builds).
+    auto tryRead = [&](const QString &fmt) -> Decoded {
+        Decoded r;
+        QImageReader reader(path);
+        if (!fmt.isEmpty() &&
+            QImageReader::supportedImageFormats().contains(fmt.toLatin1())) {
+            reader.setFormat(fmt.toLatin1());
+        } else {
+            reader.setDecideFormatFromContent(true); // sniff the content
+        }
+        reader.setAutoTransform(true);
+        const QSize size = reader.size();
+        if (!size.isValid()) return r;
+        const qint64 pixels = qint64(size.width()) * size.height();
+        if (pixels > pixelBudget && pixels > 0) {
+            // Uniform downscale to fit the budget; aspect ratio is preserved and
+            // the source file is untouched, so a huge image degrades gracefully.
+            const qreal factor = qSqrt(qreal(pixelBudget) / qreal(pixels));
+            reader.setScaledSize(QSize(qMax(1, int(size.width() * factor)),
+                                       qMax(1, int(size.height() * factor))));
+            r.reduced = true;
+        }
+        r.image = reader.read();
+        r.valid = !r.image.isNull();
+        return r;
+    };
+    Decoded out = tryRead(formatHint);
+    if (!out.valid && formatHint.isEmpty() && hasTgaFooter(path))
+        out = tryRead(QStringLiteral("tga")); // footer-confirmed content
     return out;
 }
 
 QString detectedFormat(const QString &path) {
     QImageReader reader(path);
     reader.setDecideFormatFromContent(true);
-    return reader.format(); // recognized from content, never from the extension
+    const QString fmt = reader.format(); // recognized from content, never from the extension
+    if (!fmt.isEmpty()) return fmt;
+    return hasTgaFooter(path) ? QStringLiteral("tga") : QString();
 }
 
 bool canDecode(const QString &path) {
     QImageReader reader(path);
     reader.setDecideFormatFromContent(true);
     reader.setAutoTransform(true);
-    return reader.canRead();
+    if (reader.canRead()) return true;
+    return hasTgaFooter(path);
 }
 
 bool isPsdSignature(const QByteArray &content) {
