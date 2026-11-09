@@ -69,13 +69,26 @@ add_custom_command(TARGET pentimento POST_BUILD
 include(CTest)
 if(BUILD_TESTING)
     find_package(Qt6 REQUIRED COMPONENTS Test)
-    add_executable(pentimento_tests tests/library_test.cpp src/compare_canvas.cpp src/preview_canvas.cpp)
-    target_compile_definitions(pentimento_tests PRIVATE PENTIMENTO_SOURCE_TRANSLATIONS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/translations")
-    target_link_libraries(pentimento_tests PRIVATE pentimento_core Qt6::Test Qt6::Widgets)
-    add_test(NAME library_history COMMAND pentimento_tests)
-    # Headless CI/nightly runners have no X display; Qt Widgets tests need the
-    # offscreen platform plugin instead of xcb.
-    set_tests_properties(library_history PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # LAY-001: the former single 3.5k-line library_test.cpp is split into
+    # per-domain suites so a failure builds and reruns only its own feedback
+    # unit; shared samples/helpers live in tests/library_test_helpers.h.
+    set(library_canvas_suites library_canvas library_journey)
+    foreach(suite library_restore library_versions library_backup library_services
+            library_sources library_import library_media library_catalog
+            library_canvas library_journey)
+        set(target pentimento_${suite}_tests)
+        set(sources tests/${suite}_test.cpp)
+        if(suite IN_LIST library_canvas_suites)
+            list(APPEND sources src/compare_canvas.cpp src/preview_canvas.cpp)
+        endif()
+        add_executable(${target} ${sources})
+        target_compile_definitions(${target} PRIVATE PENTIMENTO_SOURCE_TRANSLATIONS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/translations")
+        target_link_libraries(${target} PRIVATE pentimento_core Qt6::Test Qt6::Widgets)
+        add_test(NAME ${suite} COMMAND ${target})
+        # Headless CI/nightly runners have no X display; Qt Widgets tests need the
+        # offscreen platform plugin instead of xcb.
+        set_tests_properties(${suite} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endforeach()
     add_executable(pentimento_security_tests tests/security_test.cpp)
     target_link_libraries(pentimento_security_tests PRIVATE pentimento_core Qt6::Test)
     add_test(NAME security_sentinel COMMAND pentimento_security_tests)
