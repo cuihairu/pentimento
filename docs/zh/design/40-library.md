@@ -31,7 +31,7 @@
 
 原延后重启条件中的"用户批准/身份与删除改名语义获批"由用户 2026-11-08 直接下令实现而满足；"真实项目样本"仍属人工验收步骤，自动化测试以合成样本钉住程序可证部分。
 
-- **索引不复制、不修改来源**：`addExternalRoot` 登记 Canonical 路径（拒绝库内路径、拒绝重复），`indexExternalRoot` 只读取——stat 取 size/mtime，流式 SHA-256 取哈希；不写入源目录、不向 `objects/` 复制任何字节（src/library.cpp，`externalIndexReadsSourcesWithoutCopying` 断言 objects/ 无新文件、源字节与 mtime 不变）。
+- **索引不复制、不修改来源**：`addExternalRoot` 登记 Canonical 路径（拒绝库内路径、拒绝重复），`indexExternalRoot` 只读取——stat 取 size/mtime，流式 SHA-256 取哈希；不写入源目录、不向 `objects/` 复制任何字节（src/library_external.cpp，`externalIndexReadsSourcesWithoutCopying` 断言 objects/ 无新文件、源字节与 mtime 不变）。
 - **身份 =（root, rel_path）**：改名产生新条目、旧条目翻为 `missing`；删除不丢行（`externalIndexRefreshKeepsIdentityAndMarksMissing`）。不可读文件翻 `unreadable` 并保留上次良好哈希。轮次标记用每 root 单调 `pass` 计数器（时间戳毫秒碰撞会让"本轮已见"误判）。
 - **边界**：不跟随符号链接（防循环/防逃逸，同 P-205 规则）；移除索引仅删目录行，绝不动源文件；UI 入口"更多 → 索引外部目录…"（src/mainwindow.cpp `indexExternalDirectory`）。
 - **明确**：不以 NAS 导入功能冒充外部索引；不自动改写源目录；预览外部条目直接按需读源文件，未做缩略图缓存（如实标注）。

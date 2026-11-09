@@ -17,18 +17,18 @@
 
 `Library` 是唯一且不可复制的领域聚合。它校验六类打开状态、写入并迁移 SQLite schema，管理素材、版本、标签、评分/备注、出处、文件夹身份、固定版本、墓碑、快照和恢复收敛。对象与目录同库存放在内容寻址 `objects/`；工作副本在 `working/`；`library.lock` 限制单进程。恢复遵循保护/日志/文件/索引四阶段协议。
 
-- 实现：`src/library.cpp:100`、`src/library.cpp:1041`、`src/library.cpp:1138`、`src/library.cpp:1199`、`src/library.cpp:1530`、`src/library.cpp:1631`。
-- 配置 schema：库身份与 `schema_version` 持久化在 `meta`（`src/library.cpp:150`、`src/library.cpp:241`）；DDL schema 与向前兼容列迁移在 `src/library.cpp:138`。
-- 专属协议文件：无；恢复阶段契约在源码 `src/library.cpp:1234`，备份清单在 `docs/zh/architecture.md:29` 说明。
+- 实现：生命周期/版本核心 `src/library.cpp`；对象存储 `src/library_objects.cpp`；目录元数据 `src/library_meta.cpp`；快照 `src/library_snapshot.cpp`；恢复 `src/library_restore.cpp`；备份与审计 `src/library_backup.cpp`；外部目录索引 `src/library_external.cpp`（2026-11-09 LAY-002 拆分）。
+- 配置 schema：库身份与 `schema_version` 持久化在 `meta`由 `Library::openAndInitialize` 统一落库（`src/library.cpp:104`），DDL schema 与向前兼容列迁移同在该函数。
+- 专属协议文件：无；恢复阶段契约在源码 `src/library_restore.cpp:100`，备份清单在 `docs/zh/architecture.md:29` 说明。
 - 文案与术语：`Library` 用户消息在 `src/library.h:147` 声明可翻译；目录术语见 `docs/zh/architecture.md:3`、`docs/architecture.md:3` 及上方术语表。
 
 ### L3 导入、来源与备份服务
 
 该层管理跨文件系统边界的受控内容移动。导入器扫描并生成计划，但只导入用户确认的文件；`SourceConnection` 只读探测已挂载来源，且不会把不可达解释为删除；备份目标探测单独判断目的地是否可写；备份包先校验内容，最后才写 `COMPLETE`。
 
-- 实现：`src/importer.cpp:57`、`src/importer.cpp:91`、`src/importer.cpp:108`、`src/source_connection.cpp:36`、`src/storage.cpp:21`、`src/storage.cpp:64`、`src/library.cpp:1860`。
+- 实现：`src/importer.cpp:57`、`src/importer.cpp:91`、`src/importer.cpp:108`、`src/source_connection.cpp:36`、`src/storage.cpp:21`、`src/storage.cpp:64`、`src/library_snapshot.cpp:104`。
 - 配置 schema：用户忽略规则由 `src/importer.cpp:22` 解析；来源路径和备份路径是 `src/mainwindow.cpp:1982` 渲染的对话框输入；CMake 翻译目录是 `src/i18n.cpp:23` 的输入。
-- 专属协议文件：无；`BackupTargetInfo` 与 `SourceInfo` 是 `src/storage.h:23`、`src/storage.h:48` 的服务契约；JSON 备份契约由 `src/library.cpp:1907` 生成。
+- 专属协议文件：无；`BackupTargetInfo` 与 `SourceInfo` 是 `src/storage.h:23`、`src/storage.h:48` 的服务契约；JSON 备份契约由 `src/library_backup.cpp:36` 生成。
 - 文案与术语：来源与目标状态在 `src/source_connection.cpp:20`、`src/storage.cpp:64` 翻译；重扫/导入文案在 `src/mainwindow.cpp:2145`，公开能力说明在 `docs/zh/architecture.md:45` 与 `docs/architecture.md:45`。
 
 ### L4 运行时服务与安全
@@ -53,10 +53,10 @@
 
 基础边界把持久化操作显式化：受限 SHA-256 流式哈希、`QSaveFile` 原子写入、SQLite 事务，以及平台相关的只读/不可变操作。它刻意保持薄，并被更高层复用。
 
-- 实现：`src/library.cpp:26` 的辅助函数；Linux 不可变操作在 `src/platform_immutable.cpp:27`；挂载来源事实在 `src/storage.cpp:10`。
+- 实现：`src/library_internal.h` 的辅助函数；Linux 不可变操作在 `src/platform_immutable.cpp:27`；挂载来源事实在 `src/storage.cpp:10`。
 - 配置 schema：无；编译期 OS 分支和 Qt 路径就是 schema，由 `src/platform_immutable.cpp:7` 选择、`CMakeLists.txt:23` 发现。
 - 专属协议文件：无；平台保证在 `src/platform_immutable.h:5` 说明，并在 `docs/zh/architecture.md:27` 镜像。
-- 文案与术语：错误文案在操作边界生成，如 `src/library.cpp:104`；不可变库架构文案是 `docs/zh/architecture.md:27` 与 `docs/architecture.md:27`。
+- 文案与术语：错误文案在操作边界生成，如 `src/library.cpp:66`；不可变库架构文案是 `docs/zh/architecture.md:27` 与 `docs/architecture.md:27`。
 
 ### L7 验证层
 
@@ -70,11 +70,11 @@
 ### 为什么这样拆分
 
 1. target 边界是真实约束，不是装饰：`pentimento_core` 排除 Widgets 并把领域/服务暴露给独立可执行程序（`CMakeLists.txt:53`、`CMakeLists.txt:57`）。存储、来源、快照和安全因此可不实例化主窗口测试。
-2. `Library` 必须保持唯一写者，因为目录事务、不可变对象和工作文件替换必须跨恢复阶段一致；持久恢复日志正是为了弥补 SQLite 事务不能覆盖文件写入（`src/library.cpp:1234`）。
+2. `Library` 必须保持唯一写者，因为目录事务、不可变对象和工作文件替换必须跨恢复阶段一致；持久恢复日志正是为了弥补 SQLite 事务不能覆盖文件写入（`src/library_restore.cpp:100`）。
 3. 导入刻意采用计划/确认/执行，而不是自动同步：扫描结果可预览，取消时保留已完成项，重扫只做增量分类，不会把来源变化转换成本地删除（`src/importer.h:10`、`src/importer.cpp:91`、`src/importer.cpp:108`）。
 4. 来源可达与备份可写是两个问题。只读挂载来源对导入可达，但必须被备份目标判定拒绝，因此两者状态词表和探测不能合并（`src/source_connection.h:20`、`src/storage.h:43`）。
 5. 运行时服务独立存在是因为生命周期不同：串行捕获/完整性队列要排空，而目标探测在死挂载阻塞关闭时可 detach（`src/taskqueue.h:42`、`src/mainwindow.cpp:505`）；快照调度仅运行时生效，明确不是系统服务（`src/snapshot_schedule.h:5`）。
-6. 安全拆成预防、发现、响应，因为单一机制无法三者兼得：对象先加固（`src/library.cpp:1005`），哨兵发现异常窗口（`src/sentinel.cpp:60`），回滚复用只增恢复以保留感染历史（`src/library.cpp:2208`）。
+6. 安全拆成预防、发现、响应，因为单一机制无法三者兼得：对象先加固（`src/library_objects.cpp:127`），哨兵发现异常窗口（`src/sentinel.cpp:60`），回滚复用只增恢复以保留感染历史（`src/library_snapshot.cpp:337`）。
 7. 媒体处理需要独立的内存控制层，因为同一资产可能是 256 MiB 对象：流式哈希被共享（`src/library.h:33`），预览用受限预算（`src/preview.h:39`），缩略图在完整解码前预缩放（`src/thumbnails.cpp:72`）。
 8. 展示与数据获取分离，使损坏或不支持的内容不会被含糊表示：头部事实不可用时保持未知（`src/preview.cpp:99`），对比窗格共用一个变换（`src/compare_canvas.cpp:96`），UI 明确切换到降级消息（`src/mainwindow.cpp:1111`）。
 9. 验证是架构层而非附属：核心、安全、UI 套件刻意覆盖不同入口和生命周期，包括后台完整性与 detach 探测关闭（`CMakeLists.txt:72`、`CMakeLists.txt:79`、`CMakeLists.txt:85`）。

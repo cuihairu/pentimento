@@ -31,9 +31,9 @@ restore convergence. Objects live beside the catalog under content-addressed
 `objects/`; working copies stay under `working/`; `library.lock` enforces one
 process. Restore follows a four-stage protect/log/file/index protocol.
 
-- Implementation: `src/library.cpp:100`, `src/library.cpp:1041`, `src/library.cpp:1138`, `src/library.cpp:1199`, `src/library.cpp:1530`, `src/library.cpp:1631`.
-- Configuration schema: library identity and `schema_version` are persisted in `meta` (`src/library.cpp:150`, `src/library.cpp:241`); the DDL schema and forward-compatible column migration are in `src/library.cpp:138`.
-- Dedicated protocol files: none; the restore stage contract is documented in source at `src/library.cpp:1234` and the backup manifest in `docs/architecture.md:29`.
+- Implementation: lifecycle/version core in `src/library.cpp`; object storage in `src/library_objects.cpp`; metadata in `src/library_meta.cpp`; snapshots in `src/library_snapshot.cpp`; restore in `src/library_restore.cpp`; backups/audits in `src/library_backup.cpp`; external indexing in `src/library_external.cpp` (LAY-002 split 2026-11-09).
+- Configuration schema: library identity and `schema_version` are persisted in `meta` are stamped by `Library::openAndInitialize` (`src/library.cpp:104`), which also carries the DDL schema and forward-compatible column migration.
+- Dedicated protocol files: none; the restore stage contract is documented in source at `src/library_restore.cpp:100` and the backup manifest in `docs/architecture.md:29`.
 - Copy and terminology: `Library` user messages are declared translatable in `src/library.h:147`; catalog-facing terminology is `docs/architecture.md:3`, `docs/zh/architecture.md:3`, and the glossaries above.
 
 ### L3 Import, source, and backup services
@@ -44,9 +44,9 @@ mounted source read-only and never interprets unreachability as deletion; the
 backup-target probe separately asks whether a destination can be written;
 backup packages verify content before writing `COMPLETE`.
 
-- Implementation: `src/importer.cpp:57`, `src/importer.cpp:91`, `src/importer.cpp:108`, `src/source_connection.cpp:36`, `src/storage.cpp:21`, `src/storage.cpp:64`, `src/library.cpp:1860`.
+- Implementation: `src/importer.cpp:57`, `src/importer.cpp:91`, `src/importer.cpp:108`, `src/source_connection.cpp:36`, `src/storage.cpp:21`, `src/storage.cpp:64`, `src/library_snapshot.cpp:104`.
 - Configuration schema: user ignore rules are parsed by `src/importer.cpp:22`; the source path and backup path are dialog inputs rendered in `src/mainwindow.cpp:1982`; CMake translation locations are inputs to `src/i18n.cpp:23`.
-- Dedicated protocol files: none; `BackupTargetInfo` and `SourceInfo` are the service contracts in `src/storage.h:23` and `src/storage.h:48`; the JSON backup contract is produced by `src/library.cpp:1907`.
+- Dedicated protocol files: none; `BackupTargetInfo` and `SourceInfo` are the service contracts in `src/storage.h:23` and `src/storage.h:48`; the JSON backup contract is produced by `src/library_backup.cpp:36`.
 - Copy and terminology: source and target states are translated in `src/source_connection.cpp:20`, `src/storage.cpp:64`; rescan/import copy is in `src/mainwindow.cpp:2145`, while public capability copy is explained in `docs/architecture.md:45` and `docs/zh/architecture.md:45`.
 
 ### L4 Runtime services and safety
@@ -83,10 +83,10 @@ streaming, atomic `QSaveFile` writes, SQLite transactions, and platform-specific
 read-only/immutable operations. It is deliberately thin and reused by every higher
 layer.
 
-- Implementation: helpers in `src/library.cpp:26`; Linux immutability in `src/platform_immutable.cpp:27`; mounted-source facts in `src/storage.cpp:10`.
+- Implementation: helpers in `src/library_internal.h`; Linux immutability in `src/platform_immutable.cpp:27`; mounted-source facts in `src/storage.cpp:10`.
 - Configuration schema: none; compile-time OS branches and Qt paths are the schema, selected by `src/platform_immutable.cpp:7` and discovered by `CMakeLists.txt:23`.
 - Dedicated protocol files: none; the platform guarantee is documented in `src/platform_immutable.h:5` and mirrored in `docs/architecture.md:27`.
-- Copy and terminology: error text is created at the operation boundary in `src/library.cpp:104`; architecture copy for the immutable store is `docs/architecture.md:27` and `docs/zh/architecture.md:27`.
+- Copy and terminology: error text is created at the operation boundary in `src/library.cpp:66`; architecture copy for the immutable store is `docs/architecture.md:27` and `docs/zh/architecture.md:27`.
 
 ### L7 Verification layer
 
@@ -104,11 +104,11 @@ background integrity, and dialogs under the offscreen platform.
 ### Why these layers
 
 1. The target boundary is real, not decorative: `pentimento_core` excludes Widgets and exposes domain/services to a separate executable (`CMakeLists.txt:53`, `CMakeLists.txt:57`). This lets storage, sources, snapshots, and safety be tested without instantiating the main window.
-2. `Library` must stay one writer because catalog transactions, immutable objects, and working-file replacement must agree across restore stages; the durable log exists precisely because a SQLite transaction cannot cover a filesystem write (`src/library.cpp:1234`).
+2. `Library` must stay one writer because catalog transactions, immutable objects, and working-file replacement must agree across restore stages; the durable log exists precisely because a SQLite transaction cannot cover a filesystem write (`src/library_restore.cpp:100`).
 3. Import is deliberately plan/confirm/execute rather than automatic sync: scan output is previewable, confirmed imports keep completed items on cancel, and rescan classifies additive content without converting source changes into deletions (`src/importer.h:10`, `src/importer.cpp:91`, `src/importer.cpp:108`).
 4. Source reachability and backup writability are separate questions. A read-only mounted source is reachable for import but must fail as a backup destination, so their state vocabularies and probes cannot be merged (`src/source_connection.h:20`, `src/storage.h:43`).
 5. Runtime services are separate because their lifecycles differ: serial capture/integrity queues drain, while a target probe can detach when a dead mount blocks shutdown (`src/taskqueue.h:42`, `src/mainwindow.cpp:505`); snapshot scheduling is runtime-only and explicitly not a system service (`src/snapshot_schedule.h:5`).
-6. Safety is split into prevention, detection, and response because no one mechanism can provide all three: objects are hardened (`src/library.cpp:1005`), the sentinel detects abnormal windows (`src/sentinel.cpp:60`), and rollback reuses append-only restore so infection history is retained (`src/library.cpp:2208`).
+6. Safety is split into prevention, detection, and response because no one mechanism can provide all three: objects are hardened (`src/library_objects.cpp:127`), the sentinel detects abnormal windows (`src/sentinel.cpp:60`), and rollback reuses append-only restore so infection history is retained (`src/library_snapshot.cpp:337`).
 7. Media work needs a separate memory-control layer because the same asset can be a 256 MiB object: streaming hashing is shared (`src/library.h:33`), preview uses a bounded budget (`src/preview.h:39`), and thumbnails pre-scale before full decode (`src/thumbnails.cpp:72`).
 8. Presentation is split from data acquisition so damaged or unsupported content cannot be silently misrepresented: header facts stay unknown when unavailable (`src/preview.cpp:99`), compare panes share one transform (`src/compare_canvas.cpp:96`), and the UI swaps in an explicit message (`src/mainwindow.cpp:1111`).
 9. Verification is an architecture layer, not an afterthought: core, security, and UI suites intentionally exercise different entry points and lifecycles, including background integrity and detached probe shutdown (`CMakeLists.txt:72`, `CMakeLists.txt:79`, `CMakeLists.txt:85`).

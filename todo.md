@@ -291,7 +291,7 @@
 ### 超大文件候选
 
 - [x] LAY-001 [P1] 拆分 `tests/library_test.cpp`（3427 行）——单一测试类覆盖领域、服务、平台、翻译与画布 88 个场景，按领域/服务/媒体/平台拆套件可缩短反馈面（`tests/library_test.cpp:124`）。（完成 2026-11-09（commit ef20445）：原 3535 行/90 场景拆为 10 个领域套件——`tests/library_{restore,versions,backup,services,sources,import,media,catalog,canvas,journey}_test.cpp`（行数 532/697/385/327/274/538/304/540/178/211，slot 18/16/10/8/6/14/5/9/3/1）＋共享 `tests/library_test_helpers.h`（put/get/digestHex/injectPendingRestoreLog/makeTga/makePsd，行 99）；每套件独立 ctest 名，仅 canvas/journey 链 compare_canvas/preview_canvas。门禁 `cmake --build --preset dev` 绿 + `ctest --preset dev` 16/16 绿：library_restore/versions/backup/services/sources/import/media/catalog/canvas/journey 全过（其余 security_sentinel/git_source_readonly/svn_source_readonly/remote_address_parse/discovery_merge_expiry/desktop_keyboard_zoom 不回归））
-- [ ] LAY-002 [P1] 拆分 `src/library.cpp`（2215 行）——单个类同时承载 catalog schema、对象存储、版本、恢复日志、快照、备份包和一致性审计，域服务边界可按不变量拆分（`src/library.cpp:100`）。
+- [x] LAY-002 [P1] 拆分 `src/library.cpp`（2215 行）——单个类同时承载 catalog schema、对象存储、版本、恢复日志、快照、备份包和一致性审计，域服务边界可按不变量拆分（`src/library.cpp:100`）。（完成 2026-11-09（commit da24d07）：按域拆为 7 个 TU——`library.cpp`（生命周期/版本核心，490 行）、`library_objects.cpp`（对象存储，138）、`library_meta.cpp`（目录元数据，485）、`library_snapshot.cpp`（快照/排除/钉住/回滚，376）、`library_restore.cpp`（恢复/恢复日志/导出，519）、`library_backup.cpp`（备份包/一致性/空间预演，348）、`library_external.cpp`（外部索引，186）＋共享内部头 `library_internal.h`（fail/digest/readFile/writeFile/execute/digestFile/copyFileStreaming，67 行）；`Library` 公开 API 与行为零变化（纯移动，无逻辑改动）。门禁 `cmake --build --preset dev` 绿（无警告）+ `ctest --preset dev` 16/16 绿）
 - [ ] LAY-003 [P1] 拆分 `src/mainwindow.cpp`（2206 行）——构造、筛选/元数据、预览、恢复、快照、备份与挂载来源对话框集中在一个窗口类，功能面板和对话框可下沉为独立控制器（`src/mainwindow.cpp:50`）。
 
 ### 目录与分类问题
