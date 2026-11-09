@@ -90,13 +90,14 @@ layer.
 
 ### L7 Verification layer
 
-Three Qt Test executables pin domain, safety, and UI behavior. The core suite
-covers 88 scenarios from restore and snapshots to source reconnect and backup
-packages; security tests cover the sentinel and rollback loop; UI tests cover
-shortcuts, background integrity, and dialogs under the offscreen platform.
+The domain layer splits into ten suites by area (restore, versions, backup,
+services, sources, import, media, catalog, canvas, journey) pinning 90
+scenarios from restore and snapshots to source reconnect and backup packages;
+security tests cover the sentinel and rollback loop; UI tests cover shortcuts,
+background integrity, and dialogs under the offscreen platform.
 
-- Implementation: `tests/library_test.cpp:124`, `tests/security_test.cpp:36`, `tests/mainwindow_test.cpp:41`.
-- Configuration schema: target composition and the offscreen test environment are declared by `CMakeLists.txt:69`.
+- Implementation: `tests/library_{restore,versions,backup,services,sources,import,media,catalog,canvas,journey}_test.cpp`, `tests/security_test.cpp:36`, `tests/mainwindow_test.cpp:41` (LAY-001 split 2026-11-09).
+- Configuration schema: target composition and the offscreen test environment are declared by `CMakeLists.txt`.
 - Dedicated protocol files: none; tests invoke public APIs and Qt object properties rather than an external fixture protocol.
 - Copy and terminology: test names are the executable evidence vocabulary; the public claim is limited to what tests exercise in `docs/index.md:32` and `docs/zh/index.md:32`.
 

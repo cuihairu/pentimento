@@ -19,7 +19,7 @@
 | 平台只读抽象 | `src/platform_immutable.{h,cpp}` |
 | 对象写后置只读 | `Library::append`（`src/library.cpp`） |
 | 加固既有对象 | `Library::hardenObjects`（`src/library.cpp`） |
-| 单测 | `objectFilesAreImmutableAndResistTamper`、`historyObjectsSurviveWorkspaceEncryption`（`tests/library_test.cpp`） |
+| 单测 | `objectFilesAreImmutableAndResistTamper`（`tests/library_restore_test.cpp`）、`historyObjectsSurviveWorkspaceEncryption`（`tests/library_services_test.cpp`） |
 
 ### 已知边界（防线一）
 

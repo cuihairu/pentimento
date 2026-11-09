@@ -101,7 +101,7 @@ V1 只验证已挂载 SMB/NFS 来源和备份；发现/直连矩阵记延后。�
 
 **执行（2026-11-02，P-015 已代决批准 + 实现完成）**：
 
-新增端到端旅程测试 `v1UserJourneyAcceptanceWalkthrough`（tests/library_test.cpp，隔离测试库），单次走完整条 V1 用户旅程并逐步断言可证行为：
+新增端到端旅程测试 `v1UserJourneyAcceptanceWalkthrough`（tests/library_journey_test.cpp，隔离测试库；2026-11-09 LAY-001 拆分后归属），单次走完整条 V1 用户旅程并逐步断言可证行为：
 1. **导入**：管理式复制导入 ×3（TGA 内容样本），格式/尺寸事实记录、内容寻址可读。
 2. **整理**：标签（单个+批量）、评分、备注、来源/作者/授权、库内文件夹移动（身份保持）。
 3. **版本**：手动记录（编辑→`captureRevision`）+ 自动记录（`captureIfStable`）+ 关键版本钉住（`pinRevision`）。

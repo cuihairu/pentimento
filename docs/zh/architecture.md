@@ -60,10 +60,10 @@
 
 ### L7 验证层
 
-三个 Qt Test 可执行文件分别固定领域、安全和 UI 行为。核心套件覆盖 88 个场景，从恢复、快照到来源重连与备份包；安全测试覆盖哨兵与回滚回路；UI 测试在 offscreen 平台下覆盖快捷键、后台完整性和对话框。
+领域层按域拆为十个套件（恢复/版本/备份/服务/来源/导入/媒体/目录/画布/旅程），共固定 90 个场景；安全测试覆盖哨兵与回滚回路；UI 测试在 offscreen 平台下覆盖快捷键、后台完整性和对话框。
 
-- 实现：`tests/library_test.cpp:124`、`tests/security_test.cpp:36`、`tests/mainwindow_test.cpp:41`。
-- 配置 schema：目标组成和 offscreen 测试环境由 `CMakeLists.txt:69` 声明。
+- 实现：`tests/library_{restore,versions,backup,services,sources,import,media,catalog,canvas,journey}_test.cpp`、`tests/security_test.cpp:36`、`tests/mainwindow_test.cpp:41`（2026-11-09 LAY-001 拆分）。
+- 配置 schema：目标组成和 offscreen 测试环境由 `CMakeLists.txt` 声明。
 - 专属协议文件：无；测试调用公开 API 和 Qt 对象属性，而非外部 fixture 协议。
 - 文案与术语：测试名是可执行证据词表；公开声明只限 `docs/zh/index.md:32`、`docs/index.md:32` 中测试实际覆盖的范围。
 
