@@ -41,7 +41,7 @@
 | 件 | 位置 |
 |---|---|
 | 哨兵与阈值 | `src/sentinel.{h,cpp}`（`SentinelConfig`/`SentinelAlert`/`Sentinel`） |
-| 紧急快照锚点 | `Library::snapshotAll`、`Library::snapshots`（`src/library.{h,cpp}`） |
+| 紧急快照锚点 | `Library::snapshotAll`、`Library::snapshots`（`src/library_snapshot.cpp`） |
 | 快照表 | `snapshots`、`snapshot_assets`（`src/library.cpp` 建表） |
 | 单测 | `tests/security_test.cpp`：`detectsBatchRewrite`/`detectsExtensionChurn`/`detectsHighEntropyBurst`/`staysQuietOnNormalSmallEdits`/`sentinelAlertsAndLibraryTakesEmergencySnapshot` |
 
@@ -62,9 +62,9 @@
 
 | 件 | 位置 |
 |---|---|
-| 整树回滚 | `Library::rollbackAll`（`src/library.{h,cpp}`） |
+| 整树回滚 | `Library::rollbackAll`（`src/library_snapshot.cpp`） |
 | 快照列表 | `Library::snapshots`（`src/library.{h,cpp}`） |
-| UI 入口 | `MainWindow::rollbackToSnapshot`（`src/mainwindow.{h,cpp}`），工具栏「恢复到锚点」 |
+| UI 入口 | `MainWindow::rollbackToSnapshot`（`src/mainwindow_snapshots.cpp`），工具栏「恢复到锚点」 |
 | 单测 | `tests/security_test.cpp`：`rollbackRestoresWorkspaceToPreInfectionAnchor` |
 
 ### 已知边界（防线三）

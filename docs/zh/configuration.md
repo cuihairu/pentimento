@@ -41,5 +41,5 @@ library.lock     单进程写锁
 - 构建 preset 在 `CMakePresets.json`（`dev` 配置/构建/测试 preset）；CMake 是唯一构建入口，所有目标 ISO C++17、禁编译器扩展。
 - Qt 不在默认搜索路径时传 `-DCMAKE_PREFIX_PATH=/path/to/Qt/6.x/platform`。
 - 语言偏好保存在 QSettings（`ui/language`，默认 `zh_CN`），启动时加载；应用内尚无语言切换入口（`setLanguagePreference` 无界面调用方），切换需在应用外修改该设置。
-- 运行时快照周期（关闭/15/30/60 分钟）是 UI data，不是持久化设置；周期附加在下拉项上（`src/mainwindow.cpp:346`），并应用到 `SnapshotSchedule`（`src/mainwindow.cpp:1376`）。
+- 运行时快照周期（关闭/15/30/60 分钟）是 UI data，不是持久化设置；周期附加在下拉项上（`src/mainwindow.cpp:354`），并应用到 `SnapshotSchedule`（`src/mainwindow_snapshots.cpp:50`）。
 - 哨兵阈值是 `SentinelConfig`（`src/sentinel.h:12`）中的代码默认值；职责分层见[架构](./architecture.md)，术语见[术语表](./glossary.md)。

@@ -8,10 +8,10 @@
 
 `src/main.cpp` 安装翻译、解析 `--library` 或最近库/默认根目录、构造 `Library` 与 `MainWindow`，并提供截图冒烟入口。`MainWindow` 拥有工具栏、素材/筛选/预览/时间线面板、对话框、用户确认、动作门控和应用定时器；`CompareCanvas` 与 `PreviewCanvas` 是其图像展示控件。VitePress 站点是文档外壳；中英文导航由 `docs/.vitepress/config.mts` 生成。
 
-- 实现：`src/main.cpp:13`、`src/mainwindow.cpp:50`、`src/compare_canvas.cpp:142`、`src/preview_canvas.cpp:83`。
-- 配置 schema：命令行参数在 `src/main.cpp:23` 解析；QSettings 与最近库输入在 `src/i18n.cpp:10`、`src/recent.cpp:10`；UI 快照周期种子在 `src/mainwindow.cpp:346`。
+- 实现：`src/main.cpp:13`、`src/mainwindow.cpp:47`（外壳；版本/元数据/快照/备份/挂载来源流程在 src/mainwindow_versions.cpp、src/mainwindow_metadata.cpp、src/mainwindow_snapshots.cpp、src/mainwindow_backup.cpp、src/mainwindow_sources.cpp，2026-11-09 LAY-003 拆分）、`src/compare_canvas.cpp:142`、`src/preview_canvas.cpp:83`。
+- 配置 schema：命令行参数在 `src/main.cpp:23` 解析；QSettings 与最近库输入在 `src/i18n.cpp:10`、`src/recent.cpp:10`；UI 快照周期种子在 `src/mainwindow.cpp:354`。
 - 专属协议文件：无；Qt 编译翻译契约在 `translations/*.ts` 与 `.qm`，CMake 部署在 `CMakeLists.txt:62`。
-- 文案与术语：用户动作标签是 `src/mainwindow.cpp:50` 的 `tr()`；稳定功能文案在 `docs/zh/index.md:16`、`docs/index.md:16`、`docs/zh/quickstart.md:23`、`docs/quickstart.md:23`；术语表为 `docs/zh/glossary.md:1` 与 `docs/glossary.md:1`。
+- 文案与术语：用户动作标签是 `src/mainwindow.cpp:47` 的 `tr()`；稳定功能文案在 `docs/zh/index.md:16`、`docs/index.md:16`、`docs/zh/quickstart.md:23`、`docs/quickstart.md:23`；术语表为 `docs/zh/glossary.md:1` 与 `docs/glossary.md:1`。
 
 ### L2 素材库领域与持久化
 
@@ -27,16 +27,16 @@
 该层管理跨文件系统边界的受控内容移动。导入器扫描并生成计划，但只导入用户确认的文件；`SourceConnection` 只读探测已挂载来源，且不会把不可达解释为删除；备份目标探测单独判断目的地是否可写；备份包先校验内容，最后才写 `COMPLETE`。
 
 - 实现：`src/importer.cpp:57`、`src/importer.cpp:91`、`src/importer.cpp:108`、`src/source_connection.cpp:36`、`src/storage.cpp:21`、`src/storage.cpp:64`、`src/library_snapshot.cpp:104`。
-- 配置 schema：用户忽略规则由 `src/importer.cpp:22` 解析；来源路径和备份路径是 `src/mainwindow.cpp:1982` 渲染的对话框输入；CMake 翻译目录是 `src/i18n.cpp:23` 的输入。
+- 配置 schema：用户忽略规则由 `src/importer.cpp:22` 解析；来源路径和备份路径是 `src/mainwindow_sources.cpp:105` 渲染的对话框输入；CMake 翻译目录是 `src/i18n.cpp:23` 的输入。
 - 专属协议文件：无；`BackupTargetInfo` 与 `SourceInfo` 是 `src/storage.h:23`、`src/storage.h:48` 的服务契约；JSON 备份契约由 `src/library_backup.cpp:36` 生成。
-- 文案与术语：来源与目标状态在 `src/source_connection.cpp:20`、`src/storage.cpp:64` 翻译；重扫/导入文案在 `src/mainwindow.cpp:2145`，公开能力说明在 `docs/zh/architecture.md:45` 与 `docs/architecture.md:45`。
+- 文案与术语：来源与目标状态在 `src/source_connection.cpp:20`、`src/storage.cpp:64` 翻译；重扫/导入文案在 `src/mainwindow_sources.cpp:275`，公开能力说明在 `docs/zh/architecture.md:45` 与 `docs/architecture.md:45`。
 
 ### L4 运行时服务与安全
 
 `TaskQueue` 把耗时工作串行移出 UI 线程，并支持 join 或 detach 关闭。`SnapshotSchedule` 是仅运行时生效的快照调度，带暂停语义。`Sentinel` 将工作区扫描窗口与基线比较。`platform` 尽力加固历史对象；后端能力模型阻止不支持的恢复动作。定时快照与紧急快照复用同一捕获队列，因此写入不会重叠。
 
-- 实现：`src/taskqueue.cpp:68`、`src/snapshot_schedule.h:13`、`src/sentinel.cpp:25`、`src/platform_immutable.cpp:66`、`src/backend.cpp:14`；UI 接线和紧急响应是 `src/mainwindow.cpp:455`、`src/mainwindow.cpp:1420`、`src/mainwindow.cpp:1558`。
-- 配置 schema：阈值是 `src/sentinel.h:12` 的 `SentinelConfig` 默认值；快照周期是 `src/mainwindow.cpp:346` 附加在下拉项上的 data；队列关闭策略是 `src/taskqueue.h:42` 的显式构造参数。
+- 实现：`src/taskqueue.cpp:68`、`src/snapshot_schedule.h:13`、`src/sentinel.cpp:25`、`src/platform_immutable.cpp:66`、`src/backend.cpp:14`；UI 接线和紧急响应是 `src/mainwindow.cpp:490`、`src/mainwindow_snapshots.cpp:92`、`src/mainwindow_snapshots.cpp:195`。
+- 配置 schema：阈值是 `src/sentinel.h:12` 的 `SentinelConfig` 默认值；快照周期是 `src/mainwindow.cpp:354` 附加在下拉项上的 data；队列关闭策略是 `src/taskqueue.h:42` 的显式构造参数。
 - 专属协议文件：无；`Capability`/`BackendInfo` 是 `src/backend.h:11` 的后端契约，`SentinelAlert` 是 `src/sentinel.h:20` 的安全信号。
 - 文案与术语：触发原因与状态在 `src/sentinel.cpp:90`、`src/source_connection.cpp:20` 生成；公开安全架构文案是 `docs/zh/architecture.md:23` 与 `docs/architecture.md:23`，阈值文档在 `docs/zh/configuration.md:26`、`docs/configuration.md:26`。
 
@@ -44,10 +44,10 @@
 
 该层把存储字节转换为诚实的技术事实和受限视觉结果。文件头检查不虚构未知元数据；解码使用像素预算；缩略图在完整解码前预缩放，并以内容和解码器版本为键；对比画布共用一个变换，保证平移、缩放和分界线空间一致。
 
-- 实现：`src/preview.cpp:25`、`src/thumbnails.cpp:15`、`src/preview_canvas.cpp:35`、`src/compare_canvas.cpp:31`；UI 消费是 `src/mainwindow.cpp:1061`、`src/mainwindow.cpp:1250`。
+- 实现：`src/preview.cpp:25`、`src/thumbnails.cpp:15`、`src/preview_canvas.cpp:35`、`src/compare_canvas.cpp:31`；UI 消费是 `src/mainwindow_versions.cpp:174`、`src/mainwindow_versions.cpp:354`。
 - 配置 schema：无文件 schema；像素预算是 `src/preview.h:45` 的函数默认值，缩略图解码器版本在 `src/thumbnails.cpp:12`，展示尺寸来自构造/UI 默认值。
 - 专属协议文件：无；内容嗅探与 TGA 回退行为由 `src/preview.cpp:16`、`src/preview.cpp:48` 表达。
-- 文案与术语：降级和尺寸消息是 `src/mainwindow.cpp:1076`、`src/mainwindow.cpp:1122`、`src/compare_canvas.cpp:116` 的 `tr()`；公开预览行为概括在 `docs/zh/quickstart.md:30` 与 `docs/quickstart.md:30`。
+- 文案与术语：降级和尺寸消息是 `src/mainwindow_versions.cpp:250`、`src/mainwindow_versions.cpp:194`、`src/compare_canvas.cpp:116` 的 `tr()`；公开预览行为概括在 `docs/zh/quickstart.md:30` 与 `docs/quickstart.md:30`。
 
 ### L6 进程、文件系统与平台边界
 
@@ -73,10 +73,10 @@
 2. `Library` 必须保持唯一写者，因为目录事务、不可变对象和工作文件替换必须跨恢复阶段一致；持久恢复日志正是为了弥补 SQLite 事务不能覆盖文件写入（`src/library_restore.cpp:100`）。
 3. 导入刻意采用计划/确认/执行，而不是自动同步：扫描结果可预览，取消时保留已完成项，重扫只做增量分类，不会把来源变化转换成本地删除（`src/importer.h:10`、`src/importer.cpp:91`、`src/importer.cpp:108`）。
 4. 来源可达与备份可写是两个问题。只读挂载来源对导入可达，但必须被备份目标判定拒绝，因此两者状态词表和探测不能合并（`src/source_connection.h:20`、`src/storage.h:43`）。
-5. 运行时服务独立存在是因为生命周期不同：串行捕获/完整性队列要排空，而目标探测在死挂载阻塞关闭时可 detach（`src/taskqueue.h:42`、`src/mainwindow.cpp:505`）；快照调度仅运行时生效，明确不是系统服务（`src/snapshot_schedule.h:5`）。
+5. 运行时服务独立存在是因为生命周期不同：串行捕获/完整性队列要排空，而目标探测在死挂载阻塞关闭时可 detach（`src/taskqueue.h:42`、`src/mainwindow.cpp:511`）；快照调度仅运行时生效，明确不是系统服务（`src/snapshot_schedule.h:5`）。
 6. 安全拆成预防、发现、响应，因为单一机制无法三者兼得：对象先加固（`src/library_objects.cpp:127`），哨兵发现异常窗口（`src/sentinel.cpp:60`），回滚复用只增恢复以保留感染历史（`src/library_snapshot.cpp:337`）。
 7. 媒体处理需要独立的内存控制层，因为同一资产可能是 256 MiB 对象：流式哈希被共享（`src/library.h:33`），预览用受限预算（`src/preview.h:39`），缩略图在完整解码前预缩放（`src/thumbnails.cpp:72`）。
-8. 展示与数据获取分离，使损坏或不支持的内容不会被含糊表示：头部事实不可用时保持未知（`src/preview.cpp:99`），对比窗格共用一个变换（`src/compare_canvas.cpp:96`），UI 明确切换到降级消息（`src/mainwindow.cpp:1111`）。
+8. 展示与数据获取分离，使损坏或不支持的内容不会被含糊表示：头部事实不可用时保持未知（`src/preview.cpp:99`），对比窗格共用一个变换（`src/compare_canvas.cpp:96`），UI 明确切换到降级消息（`src/mainwindow_versions.cpp:225`）。
 9. 验证是架构层而非附属：核心、安全、UI 套件刻意覆盖不同入口和生命周期，包括后台完整性与 detach 探测关闭（`CMakeLists.txt:72`、`CMakeLists.txt:79`、`CMakeLists.txt:85`）。
 ## 结构
 

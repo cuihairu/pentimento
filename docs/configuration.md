@@ -41,5 +41,5 @@ The design leans toward false positives: normal small edits stay quiet, legitima
 - Build presets live in `CMakePresets.json` (`dev` configure/build/test presets); CMake is the only build entry, all targets use ISO C++17 with compiler extensions disabled.
 - If Qt is not on the default search path, pass `-DCMAKE_PREFIX_PATH=/path/to/Qt/6.x/platform`.
 - Language preference is stored in QSettings (`ui/language`, default `zh_CN`) and applied at startup; there is no in-app switcher yet (`setLanguagePreference` has no UI caller), so switching means editing the setting outside the app.
-- Runtime snapshot periods (off/15/30/60 minutes) are UI data, not persisted settings; they are attached to combo-box rows in `src/mainwindow.cpp:346` and applied to `SnapshotSchedule` in `src/mainwindow.cpp:1376`.
+- Runtime snapshot periods (off/15/30/60 minutes) are UI data, not persisted settings; they are attached to combo-box rows in `src/mainwindow.cpp:354` and applied to `SnapshotSchedule` in `src/mainwindow_snapshots.cpp:50`.
 - Sentinel thresholds are code defaults in `SentinelConfig` (`src/sentinel.h:12`); see [Architecture](./architecture.md) for the responsibility layers and [Glossary](./glossary.md) for terminology.
