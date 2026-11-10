@@ -59,7 +59,27 @@ for plugin in libqxcb.so libqoffscreen.so libqminimal.so; do
         cp -a "$qt_plugins/platforms/$plugin" "$package_dir/plugins/platforms/"
     fi
 done
-cp -a "$qt_plugins/imageformats/." "$package_dir/plugins/imageformats/"
+# Ship image format plugins selectively: a plugin whose system library is
+# absent on the build host (e.g. libqtiff.so needs libtiff.so.5, which
+# Ubuntu 24.04 dropped) would fail the launcher's self-check on clean
+# targets too, so leave it out instead of shipping a broken package.
+for plugin in "$qt_plugins"/imageformats/*.so; do
+    plugin_name=$(basename "$plugin")
+    unresolved=$(ldd "$plugin" 2>/dev/null | awk '/not found/ {print $1}')
+    skippable=
+    for lib in $unresolved; do
+        case "$lib" in
+            libtiff.so*) skippable=1 ;;
+            *) skippable= ;;
+        esac
+        [ -n "$skippable" ] || break
+    done
+    if [ -n "$skippable" ]; then
+        echo "warning: skipping $plugin_name (needs $unresolved, absent on build host)" >&2
+        continue
+    fi
+    cp -a "$plugin" "$package_dir/plugins/imageformats/"
+done
 if [ -f "$qt_plugins/sqldrivers/libqsqlite.so" ]; then
     cp -a "$qt_plugins/sqldrivers/libqsqlite.so" "$package_dir/plugins/sqldrivers/"
 else
