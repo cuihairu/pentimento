@@ -51,50 +51,79 @@
 void MainWindow::exportBackup() {
     const QString dir = QFileDialog::getExistingDirectory(this, tr("选择备份目标目录（须为空或新目录）"));
     if (dir.isEmpty()) return;
-    // P-510: a backup target is a separate write acceptance from the source-read
-    // state — "can be listed" is never a backup-capability verdict. Probe
-    // writability and free space before confirming; a read-only share (or an
-    // unreadable/unreachable path) is refused here, not discovered mid-export.
-    const BackupTargetInfo target = probeBackupTarget(dir);
-    if (!target.writable) {
-        QMessageBox::warning(this, tr("备份目标不可用"),
-                             tr("所选备份目标不可写：\n%1\n\n%2")
-                                 .arg(dir, target.reason));
-        return;
-    }
-    if (QMessageBox::question(this, tr("导出备份包"),
-                              tr("将导出一致备份包到：\n%1\n\n"
-                                 "备份目标可写，可用空间约 %2。\n"
-                                 "导出期间暂停写入；清单与对象全部校验通过后才写入完成标记。\n"
-                                 "目标目录必须为空（不静默覆盖既有备份）。\n"
-                                 "备份包不共享运行中索引，可移植到其他机器。")
-                                  .arg(dir)
-                                  .arg(target.freeBytes / (1024.0 * 1024.0), 0, 'f', 1))
-        != QMessageBox::Yes)
-        return;
-    statusBar()->showMessage(tr("正在导出备份包（后台进行，界面可继续操作）…"));
-    auto result = std::make_shared<Library::BackupPackage>();
-    auto error = std::make_shared<QString>();
-    const qint64 id = captureQueue_->submit(QStringLiteral("导出备份包"),
-        [this, dir, result, error](TaskQueue::Progress &) {
-            try {
-                *result = library_.exportBackupPackage(dir);
-            } catch (const std::exception &e) {
-                *error = QString::fromUtf8(e.what());
-            }
-        });
-    QObject::connect(captureQueue_.get(), &TaskQueue::taskFinished, this,
-        [this, id, result, error](qint64 finished, bool, const QString &) {
-            if (finished != id) return;
-            if (!error->isEmpty()) {
-                statusBar()->showMessage(tr("备份包导出失败：%1").arg(*error));
+    exportBackupTo(dir);
+}
+
+// Audit (2026-11-12, P0): the backup-target probe (writability + free space)
+// must never run on the UI thread — `QStorageInfo::bytesAvailable()` hits
+// statvfs, and a dead/NFS/CIFS mount can hang in the kernel long enough to
+// freeze the whole window. The probe is therefore submitted to the background
+// target queue (the same one the source-state dialog uses); the confirm dialog
+// and the actual export are only reached after the result backfills. This
+// mirrors the async probe in mainwindow_sources.cpp:177-212.
+void MainWindow::exportBackupTo(const QString &dir) {
+    // Audit (2026-11-12, P0): the submit-then-connect idiom would lose the
+    // taskFinished signal when a fast task (a 1 ms local probe/export) finishes
+    // and emits on the worker thread before the UI thread has connected — the
+    // status would stay "正在导出" forever. So the connect is made BEFORE the
+    // submit; the shared state carries the task id (set right after submit, on
+    // the UI thread, before any queued signal is delivered) and a processed
+    // guard so a result is applied exactly once.
+    auto target = std::make_shared<BackupTargetInfo>();
+    auto probeState = std::make_shared<std::pair<qint64, bool>>(-1, false);
+    statusBar()->showMessage(tr("正在探测备份目标（后台进行，界面可继续操作）…"));
+    QObject::connect(targetQueue_.get(), &TaskQueue::taskFinished, this,
+        [this, probeState, target, dir](qint64 finished, bool, const QString &) {
+            if (finished != probeState->first || probeState->second) return;
+            probeState->second = true;
+            const BackupTargetInfo &t = *target;
+            if (!t.writable) {
+                statusBar()->clearMessage();
+                QMessageBox::warning(this, tr("备份目标不可用"),
+                                     tr("所选备份目标不可写：\n%1\n\n%2")
+                                         .arg(dir, t.reason));
                 return;
             }
-            statusBar()->showMessage(tr("备份包已导出：%1（%2 个素材，%3 个对象，约 %4 KiB；完成标记已写入）")
-                                         .arg(result->packageDir)
-                                         .arg(result->entries.size())
-                                         .arg(result->objects)
-                                         .arg(result->bytes / 1024));
+            if (QMessageBox::question(this, tr("导出备份包"),
+                                      tr("将导出一致备份包到：\n%1\n\n"
+                                         "备份目标可写，可用空间约 %2。\n"
+                                         "导出期间暂停写入；清单与对象全部校验通过后才写入完成标记。\n"
+                                         "目标目录必须为空（不静默覆盖既有备份）。\n"
+                                         "备份包不共享运行中索引，可移植到其他机器。")
+                                          .arg(dir)
+                                          .arg(t.freeBytes / (1024.0 * 1024.0), 0, 'f', 1))
+                != QMessageBox::Yes)
+                return;
+            statusBar()->showMessage(tr("正在导出备份包（后台进行，界面可继续操作）…"));
+            auto result = std::make_shared<Library::BackupPackage>();
+            auto error = std::make_shared<QString>();
+            auto exportState = std::make_shared<std::pair<qint64, bool>>(-1, false);
+            QObject::connect(captureQueue_.get(), &TaskQueue::taskFinished, this,
+                [this, exportState, result, error](qint64 finished, bool, const QString &) {
+                    if (finished != exportState->first || exportState->second) return;
+                    exportState->second = true;
+                    if (!error->isEmpty()) {
+                        statusBar()->showMessage(tr("备份包导出失败：%1").arg(*error));
+                        return;
+                    }
+                    statusBar()->showMessage(tr("备份包已导出：%1（%2 个素材，%3 个对象，约 %4 KiB；完成标记已写入）")
+                                                 .arg(result->packageDir)
+                                                 .arg(result->entries.size())
+                                                 .arg(result->objects)
+                                                 .arg(result->bytes / 1024));
+                });
+            exportState->first = captureQueue_->submit(QStringLiteral("导出备份包"),
+                [this, dir, result, error](TaskQueue::Progress &) {
+                    try {
+                        *result = library_.exportBackupPackage(dir);
+                    } catch (const std::exception &e) {
+                        *error = QString::fromUtf8(e.what());
+                    }
+                });
+        });
+    probeState->first = targetQueue_->submit(QStringLiteral("备份目标探测"),
+        [target, dir](TaskQueue::Progress &) {
+            *target = probeBackupTarget(dir);
         });
 }
 

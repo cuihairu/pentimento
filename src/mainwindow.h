@@ -41,6 +41,11 @@ public:
     int integrityInFlight() const { return integrityInFlight_ ? 1 : 0; }
     qint64 targetProbeSubmissions() const { return targetProbeSubmissions_; }
     void setTargetProbeSubmissions(qint64 n) { targetProbeSubmissions_ = n; }
+    // Audit (2026-11-12, P0): exportBackup() opens a modal directory picker
+    // that an offscreen test cannot drive; the probe-and-confirm flow that
+    // follows is factored into exportBackupTo() so the async-probe regression
+    // can be exercised without a file dialog.
+    void exportBackupToForTest(const QString &dir) { exportBackupTo(dir); }
 #endif
 private:
     Library &library_;
@@ -220,6 +225,7 @@ private:
     void showSourceState();
     void indexExternalDirectory();
     void exportBackup();
+    void exportBackupTo(const QString &dir);
     void checkConsistency();
     void showSpacePreview();
     void restoreBackupDrill();

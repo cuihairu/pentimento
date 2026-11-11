@@ -15,11 +15,13 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QToolBar>
 #include <QMenu>
 #include <QRandomGenerator>
 #include <QScrollArea>
+#include <QStatusBar>
 #include <QTemporaryDir>
 #include <QTimer>
 #include <QtTest>
@@ -221,6 +223,103 @@ private slots:
         // destroyed); reaching here means the probe sequence already completed.
         QVERIFY2(state->ok, "backup-target probe async transitions not observed");
     }
+    // Audit (2026-11-12, P0): exportBackup's backup-target probe (writability +
+    // free space) must never run on the UI thread. The probe is submitted to
+    // the background target queue; the confirm dialog is only reached after the
+    // result backfills. The old code called probeBackupTarget() synchronously
+    // in exportBackup(), which would block the whole window on a hung NAS
+    // mount (statvfs).
+    void exportBackupRejectsUnwritableTargetAsync() {
+        QTemporaryDir dir;
+        Library library(dir.filePath("library"));
+        MainWindow window(library);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+        // A regular file is a non-writable target: the probe must reject it on
+        // the background queue, not freeze the UI thread.
+        const QString filePath = dir.filePath("existing-file");
+        QFile file(filePath);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write("x");
+        file.close();
+
+        auto warningSeen = std::make_shared<bool>(false);
+        auto click = std::make_shared<QTimer>(&window);
+        click->setInterval(10);
+        QObject::connect(click.get(), &QTimer::timeout, &window, [&] {
+            for (auto *w : QApplication::topLevelWidgets()) {
+                auto *box = qobject_cast<QMessageBox *>(w);
+                if (!box || !box->isVisible()) continue;
+                if (box->text().contains(QStringLiteral("所选备份目标不可写"))) {
+                    *warningSeen = true;
+                    if (auto *b = box->button(QMessageBox::Ok)) b->click();
+                    return;
+                }
+            }
+        });
+        click->start();
+
+        // The call returns immediately with the probe still in flight. If the
+        // probe ran synchronously this call would block in the modal box (or
+        // freeze on statvfs) instead of returning with the pending status.
+        window.exportBackupToForTest(filePath);
+        QVERIFY(window.statusBar()->currentMessage().contains(QStringLiteral("正在探测备份目标")));
+        // The warning only appears after the async probe backfilled.
+        QTRY_VERIFY_WITH_TIMEOUT(*warningSeen, 10000);
+        // The rejected target never reached the export stage.
+        QTest::qWait(100);
+        QVERIFY(!window.statusBar()->currentMessage().contains(QStringLiteral("已导出")));
+        click->stop();
+    }
+
+    // Audit (2026-11-12, P0): a writable target is confirmed only after the
+    // async probe backfills the real free-space figure, and the export runs on
+    // the background capture queue only after that confirmation.
+    void exportBackupConfirmsAfterAsyncProbe() {
+        QTemporaryDir dir;
+        Library library(dir.filePath("library"));
+        // One real asset so the export produces a complete package.
+        QImage image(32, 32, QImage::Format_RGB32);
+        image.fill(Qt::cyan);
+        const QString imgPath = dir.filePath("cyan.png");
+        QVERIFY(image.save(imgPath, "PNG"));
+        library.importFile(imgPath);
+
+        MainWindow window(library);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+        const QString target = dir.filePath("pkg");
+        auto confirmText = std::make_shared<QString>();
+        auto click = std::make_shared<QTimer>(&window);
+        click->setInterval(10);
+        QObject::connect(click.get(), &QTimer::timeout, &window, [&] {
+            for (auto *w : QApplication::topLevelWidgets()) {
+                auto *box = qobject_cast<QMessageBox *>(w);
+                if (!box || !box->isVisible()) continue;
+                if (box->text().contains(QStringLiteral("将导出一致备份包到"))) {
+                    *confirmText = box->text();
+                    if (auto *b = box->button(QMessageBox::Yes)) b->click();
+                    return;
+                }
+            }
+        });
+        click->start();
+
+        window.exportBackupToForTest(target);
+        // Returns immediately with the probe in flight (never blocks on the UI).
+        QVERIFY(window.statusBar()->currentMessage().contains(QStringLiteral("正在探测备份目标")));
+        // The confirm shows the probed free-space verdict, i.e. it is reached
+        // only after the background probe backfilled.
+        QTRY_VERIFY_WITH_TIMEOUT(confirmText->contains(QStringLiteral("备份目标可写")), 10000);
+        // Confirmed → the export runs on the background queue and completes.
+        QTRY_VERIFY_WITH_TIMEOUT(window.statusBar()->currentMessage().contains(QStringLiteral("已导出")), 10000);
+        // A complete package with the completion marker actually exists.
+        QVERIFY(QFileInfo::exists(target + "/COMPLETE"));
+        click->stop();
+    }
+
     void tabTraversalMovesFocusThroughCoreWidgets() {
         QTemporaryDir dir;
         Library library(dir.filePath("library"));
