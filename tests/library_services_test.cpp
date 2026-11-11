@@ -40,6 +40,7 @@
 #include <atomic>
 #include <thread>
 #include <chrono>
+#include <stdexcept>
 
 class RuntimeServicesTest : public QObject {
     Q_OBJECT
@@ -204,6 +205,10 @@ private slots:
         QCOMPARE(i18n::languagePreference(), QString("en"));
         i18n::setLanguagePreference("zh_CN");
         QCOMPARE(i18n::languagePreference(), QString("zh_CN"));
+        // No translation exists for a language we never shipped: loading
+        // reports false instead of silently succeeding with an empty catalog.
+        QTranslator missing;
+        QVERIFY(!i18n::loadTranslator(missing, QStringLiteral("zz")));
     }
     // P-608: the English UI must be genuinely English — no Chinese source text
     // left as its own translation (identity) for the feature strings added by
@@ -284,6 +289,9 @@ private slots:
         recent::clear();
         QVERIFY(recent::libraries().isEmpty());
         recent::setStoragePath(QString());
+        // Read once through the real user scope (the non-seam path): a pure
+        // read with no persisted side effects.
+        recent::libraries();
     }
 
     void historyObjectsSurviveWorkspaceEncryption() {
@@ -308,6 +316,135 @@ private slots:
         // Restore still works and the working file comes back with original content.
         library.restore(asset, v1.id);
         QCOMPARE(get(asset.path), QByteArray("v1 content"));
+    }
+
+    // P-103/P-409: every capability reports a concrete reason; history actions
+    // are gated by selection AND capability, with the reason surfaced.
+    void backendCapabilityModelReportsReasonsAndGatesActions() {
+        const BackendInfo self = selfBackendInfo();
+        QCOMPARE(self.name, QStringLiteral("self"));
+        QVERIFY(self.writable);
+        QVERIFY(self.supports(Capability::History));
+        QVERIFY(self.supports(Capability::SnapshotTree));
+        QVERIFY(self.supports(Capability::Restore));
+        QVERIFY(self.supports(Capability::Lock));
+        QVERIFY(!self.supports(Capability::RemoteFetch));
+        QVERIFY(self.unsupportedReason(Capability::RemoteFetch).contains(QStringLiteral("远端")));
+        // A read-only backend: each unsupported capability names a concrete
+        // reason, never a broken empty string.
+        BackendInfo ro;
+        ro.name = QStringLiteral("ro");
+        QVERIFY(!ro.unsupportedReason(Capability::History).isEmpty());
+        QVERIFY(!ro.unsupportedReason(Capability::SnapshotTree).isEmpty());
+        QVERIFY(!ro.unsupportedReason(Capability::Restore).isEmpty());
+        QVERIFY(!ro.unsupportedReason(Capability::Lock).isEmpty());
+        // An out-of-model value still degrades to the generic reason.
+        QVERIFY(!ro.unsupportedReason(static_cast<Capability>(99)).isEmpty());
+        // Gating: capable backend + selection offers both actions, no reasons.
+        const HistoryActions act = historyActionsFor(self, true);
+        QVERIFY(act.restore && act.extract);
+        QVERIFY(act.restoreReason.isEmpty() && act.extractReason.isEmpty());
+        // No selection: no actions, but also no bogus "unsupported" reasons.
+        const HistoryActions noSel = historyActionsFor(self, false);
+        QVERIFY(!noSel.restore && !noSel.extract);
+        QVERIFY(noSel.restoreReason.isEmpty() && noSel.extractReason.isEmpty());
+        // Read-only backend: restore is hidden and its reason is surfaced.
+        const HistoryActions roSel = historyActionsFor(ro, true);
+        QVERIFY(!roSel.restore && !roSel.extract);
+        QVERIFY(!roSel.restoreReason.isEmpty());
+        QVERIFY(!roSel.extractReason.isEmpty());
+    }
+
+    // P-513: probe states map to connection states; a throwing probe is a
+    // failed probe, not "the source is gone"; retry is user-paced.
+    void sourceConnectionMapsProbeStatesAndFailsGracefully() {
+        qRegisterMetaType<ConnectionState>();
+        QTemporaryDir dir;
+        {
+            SourceConnection connection;
+            // Whitespace-only input is ignored entirely: no state change.
+            connection.open(QStringLiteral("   "));
+            QCOMPARE(connection.state(), ConnectionState::Unreachable);
+            // Default probe (statSource): an existing directory is reachable.
+            connection.open(dir.path());
+            QTRY_COMPARE_WITH_TIMEOUT(connection.state(), ConnectionState::Reachable, 5000);
+            QVERIFY(connection.reason().isEmpty());
+            // A read-only source is still connected (P-510 separation).
+            connection.setProbeFn([](const QString &) {
+                SourceInfo info;
+                info.state = SourceState::ReadOnly;
+                return info;
+            });
+            connection.retry();
+            QTRY_COMPARE_WITH_TIMEOUT(connection.state(), ConnectionState::Reachable, 5000);
+            // A throwing probe degrades to Failed, never to Unreachable.
+            connection.setProbeFn([](const QString &) -> SourceInfo { throw std::runtime_error("boom"); });
+            connection.retry();
+            QTRY_COMPARE_WITH_TIMEOUT(connection.state(), ConnectionState::Failed, 5000);
+            QVERIFY(connection.reason().contains(QStringLiteral("不可读")));
+            // A missing path is Unreachable with a reason that states it is
+            // not treated as a deletion.
+            connection.setProbeFn([](const QString &) {
+                SourceInfo info;
+                info.state = SourceState::Unreachable;
+                return info;
+            });
+            connection.retry();
+            QTRY_COMPARE_WITH_TIMEOUT(connection.state(), ConnectionState::Unreachable, 5000);
+            QVERIFY(connection.reason().contains(QStringLiteral("不可达")));
+            // State words cover every value; an out-of-model value degrades.
+            QCOMPARE(connectionStateText(ConnectionState::Connecting), QStringLiteral("连接中"));
+            QCOMPARE(connectionStateText(ConnectionState::Reachable), QStringLiteral("可达"));
+            QCOMPARE(connectionStateText(ConnectionState::Unreachable), QStringLiteral("不可达"));
+            QCOMPARE(connectionStateText(ConnectionState::Failed), QStringLiteral("失败"));
+            QCOMPARE(connectionStateText(static_cast<ConnectionState>(99)), QStringLiteral("失败"));
+            QCOMPARE(connectionStateFor(SourceState::Reachable), ConnectionState::Reachable);
+            QCOMPARE(connectionStateFor(SourceState::Unreachable), ConnectionState::Unreachable);
+            QCOMPARE(connectionStateFor(SourceState::PermissionDenied), ConnectionState::Failed);
+            QCOMPARE(connectionStateFor(static_cast<SourceState>(99)), ConnectionState::Failed);
+            // The destructor runs here (draining the queue) before members die.
+        }
+        QVERIFY(true);
+    }
+
+    // P-510: the backup-target probe refuses bad targets with concrete
+    // reasons; listDirectory on a non-directory returns nothing.
+    void backupTargetProbeRefusesBadTargets() {
+        QTemporaryDir dir;
+        QVERIFY(!probeBackupTarget(QString()).writable);
+        QVERIFY(!probeBackupTarget(QStringLiteral("   ")).writable);
+        // A target whose parent chain is missing is unreachable.
+        const BackupTargetInfo gone = probeBackupTarget(dir.filePath("no/such/parent/target"));
+        QVERIFY(!gone.exists && !gone.writable);
+        QVERIFY(!gone.reason.isEmpty());
+        // An existing file is not a directory target.
+        const QString file = dir.filePath("file.txt");
+        put(file, "x");
+        const BackupTargetInfo notDir = probeBackupTarget(file);
+        QVERIFY(notDir.exists && !notDir.writable);
+        QVERIFY(!notDir.reason.isEmpty());
+        // listDirectory on a file (or a missing path) is empty, not an error.
+        QCOMPARE(listDirectory(file).size(), 0);
+        QCOMPARE(listDirectory(dir.filePath("gone")).size(), 0);
+        if (::geteuid() != 0) {
+            // An unreadable directory is refused; a read-only one reports
+            // ReadOnly — a source-read answer never passes as backup-write.
+            const QString unreadable = dir.filePath("unreadable");
+            QVERIFY(QDir().mkpath(unreadable));
+            QVERIFY(::chmod(unreadable.toLocal8Bit().constData(), 0000) == 0);
+            const BackupTargetInfo refused = probeBackupTarget(unreadable);
+            QVERIFY(!refused.writable && !refused.reason.isEmpty());
+            const QString readonly = dir.filePath("readonly");
+            QVERIFY(QDir().mkpath(readonly));
+            QVERIFY(::chmod(readonly.toLocal8Bit().constData(), 0555) == 0);
+            const BackupTargetInfo ro = probeBackupTarget(readonly);
+            QVERIFY(ro.readOnly && !ro.writable);
+            QVERIFY(!ro.reason.isEmpty());
+            // A healthy writable target passes with free space reported.
+            const BackupTargetInfo healthy = probeBackupTarget(dir.path());
+            QVERIFY(healthy.writable && healthy.exists);
+            QVERIFY(healthy.freeBytes > 0);
+        }
     }
 
     // P-209: fit scale is uniform (one factor for both axes, so a wide image is

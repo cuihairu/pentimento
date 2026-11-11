@@ -518,6 +518,198 @@ private slots:
         QVERIFY(lib.verifyObject(revs.first().hash));
         QVERIFY(!lib.verifyObject(QString(64, '0'))); // absent -> false
     }
+    // A revision id from another asset (or a bogus one) never restores,
+    // previews, or exports — the ownership check fires before any write.
+    void foreignOrBogusRevisionsAreRefusedEverywhere() {
+        QTemporaryDir dir;
+        put(dir.filePath("a.dat"), "a");
+        put(dir.filePath("b.dat"), "b");
+        Library library(dir.filePath("library"));
+        const auto a = library.importFile(dir.filePath("a.dat"));
+        const auto b = library.importFile(dir.filePath("b.dat"));
+        const qint64 bRev = library.revisions(b.id).first().id;
+        QVERIFY_EXCEPTION_THROWN(library.planRestore(a, bRev), std::runtime_error);
+        QVERIFY_EXCEPTION_THROWN(library.planRestore(a, 424242), std::runtime_error);
+        QVERIFY_EXCEPTION_THROWN(library.restore(a, bRev), std::runtime_error);
+        QVERIFY_EXCEPTION_THROWN(library.exportRevision(a.id, bRev, dir.filePath("out.dat")), std::runtime_error);
+        // Nothing was written by any of the refused calls.
+        QCOMPARE(library.revisions(a.id).size(), 1);
+        QCOMPARE(get(a.path), QByteArray("a"));
+    }
+    // P-316: an unreadable working copy cannot be protected, so the preview
+    // reports a conflict and executing that plan is refused before any write.
+    void unreadableWorkingCopyPlansConflictAndExecutionRefuses() {
+        if (::geteuid() == 0) QSKIP("root bypasses file read permissions");
+        QTemporaryDir dir;
+        put(dir.filePath("a.dat"), "v1");
+        Library library(dir.filePath("library"));
+        const auto asset = library.importFile(dir.filePath("a.dat"));
+        const qint64 rev1 = library.revisions(asset.id).first().id;
+        put(asset.path, "unrecorded");
+        QVERIFY(::chmod(asset.path.toLocal8Bit().constData(), 0000) == 0);
+        const auto plan = library.planRestore(asset, rev1);
+        QCOMPARE(plan.action, QStringLiteral("conflict"));
+        QVERIFY(plan.conflictReason.contains(QStringLiteral("不可读")));
+        QVERIFY_EXCEPTION_THROWN(library.restore(asset, plan), std::runtime_error);
+        QVERIFY(::chmod(asset.path.toLocal8Bit().constData(), 0644) == 0);
+        // Nothing was written and no version was appended by the refused plan.
+        QCOMPARE(get(asset.path), QByteArray("unrecorded"));
+        QCOMPARE(library.revisions(asset.id).size(), 1);
+        QCOMPARE(library.restoreLogs().size(), 0);
+    }
+    // P-320 convergence edges: a forward convergence whose target object has
+    // vanished is recorded failed (never a silent completion), and a working
+    // file that an external editor changed after the interruption is flagged
+    // as a conflict and left alone.
+    void convergeRecordsCorruptTargetAndExternalEdit() {
+        QTemporaryDir dir;
+        const QString root = dir.filePath("library");
+        {
+            put(dir.filePath("a.dat"), "v1");
+            Library lib(root);
+            const auto a = lib.importFile(dir.filePath("a.dat"));
+            const qint64 rev1Id = lib.revisions(a.id).first().id;
+            const QString rev1Hash = lib.revisions(a.id).first().hash;
+            put(a.path, "v2");
+            QVERIFY(lib.capture(a, "v2"));
+            // Crash state, then an external editor rewrote the working file to
+            // a third content (neither the previous nor the target content).
+            put(a.path, "edited by someone else");
+            injectPendingRestoreLog(root, a.id, rev1Id, digestHex("v2"), rev1Hash, 0);
+        }
+        Library reopened(root);
+        QCOMPARE(reopened.restoreLogs().first().state, QStringLiteral("conflict"));
+        QVERIFY(reopened.restoreLogs().first().error.contains(QStringLiteral("外部修改")));
+        const auto a = reopened.assets().first();
+        QCOMPARE(get(a.path), QByteArray("edited by someone else")); // left alone
+        QCOMPARE(reopened.revisions(a.id).size(), 2); // nothing invented
+    }
+    // The forward-convergence path with a vanished target object must mark the
+    // row failed with a concrete reason instead of claiming completion.
+    void convergeForwardWithMissingObjectMarksFailed() {
+        QTemporaryDir dir;
+        const QString root = dir.filePath("library");
+        QString assetId;
+        qint64 rev1Id = 0;
+        QString rev1Hash;
+        {
+            put(dir.filePath("a.dat"), "v1");
+            Library lib(root);
+            const auto a = lib.importFile(dir.filePath("a.dat"));
+            assetId = a.id;
+            rev1Id = lib.revisions(a.id).first().id;
+            rev1Hash = lib.revisions(a.id).first().hash;
+            put(a.path, "v2");
+            QVERIFY(lib.capture(a, "v2"));
+            put(a.path, "v1"); // file = target: forward convergence will be attempted
+            injectPendingRestoreLog(root, a.id, rev1Id, digestHex("v2"), rev1Hash, 0);
+            // A successful tamperer clears the immutability guard before deleting.
+            QVERIFY(platform::makeMutable(lib.objectPath(rev1Hash)));
+            QVERIFY(QFile::remove(lib.objectPath(rev1Hash)));
+        }
+        Library reopened(root);
+        QCOMPARE(reopened.restoreLogs().first().state, QStringLiteral("failed"));
+        QVERIFY(reopened.restoreLogs().first().error.contains(QStringLiteral("损坏"))
+                || reopened.restoreLogs().first().error.contains(QStringLiteral("无法完成")));
+        QCOMPARE(reopened.revisions(assetId).size(), 2); // no restore revision invented
+    }
+    // P-306/P-318: excluded snapshot entries and assets deleted after the
+    // snapshot are skipped with a reason, never restored.
+    void snapshotPlanSkipsExcludedAndVanishedAssets() {
+        QTemporaryDir dir;
+        Library library(dir.filePath("library"));
+        put(dir.filePath("keep.dat"), "k1");
+        put(dir.filePath("skip.tmp"), "s1");
+        const auto keep = library.importFile(dir.filePath("keep.dat"));
+        const auto skip = library.importFile(dir.filePath("skip.tmp"));
+        library.addExclusion(QStringLiteral("extension"), QStringLiteral("tmp"));
+        const qint64 anchor = library.snapshotAll("with exclusion");
+        const auto summary = std::find_if(library.snapshots().begin(), library.snapshots().end(),
+                                          [&](const Snapshot &s) { return s.id == anchor; });
+        QVERIFY(summary != library.snapshots().end());
+        QCOMPARE(summary->excluded, 1);
+        // The excluded entry plans as a skip and never restores.
+        const auto items = library.planSnapshotRestore(anchor, {skip.id});
+        QCOMPARE(items.size(), 1);
+        QCOMPARE(items.at(0).plan.action, QStringLiteral("skip"));
+        QVERIFY(items.at(0).plan.conflictReason.contains(QStringLiteral("排除")));
+        const auto outcomes = library.restoreFromSnapshot(anchor, items);
+        QCOMPARE(outcomes.at(0).outcome, QStringLiteral("skipped"));
+        QCOMPARE(get(skip.path), QByteArray("s1"));
+        // An asset deleted AFTER the snapshot vanished from the live list but
+        // its snapshot entry is still 'present': skip, no auto-revival.
+        const qint64 beforeDelete = library.snapshotAll("before delete");
+        library.deleteAsset(keep.id);
+        const auto vanished = library.planSnapshotRestore(beforeDelete, {keep.id});
+        QCOMPARE(vanished.size(), 1);
+        QCOMPARE(vanished.at(0).plan.action, QStringLiteral("skip"));
+        QVERIFY(vanished.at(0).plan.conflictReason.contains(QStringLiteral("不存在")));
+    }
+    // P-318 execution: a plan for an asset that no longer exists fails its own
+    // item; a stale plan fails that item too — the batch never aborts.
+    void snapshotRestoreReportsPerItemFailures() {
+        QTemporaryDir dir;
+        put(dir.filePath("a.dat"), "a1");
+        put(dir.filePath("b.dat"), "b1");
+        Library library(dir.filePath("library"));
+        const auto a = library.importFile(dir.filePath("a.dat"));
+        const auto b = library.importFile(dir.filePath("b.dat"));
+        const qint64 anchor = library.snapshotAll("anchor");
+        put(a.path, "a2"); QVERIFY(library.capture(a, "a2"));
+        put(b.path, "b2"); QVERIFY(library.capture(b, "b2"));
+        auto items = library.planSnapshotRestore(anchor, {a.id, b.id});
+        QCOMPARE(items.at(0).plan.action, QStringLiteral("overwrite"));
+        QCOMPARE(items.at(1).plan.action, QStringLiteral("overwrite"));
+        // The working copy changes after the preview: that item's plan is stale.
+        put(a.path, "externally rewritten");
+        const auto outcomes = library.restoreFromSnapshot(anchor, items);
+        QCOMPARE(outcomes.size(), 2);
+        QCOMPARE(outcomes.at(0).outcome, QStringLiteral("failed"));
+        QVERIFY(!outcomes.at(0).error.isEmpty());
+        QCOMPARE(get(a.path), QByteArray("externally rewritten")); // untouched
+        QCOMPARE(outcomes.at(1).outcome, QStringLiteral("success"));
+        QCOMPARE(get(b.path), QByteArray("b1"));
+        // A hand-built plan for an asset that is not in the library at all
+        // fails as its own item (never throws across the batch).
+        Library::SnapshotRestoreItem ghost;
+        ghost.assetId = QStringLiteral("ghost");
+        ghost.name = QStringLiteral("ghost.dat");
+        ghost.plan.action = QStringLiteral("overwrite");
+        ghost.plan.revisionId = 1;
+        const auto ghostOutcomes = library.restoreFromSnapshot(anchor, {ghost});
+        QCOMPARE(ghostOutcomes.size(), 1);
+        QCOMPARE(ghostOutcomes.at(0).outcome, QStringLiteral("failed"));
+        QVERIFY(ghostOutcomes.at(0).error.contains(QStringLiteral("不存在")));
+    }
+    // Delete confirms intent on the working copy: an unremovable file blocks
+    // the delete (never a half-deleted asset), a removable one tombstones.
+    void deleteAssetBlocksOnUnremovableWorkingCopy() {
+        if (::geteuid() == 0) QSKIP("root bypasses directory write permissions");
+        QTemporaryDir dir;
+        put(dir.filePath("a.dat"), "v1");
+        Library library(dir.filePath("library"));
+        const auto asset = library.importFile(dir.filePath("a.dat"));
+        const QString workingDir = QFileInfo(asset.path).absolutePath();
+        struct stat st;
+        QVERIFY(::stat(workingDir.toLocal8Bit().constData(), &st) == 0);
+        const mode_t original = st.st_mode & 07777;
+        QVERIFY(::chmod(workingDir.toLocal8Bit().constData(), 0500) == 0);
+        QVERIFY_EXCEPTION_THROWN(library.deleteAsset(asset.id), std::runtime_error);
+        QVERIFY(::chmod(workingDir.toLocal8Bit().constData(), original) == 0);
+        // The blocked delete tombstoned nothing.
+        QCOMPARE(library.revisions(asset.id).size(), 1);
+        QVERIFY(library.assets().size() == 1);
+        // With the file removable the delete records the tombstone revision,
+        // removes the working copy, and keeps history browsable.
+        library.deleteAsset(asset.id);
+        QVERIFY(!QFileInfo::exists(asset.path));
+        QVERIFY(library.assets().isEmpty());
+        const auto history = library.revisions(asset.id);
+        QCOMPARE(history.size(), 2);
+        QCOMPARE(history.first().note, QStringLiteral("删除"));
+        QVERIFY(history.first().tombstone);
+        QVERIFY_EXCEPTION_THROWN(library.deleteAsset(asset.id), std::runtime_error); // already deleted
+    }
 
 };
 

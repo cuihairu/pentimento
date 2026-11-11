@@ -29,6 +29,9 @@
 #include <QImage>
 #include <QImageReader>
 #include <QRegularExpression>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QTemporaryDir>
@@ -370,6 +373,207 @@ private slots:
         put(a.path, "v2");
         QVERIFY(reopened.capture(a, "v2"));
         QCOMPARE(reopened.revisions(assetId).size(), 2);
+    }
+
+    // Export refuses unusable destinations with concrete reasons before any
+    // file is written: empty path, unwritable parent, unwritable target dir.
+    void backupExportRefusesUnusableDestinations() {
+        if (::geteuid() == 0) QSKIP("root bypasses directory write permissions");
+        QTemporaryDir dir;
+        put(dir.filePath("a.png"), "bytes-a");
+        Library library(dir.filePath("library"));
+        QVERIFY(!library.importFile(dir.filePath("a.png")).id.isEmpty());
+        bool refused = false;
+        try { library.exportBackupPackage(QStringLiteral("   ")); }
+        catch (const std::exception &) { refused = true; }
+        QVERIFY(refused);
+        // A target under an unwritable parent cannot be created.
+        const QString lockedParent = dir.filePath("locked-parent");
+        QVERIFY(QDir().mkpath(lockedParent));
+        QVERIFY(::chmod(lockedParent.toLocal8Bit().constData(), 0555) == 0);
+        refused = false;
+        try { library.exportBackupPackage(lockedParent + "/pkg"); }
+        catch (const std::exception &) { refused = true; }
+        QVERIFY(refused);
+        QVERIFY(!QFileInfo::exists(lockedParent + "/pkg"));
+        // An existing empty-but-unwritable target cannot host objects/.
+        const QString lockedTarget = dir.filePath("locked-target");
+        QVERIFY(QDir().mkpath(lockedTarget));
+        QVERIFY(::chmod(lockedTarget.toLocal8Bit().constData(), 0555) == 0);
+        refused = false;
+        try { library.exportBackupPackage(lockedTarget); }
+        catch (const std::exception &) { refused = true; }
+        QVERIFY(refused);
+        QVERIFY(!QFileInfo::exists(lockedTarget + "/objects"));
+        QVERIFY(::chmod(lockedParent.toLocal8Bit().constData(), 0755) == 0);
+        QVERIFY(::chmod(lockedTarget.toLocal8Bit().constData(), 0755) == 0);
+    }
+    // The export verifies every live object (declared size) and refuses a
+    // package whose index is malformed or whose object vanished — never a
+    // half package marked COMPLETE.
+    void backupExportVerifiesObjectsBeforeTrusting() {
+        QTemporaryDir dir;
+        put(dir.filePath("a.png"), "bytes-a");
+        Library library(dir.filePath("library"));
+        const auto asset = library.importFile(dir.filePath("a.png"));
+        const auto hash = library.revisions(asset.id).first().hash;
+        // Malformed hash in the index: refused before touching the filesystem.
+        {
+            const QString conn = QStringLiteral("bk_malformed_") + QUuid::createUuid().toString(QUuid::WithoutBraces);
+            QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", conn);
+            db.setDatabaseName(dir.filePath("library/catalog.sqlite"));
+            QVERIFY(db.open());
+            {
+                QSqlQuery q(db);
+                q.prepare("UPDATE revisions SET hash='zz' WHERE asset_id=?");
+                q.addBindValue(asset.id);
+                QVERIFY(q.exec());
+            }
+            db.close();
+            QSqlDatabase::removeDatabase(conn);
+        }
+        bool refused = false;
+        try { QTemporaryDir t; library.exportBackupPackage(t.path()); }
+        catch (const std::exception &) { refused = true; }
+        QVERIFY(refused);
+        // Restore the hash but remove the object: still refused.
+        {
+            const QString conn = QStringLiteral("bk_restore_") + QUuid::createUuid().toString(QUuid::WithoutBraces);
+            QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", conn);
+            db.setDatabaseName(dir.filePath("library/catalog.sqlite"));
+            QVERIFY(db.open());
+            {
+                QSqlQuery q(db);
+                q.prepare("UPDATE revisions SET hash=? WHERE asset_id=?");
+                q.addBindValue(hash);
+                q.addBindValue(asset.id);
+                QVERIFY(q.exec());
+            }
+            db.close();
+            QSqlDatabase::removeDatabase(conn);
+        }
+        QVERIFY(platform::makeMutable(library.objectPath(hash)));
+        QVERIFY(QFile::remove(library.objectPath(hash)));
+        refused = false;
+        try { QTemporaryDir t; library.exportBackupPackage(t.path()); }
+        catch (const std::exception &) { refused = true; }
+        QVERIFY(refused);
+    }
+    // Verification rejects a package with an unreadable/unrecognized manifest
+    // or a tampered object — each with a concrete reason, never silent.
+    void verifyBackupPackageRejectsBadManifestAndTamperedObjects() {
+        QTemporaryDir dir;
+        QTemporaryDir target;
+        put(dir.filePath("a.png"), "bytes-a");
+        Library library(dir.filePath("library"));
+        QVERIFY(!library.importFile(dir.filePath("a.png")).id.isEmpty());
+        const auto package = library.exportBackupPackage(target.path());
+        QVERIFY(!package.entries.isEmpty());
+        // COMPLETE present but manifest gone.
+        QVERIFY(QFile::remove(package.manifestPath));
+        bool rejected = false;
+        try { library.verifyBackupPackage(target.path()); }
+        catch (const std::exception &) { rejected = true; }
+        QVERIFY(rejected);
+        // Manifest present but not the v1 format.
+        put(package.manifestPath, QByteArray("{\"format\": \"something-else\", \"entries\": []}"));
+        rejected = false;
+        try { library.verifyBackupPackage(target.path()); }
+        catch (const std::exception &) { rejected = true; }
+        QVERIFY(rejected);
+        // Restore the correct manifest, then tamper the packaged object
+        // content: the hash check refuses the package.
+        const auto &e = package.entries.first();
+        QJsonObject manifest;
+        manifest.insert(QStringLiteral("format"), QStringLiteral("pentimento-backup-v1"));
+        manifest.insert(QStringLiteral("exported"), QStringLiteral("x"));
+        manifest.insert(QStringLiteral("entries"), QJsonArray{
+            QJsonObject{{"assetId", e.assetId}, {"name", e.name}, {"folder", QString()},
+                        {"hash", e.hash}, {"size", static_cast<double>(e.size)},
+                        {"revisionId", static_cast<double>(e.revisionId)}}});
+        put(package.manifestPath, QJsonDocument(manifest).toJson(QJsonDocument::Indented));
+        const auto verified = library.verifyBackupPackage(target.path());
+        QCOMPARE(verified.size(), 1);
+        const QString objPath = target.filePath("objects/" + e.hash);
+        QVERIFY(platform::makeMutable(objPath));
+        put(objPath, "tampered");
+        rejected = false;
+        try { library.verifyBackupPackage(target.path()); }
+        catch (const std::exception &) { rejected = true; }
+        QVERIFY(rejected);
+    }
+    // The drill refuses an empty manifest outright, and a package whose
+    // manifest lists one asset twice rolls the whole drill back — the target
+    // library stays empty (no half-imported drill state).
+    void restoreDrillRefusesEmptyManifestAndRollsBackDuplicates() {
+        QTemporaryDir dir;
+        QTemporaryDir target;
+        put(dir.filePath("a.png"), "bytes-a");
+        Library library(dir.filePath("library"));
+        QVERIFY(!library.importFile(dir.filePath("a.png")).id.isEmpty());
+        const auto package = library.exportBackupPackage(target.path());
+        QVERIFY(!package.entries.isEmpty());
+        // An empty manifest is a complete-but-empty package: refused.
+        put(package.manifestPath,
+            QByteArray("{\"format\": \"pentimento-backup-v1\", \"exported\": \"x\", \"entries\": []}"));
+        {
+            Library drill(dir.filePath("drill"));
+            bool refused = false;
+            try { drill.restoreBackupPackage(target.path()); }
+            catch (const std::exception &) { refused = true; }
+            QVERIFY(refused);
+            QVERIFY(drill.assets().isEmpty());
+        }
+        // Duplicate asset id in the manifest: the second insert violates the
+        // primary key mid-transaction, the drill rolls back, nothing persists.
+        const auto &e = package.entries.first();
+        const QJsonObject entryJson{
+            {"assetId", e.assetId}, {"name", e.name}, {"folder", QString()},
+            {"hash", e.hash}, {"size", static_cast<double>(e.size)},
+            {"revisionId", static_cast<double>(e.revisionId)}};
+        QJsonObject manifest;
+        manifest.insert(QStringLiteral("format"), QStringLiteral("pentimento-backup-v1"));
+        manifest.insert(QStringLiteral("exported"), QStringLiteral("x"));
+        manifest.insert(QStringLiteral("entries"), QJsonArray{entryJson, entryJson});
+        put(package.manifestPath, QJsonDocument(manifest).toJson(QJsonDocument::Indented));
+        Library drill(dir.filePath("drill2"));
+        bool rolledBack = false;
+        try { drill.restoreBackupPackage(target.path()); }
+        catch (const std::exception &) { rolledBack = true; }
+        QVERIFY(rolledBack);
+        QVERIFY(drill.assets().isEmpty());
+        QVERIFY(drill.revisions(e.assetId).isEmpty());
+    }
+    // The consistency audit reports unreadable objects as I/O errors (not
+    // corruption, not missing) and streams progress percent to the callback.
+    void consistencyCheckReportsIoErrorsAndProgress() {
+        if (::geteuid() == 0) QSKIP("root bypasses file read permissions");
+        QTemporaryDir dir;
+        put(dir.filePath("a.png"), "bytes-a");
+        Library library(dir.filePath("library"));
+        const auto asset = library.importFile(dir.filePath("a.png"));
+        const auto hash = library.revisions(asset.id).first().hash;
+        int calls = 0;
+        int lastPercent = -1;
+        const auto report = library.checkConsistency(
+            [&](int percent, const QString &current) {
+                ++calls;
+                lastPercent = percent;
+                QVERIFY(!current.isEmpty());
+            });
+        QCOMPARE(report.ok, 1);
+        QVERIFY(report.missing.isEmpty() && report.corrupt.isEmpty() && report.ioErrors.isEmpty());
+        // One callback per referenced object, fired before it is inspected
+        // (percent counts objects already done).
+        QCOMPARE(calls, 1);
+        QCOMPARE(lastPercent, 0);
+        // An unreadable object is an I/O error: present, right size, unopenable.
+        QVERIFY(::chmod(library.objectPath(hash).toLocal8Bit().constData(), 0000) == 0);
+        const auto io = library.checkConsistency({});
+        QCOMPARE(io.ioErrors.size(), 1);
+        QCOMPARE(io.ioErrors.first(), hash);
+        QCOMPARE(io.ok, 0);
+        QVERIFY(::chmod(library.objectPath(hash).toLocal8Bit().constData(), 0644) == 0);
     }
 
 };
