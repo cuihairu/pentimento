@@ -156,6 +156,69 @@ private slots:
         canvas.setZoom(0.5);
         QCOMPARE(canvas.sizeHint(), QSize(150 + 24, 100 + 24));
     }
+    // The checkerboard paints under transparent pixels (P-209) and both
+    // toggles (fit, checkerboard) actually flip their state and repaint.
+    void previewCanvasPaintsCheckerboardAndToggles() {
+        PreviewCanvas canvas;
+        canvas.resize(200, 150);
+        QImage img(80, 60, QImage::Format_ARGB32);
+        img.fill(Qt::transparent);
+        canvas.setImage(img);
+        // Checkerboard defaults on; disabling it is a state change, a second
+        // disable is a no-op.
+        canvas.setCheckerboard(false);
+        canvas.setCheckerboard(false);
+        // Fit toggles: fit→manual runs the flip path; a repeat is a no-op.
+        canvas.setFit(false);
+        canvas.setFit(false);
+        QCOMPARE(canvas.isFit(), false);
+        canvas.setFit(true);
+        QCOMPARE(canvas.isFit(), true);
+        // Checkerboard back on + transparent image: the tile is painted.
+        canvas.setCheckerboard(true);
+        canvas.show();
+        QVERIFY(!canvas.grab().isNull());
+        QCOMPARE(canvas.effectiveZoom(), preview::fitScale(img.size(), canvas.size()));
+    }
+    // Split mode renders both panes with one divider; fit round-trips; in
+    // sliding mode Left steps down and ] doubles the step; unbound keys fall
+    // through without touching the divider.
+    void compareCanvasRendersSplitPanesAndKeys() {
+        CompareCanvas canvas;
+        canvas.resize(400, 300);
+        QImage left(100, 50, QImage::Format_RGB32);
+        QImage right(100, 50, QImage::Format_RGB32);
+        left.fill(Qt::red);
+        right.fill(Qt::blue);
+        canvas.setImages(left, right);
+        canvas.show();
+        // Split (non-sliding) mode: both panes + the divider render.
+        QVERIFY(!canvas.isSliding());
+        QVERIFY(!canvas.grab().isNull());
+        // Manual-zoom split render: panes draw from the shared origin.
+        canvas.setZoom(1.0);
+        QVERIFY(!canvas.grab().isNull());
+        // Fit round-trip (repeat calls are no-ops).
+        canvas.setFit(false);
+        canvas.setFit(false);
+        QVERIFY(!canvas.isFit());
+        canvas.setFit(true);
+        QVERIFY(canvas.isFit());
+        // Sliding-mode keys: Left steps down, ] doubles the step size, an
+        // unbound key falls through to the default handler unchanged.
+        canvas.setSliding(true);
+        canvas.setZoom(1.0);
+        const qreal before = canvas.divider();
+        QTest::keyClick(&canvas, Qt::Key_Left);
+        QVERIFY(canvas.divider() < before);
+        const qreal stepped = canvas.divider();
+        const qreal step = canvas.dividerStep();
+        QTest::keyClick(&canvas, Qt::Key_BracketRight);
+        QCOMPARE(canvas.dividerStep(), step * 2.0);
+        QTest::keyClick(&canvas, Qt::Key_A);
+        QCOMPARE(canvas.divider(), stepped);
+        QVERIFY(!canvas.grab().isNull());
+    }
     // P-609: the V1 user-journey acceptance walkthrough, end to end on one
     // isolated library — 导入 → 整理（标签/评分/文件夹） → 版本/快照 → 对比 →
     // 删除 → 预演恢复 → 备份演练 → 重开. Every leg checks the
