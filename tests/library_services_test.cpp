@@ -190,6 +190,28 @@ private slots:
         // Reaching here within the timeout proves the destructor did not block.
         QVERIFY(started.load() > 0);
     }
+    // A task body that throws must fail that one task with the exception's
+    // message (std::exception) or the generic 未知错误 (non-standard throw);
+    // the worker itself survives and later tasks still run.
+    void taskQueueReportsThrownTaskErrors() {
+        TaskQueue queue;
+        QSignalSpy spy(&queue, &TaskQueue::taskFinished);
+        QVERIFY(spy.isValid());
+        queue.submit("throw-std", [](TaskQueue::Progress &) {
+            throw std::runtime_error("boom");
+        }, /*write=*/false);
+        queue.submit("throw-nonstd", [](TaskQueue::Progress &) {
+            throw 42; // non-standard throw: the catch-all must still record it
+        }, /*write=*/false);
+        queue.submit("still-alive", [](TaskQueue::Progress &) {},
+                     /*write=*/false);
+        QTRY_COMPARE_WITH_TIMEOUT(spy.size(), 3, 10000);
+        QCOMPARE(spy.at(0).at(1).toBool(), false);
+        QCOMPARE(spy.at(0).at(2).toString(), QStringLiteral("boom"));
+        QCOMPARE(spy.at(1).at(1).toBool(), false);
+        QCOMPARE(spy.at(1).at(2).toString(), QStringLiteral("未知错误"));
+        QCOMPARE(spy.at(2).at(1).toBool(), true);
+    }
     void translationMechanismLoadsAndTranslates() {
         // English: a known Library-context source string must translate.
         QTranslator en;

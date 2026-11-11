@@ -418,6 +418,43 @@ private slots:
         QDir().mkpath(source + "/adir");
         QVERIFY(!hashFile(source + "/adir", &hash, nullptr));
     }
+    // A scan root that does not exist (or is a plain file) is reported as a
+    // permission-class error in the result, never an exception and never a
+    // silently empty success.
+    void scanDirectoryReportsUnusableRoot() {
+        const auto missing = importer::scanDirectory(
+            QStringLiteral("/nonexistent/pentimento-scan-root"));
+        QVERIFY(missing.candidates.isEmpty());
+        QCOMPARE(missing.permissionErrors.size(), 1);
+        QTemporaryDir dir;
+        put(dir.filePath("afile.png"), "x");
+        const auto notDir = importer::scanDirectory(dir.filePath("afile.png"));
+        QVERIFY(notDir.candidates.isEmpty());
+        QCOMPARE(notDir.permissionErrors.size(), 1);
+    }
+    // An unreadable file inside an indexed tree keeps its row with the
+    // unreadable state and its last good hash, instead of being mistaken for
+    // a vanished (deleted) file on the next pass.
+    void externalIndexMarksUnreadableFileAndKeepsRow() {
+        if (::geteuid() == 0) QSKIP("root bypasses file permissions");
+        QTemporaryDir work;
+        Library library(work.filePath("library"));
+        QTemporaryDir source;
+        put(source.filePath("secret.png"), "s3cret-bytes");
+        const QString secret = source.filePath("secret.png");
+        const qint64 rootId = library.addExternalRoot(source.path());
+        library.indexExternalRoot(rootId);
+        QCOMPARE(library.externalAssets(rootId).size(), 1);
+        QVERIFY(library.externalAssets(rootId).first().state
+                == Library::ExternalAssetState::Present);
+        QVERIFY(::chmod(secret.toLocal8Bit().constData(), 0000) == 0);
+        QCOMPARE(library.indexExternalRoot(rootId), 0);
+        const auto assets = library.externalAssets(rootId);
+        QCOMPARE(assets.size(), 1);
+        QVERIFY(assets.first().state == Library::ExternalAssetState::Unreadable);
+        QCOMPARE(assets.first().hash, digestHex("s3cret-bytes"));
+        QVERIFY(::chmod(secret.toLocal8Bit().constData(), 0644) == 0);
+    }
     // 审核发现（2026-11-02）: verifyObject confirms integrity without loading
     // the object whole; a missing object reports false (never throws).
 
