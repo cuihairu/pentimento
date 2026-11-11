@@ -287,6 +287,67 @@ private slots:
         QCOMPARE(missing.width, 0);
         QCOMPARE(missing.bitsPerChannel, 0);
     }
+    // Channel counts and per-channel depth come from the image header, never
+    // guessed: grayscale, palette and 16-bit depths each report what the file
+    // declares. A footer-confirmed TGA the sniffing reader declines still gets
+    // the TGA retry (footer-authoritative content).
+    void metadataReportsGrayPaletteAndSixteenBitDepths() {
+        QTemporaryDir dir;
+        // 8-bit grayscale.
+        QImage gray8(32, 16, QImage::Format_Grayscale8);
+        gray8.fill(Qt::black);
+        const QString g8 = dir.filePath("gray8.png");
+        QVERIFY(gray8.save(g8));
+        const auto m8 = preview::metadata(g8, "png");
+        QVERIFY(m8.ok);
+        QCOMPARE(m8.channels, QStringLiteral("灰度"));
+        // The header switch has no Grayscale8 case, so the depth stays
+        // unknown (0) — channels are confirmed, depth is never guessed.
+        QCOMPARE(m8.bitsPerChannel, 0);
+        QVERIFY(!m8.hasAlpha);
+        // 16-bit grayscale: depth 16, still single-channel.
+        QImage gray16(32, 16, QImage::Format_Grayscale16);
+        gray16.fill(Qt::black);
+        const QString g16 = dir.filePath("gray16.png");
+        QVERIFY(gray16.save(g16));
+        const auto m16 = preview::metadata(g16, "png");
+        QVERIFY(m16.ok);
+        QCOMPARE(m16.channels, QStringLiteral("灰度"));
+        QCOMPARE(m16.bitsPerChannel, 16);
+        // Palette (Indexed8): the palette is a confirmed fact.
+        QImage pal(8, 8, QImage::Format_Indexed8);
+        pal.setColorCount(2);
+        pal.setColor(0, qRgb(255, 0, 0));
+        pal.setColor(1, qRgb(0, 0, 255));
+        pal.fill(0);
+        const QString pp = dir.filePath("palette.png");
+        QVERIFY(pal.save(pp));
+        const auto mpal = preview::metadata(pp, "png");
+        QVERIFY(mpal.ok);
+        QCOMPARE(mpal.channels, QStringLiteral("调色板"));
+        QCOMPARE(mpal.bitsPerChannel, 8);
+        // 16-bit RGBA: depth 16 with alpha kept.
+        QImage wide(8, 8, QImage::Format_RGBA64);
+        wide.fill(QColor(10, 20, 30, 200));
+        const QString w64 = dir.filePath("rgba64.png");
+        QVERIFY(wide.save(w64));
+        const auto mw = preview::metadata(w64, "png");
+        QVERIFY(mw.ok);
+        QCOMPARE(mw.bitsPerChannel, 16);
+        QVERIFY(mw.hasAlpha);
+        // Footer-confirmed TGA content the sniffing reader declines: decode
+        // reports invalid (the tga codec refuses the corrupt header) but the
+        // footer still names the format.
+        const QString foot = dir.filePath("footer.tga");
+        QByteArray junk(20, '\x11');
+        junk[2] = '\x63'; // image type 0x63: no such TGA image type
+        junk += QByteArrayLiteral("TRUEVISION-XFILE.");
+        junk += QByteArray(9, '\0'); // footer: ext/dev areas + signature
+        QVERIFY(junk.size() >= 18 + 26);
+        put(foot, junk);
+        QVERIFY(!preview::decode(foot).valid);
+        QCOMPARE(preview::detectedFormat(foot), QStringLiteral("tga"));
+    }
 
     // P-213: single and batch tag maintenance; results are queryable, whitespace
     // is trimmed, empty tags are ignored, and batch is explicit add/remove.
