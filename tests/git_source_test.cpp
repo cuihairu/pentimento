@@ -370,6 +370,26 @@ private slots:
         QVERIFY(!git_source::isLfsPointer(QByteArrayLiteral("not-a-pointer")));
         QCOMPARE(repoFingerprint(dir.path()), before);
     }
+    // P1 audit (2026-11-12): extract() read the LFS object with readAll and no
+    // size cap — a huge LFS asset would be loaded whole into memory and OOM
+    // the worker. Objects beyond the library's 256 MiB single-object cap are
+    // refused with an error instead.
+    void extractRefusesOversizeLfsObject() {
+        QTemporaryDir dir;
+        QVERIFY(makeLfsRepo(dir.path()));
+        const QString oid = QString::fromLatin1(digest(QByteArrayLiteral("PNG-big-bytes")));
+        const QString objPath = dir.path() + QStringLiteral("/.git/lfs/objects/%1/%2/%3")
+                                                   .arg(oid.left(2), oid.mid(2, 2), oid);
+        QFile obj(objPath);
+        QVERIFY(obj.open(QIODevice::WriteOnly));
+        obj.resize(257LL * 1024 * 1024); // sparse: just past the 256 MiB cap
+        obj.close();
+        QString error;
+        QByteArray bytes;
+        QVERIFY(!git_source::extract(dir.path(), QString(),
+                                     QStringLiteral("assets/big.png"), &bytes, &error));
+        QVERIFY(error.contains(QStringLiteral("超过 256 MiB")));
+    }
     void fetchLfsWithConsent() {
         QProcess lfs;
         lfs.setProgram(QStringLiteral("git"));

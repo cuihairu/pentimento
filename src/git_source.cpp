@@ -255,7 +255,16 @@ bool extract(const QString &path, const QString &commit, const QString &filePath
         const QString objPath = lfsObjectPath(path, oid);
         if (!oid.isEmpty() && QFile::exists(objPath)) {
             QFile obj(objPath);
-            if (obj.open(QIODevice::ReadOnly)) *bytes = obj.readAll();
+            // Refuse instead of readAll: the library caps a single object at
+            // 256 MiB, and a tens-of-GB LFS asset must not be loaded whole
+            // into memory (P1 audit 2026-11-12).
+            if (obj.open(QIODevice::ReadOnly)) {
+                if (obj.size() > (256LL << 20)) {
+                    if (error) *error = QStringLiteral("LFS 对象超过 256 MiB 单文件上限：%1").arg(objPath);
+                    return false;
+                }
+                *bytes = obj.readAll();
+            }
         }
     }
     if (error) error->clear();
