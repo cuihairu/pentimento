@@ -28,6 +28,7 @@
 #include <QFileInfo>
 #include <QImage>
 #include <QImageReader>
+#include <QSemaphore>
 #include <QRegularExpression>
 #include <QSqlDatabase>
 #include <QSqlQuery>
@@ -189,6 +190,49 @@ private slots:
         }
         // Reaching here within the timeout proves the destructor did not block.
         QVERIFY(started.load() > 0);
+    }
+    // P0 audit (2026-11-12): a detached worker that finishes (or drains a queued
+    // task) after the queue was destroyed must not emit into the dead object.
+    // The destructor clears the alive flag under emitMutex before the QObject
+    // dies, and runTask checks it under the same mutex — so the raw self pointer
+    // is never dereferenced post-destruction. This drives that path
+    // deterministically: a blocked running task plus an already-queued task that
+    // only runs after destruction.
+    void taskQueueDetachedWorkerNeverEmitsAfterDestruction() {
+        QSemaphore entered;
+        QSemaphore release;
+        QSemaphore drained;
+        int emitted = 0;
+        {
+            TaskQueue queue(nullptr, /*blockOnShutdown=*/false);
+            // Context `this` (the test object, alive for the whole test) makes
+            // the delivery queued, so any emission is counted in `emitted`.
+            QObject::connect(&queue, &TaskQueue::taskFinished, this,
+                             [&](qint64, bool, const QString &) { ++emitted; });
+            queue.submit(QStringLiteral("blocked"), [&](TaskQueue::Progress &) {
+                entered.release();
+                release.acquire();
+            }, /*write=*/false);
+            queue.submit(QStringLiteral("after-death"), [&](TaskQueue::Progress &) {
+                drained.release();
+            }, /*write=*/false);
+            entered.acquire(); // the worker is inside the blocked task body
+            // Destroy here: alive=false under emitMutex, then detach — the
+            // destructor returns while both tasks are still unfinished.
+        }
+        // Occupy the freed slot with a live queue (same size class, same
+        // thread — the allocator hands back the exact chunk): an unguarded
+        // emit into the dead queue would land on this live object, run its
+        // connections, and be counted below. With the guard intact the
+        // emission is skipped and this object is never touched.
+        const auto replacement = std::make_unique<TaskQueue>(nullptr, /*blockOnShutdown=*/true);
+        QObject::connect(replacement.get(), &TaskQueue::taskFinished, this,
+                         [&](qint64, bool, const QString &) { ++emitted; });
+        release.release(); // the blocked task completes against the dead queue
+        QVERIFY(drained.tryAcquire(1, 5000));
+        // Deliver anything that (wrongly) got emitted; none may exist.
+        QTest::qWait(100);
+        QCOMPARE(emitted, 0);
     }
     // A task body that throws must fail that one task with the exception's
     // message (std::exception) or the generic 未知错误 (non-standard throw);
