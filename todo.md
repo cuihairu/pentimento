@@ -303,3 +303,18 @@
 ## P-015 闸门放行（2026-11-08 用户令「为啥不推进」= 明确批准进入实现）
 
 - 2026-11-08 用户质问 pentimento 为何不推进，视为对进入实现阶段的明确批准（P-015 放行）。实现按 docs/zh/review/2026-10-30-decisions.md 已代决边界执行，逐项即 commit+push；有损/危险动作（真删、覆盖用户数据）仍单项请示。
+
+## 覆盖率清剿（2026-11-11 sweep 批次1）
+
+测量口径：`build-cov`（Debug + `--coverage -O0`，gcovr 8.6，`ctest -j1` 16/16 绿后测 src/ 全量）。基线（本批前）TOTAL 行 74.0% → 现测 **行 76.7%（3976/5183）/ 函数 78.4%（315/402）/ 分支 39.7%（5541/13949）**。本批 7 个测试 commit（3871651、cdd0094、d25e437、b3f3469、0892892、31a9243、f8d93e7）共新增 30 个测试 slot，全部 16 套件绿。
+
+各 <98% 模块的剩余未覆盖行，按真实原因归类（非凑数，均为诚实不可测或防御行）：
+
+1. **纯 UI 装配/原生对话框（offscreen 不可驱动）**：`main.cpp` 0%（GUI 入口：事件循环进程无法在自动化 kill 下冲刷 gcov 剖析数据；offscreen `--help` 冒烟已过）、`mainwindow_backup.cpp` 0%、`mainwindow_snapshots.cpp` 0%、`mainwindow_metadata.cpp` 13%、`mainwindow_sources.cpp` 35%、`mainwindow_versions.cpp` 46%、`mainwindow.cpp` 81%——这些 TU 的行为代码与 QFileDialog/QInputDialog/QMessageBox 原生模态强耦合，QT_QPA_PLATFORM=offscreen 下模态不执行且无法注入替身；测它们需要把对话框逻辑再下沉拆层（结构改造，非补测试）。
+2. **死代码（全仓 grep 无调用方，建议后续批次删除）**：`library.cpp:59` `digestFileBounded`（62/64 行随函数不可达）、`library_external.cpp:36` `externalStateName`（36-40 行随函数不可达）。
+3. **进程边界故障（git/svn 二进制缺失或挂死 30s）**：`git_source.cpp` 22-29、`svn_source.cpp` 25-32——waitForStarted/超时杀进程路径需拔掉 PATH 或伪造挂死 git，环境手术不可重复。
+4. **内核级 I/O 故障注入（mid-copy/mid-read/磁盘满/只读卷/并发竞态）**：`library_internal.h` 56/58/63（拷贝中读写错）、`library_backup.cpp` 75/140/172/180/183/270-277（打包中对象损坏/读错）、`library_restore.cpp` 155-201/226-228/320-323/476-478（恢复日志收敛/回滚异常安全）、`library_objects.cpp` 109-110（两写者竞态）/112（rename 失败）、`library.cpp` 163/183/205/256-259/262（ALTER/后台连接失败）/417-420（写工作副本异常回滚）、`storage.cpp` 98-101（只读卷上可写模式目录）、`importer.cpp` 125-127（扫描与哈希之间文件消失竞态）、`svn_source.cpp` 128-129/173-174（identify 与后续命令之间仓库消失竞态）——全部需要故障注入框架/挂载法庭，现有测试基建无法确定性触发。
+5. **防御分支/switch 穷尽返回/大括号伪行（按构造不可达）**：`taskqueue.cpp` 49（串行 worker 不变量：done 恒先于 running，擦除走不到 not-done 项）、`importer.cpp` 19/46（switch 穷尽后的兜底 return）、`source_connection.cpp` 117-118（Connecting 注释即「never produced by a probe result」）、`preview.cpp` 179-182（size 有效而 format 为空的防御路径）、`backend.cpp` 24/39、`exclusion.h` 48、`recent.cpp` 36、`source_connection.cpp` 52/57、`git_source.cpp` 40、`svn_source.cpp` 18/43/71（函数签名行/收尾大括号的剖析伪行）。
+6. **Qt 构建相关嗅探行为**：`preview.cpp` 81（qtico 误判 TGA→footer 纠正行；本机 Qt 6.10.2 不产生该误判，行不可达）、151-156（Format_Alpha8 无任何真实文件编码可达；default 兜底）。
+
+结论：非 UI 模块中所有可达行为行已在本批补齐真实测试；剩余未覆盖行为上述 6 类，其中第 1 类若要提升需结构性拆层（等用户拍板），第 2 类建议删除（等用户确认），3/4 类需要故障注入基建，5/6 类按构造不可达。CI（nightly）在本批推送窗口出现 runner 侧「Install Qt 6.10.2」步骤反复挂起（43041233328、43045126416 已取消重派），本批以本地 16/16 + coverage 全绿为门禁。
