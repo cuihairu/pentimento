@@ -294,6 +294,10 @@ private slots:
         recent::clear();
         recent::remember("id-1", "/vol/a/lib");
         recent::remember("id-2", "/vol/b/lib");
+        // An empty id identifies nothing (it cannot be re-located) and is
+        // ignored outright rather than recorded as an entry.
+        recent::remember(QString(), "/vol/x/lib");
+        QCOMPARE(recent::libraries().size(), 2);
         // Re-opening the same library (possibly at a new path) moves it to the
         // front and replaces the stale path instead of duplicating the entry.
         recent::remember("id-1", "/vol/c/relocated");
