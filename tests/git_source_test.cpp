@@ -236,6 +236,44 @@ private slots:
         QCOMPARE(entries.first().email, QStringLiteral("t@example.com"));
         QVERIFY(entries.first().whenMs > 0);
     }
+    // P1 audit (2026-11-12) claimed a pipe deadlock: runGit reads stdout only
+    // after waitForFinished, so output beyond the OS pipe buffer would block
+    // git and the bounded wait would kill it. Empirically false on Qt 6 —
+    // QProcess's waitForFinished services both read channels internally, so a
+    // 170 KiB log comes back complete. This test locks that behavior: a large
+    // repo's log must return every record, untruncated, newest first.
+    void logDrainsOutputLargerThanThePipeBuffer() {
+        QTemporaryDir dir;
+        QString head;
+        QVERIFY(makeRepo(dir.path(), &head));
+        // ~200 x ~830 bytes of log output ≈ 170 KiB, well past the 64 KiB
+        // pipe buffer; each commit needs a distinct content blob.
+        const int commits = 200;
+        for (int i = 0; i < commits; ++i) {
+            QFile f(dir.filePath(QStringLiteral("blob%1.txt").arg(i)));
+            QVERIFY(f.open(QIODevice::WriteOnly));
+            f.write(QByteArray::number(i));
+            f.close();
+            QVERIFY(run(dir.path(), {QStringLiteral("add"), QStringLiteral(".")}));
+            const QString subject = QStringLiteral("c%1 ").arg(i)
+                                   + QString(790, QChar('x'));
+            QVERIFY(run(dir.path(), {QStringLiteral("commit"), QStringLiteral("-m"),
+                                     subject}));
+        }
+        QString error;
+        const auto entries = git_source::log(dir.path(), commits + 1, &error);
+        QCOMPARE(error, QString());
+        QCOMPARE(entries.size(), commits + 1);
+        QByteArray headNow;
+        QVERIFY(run(dir.path(), {QStringLiteral("rev-parse"), QStringLiteral("HEAD")}, &headNow));
+        // Newest first: the tip is the last commit made, the oldest is
+        // makeRepo's original head. All records arrived complete — no
+        // truncation at the pipe buffer.
+        QCOMPARE(entries.first().commit, QString::fromLatin1(headNow.trimmed()));
+        QVERIFY(entries.first().subject.startsWith(QStringLiteral("c%1 ").arg(commits - 1)));
+        QCOMPARE(entries.last().commit, head);
+        QVERIFY(entries.last().subject == QStringLiteral("add hero"));
+    }
     void treeListsCommitFilesWithSubdir() {
         QTemporaryDir dir;
         QString head;

@@ -167,7 +167,10 @@ QVector<LogEntry> log(const QString &path, int limit, QString *error) {
         return result;
     }
     for (const QByteArray &record : out.split(char(0x1e))) {
-        const QStringList fields = QString::fromUtf8(record).split(QChar(0x1f));
+        // git puts a newline after each format line, so every record after the
+        // first carries it as a leading byte — trim it or commit ids parse
+        // with a leading newline and never compare equal.
+        const QStringList fields = QString::fromUtf8(record).trimmed().split(QChar(0x1f));
         if (fields.size() < 5 || fields.at(0).isEmpty()) continue;
         LogEntry entry;
         entry.commit = fields.at(0);
