@@ -140,6 +140,147 @@ private slots:
         // no restore note exists in the history (nothing half-restored).
         QCOMPARE(get(asset.path), QByteArray("unrecorded"));
     }
+    // P1 audit (2026-11-12): a stage-4 failure must propagate its own error —
+    // a failed log update at the end of the rollback path must not swallow it.
+    // Both the append and the log update are made to fail; the exception that
+    // escapes must still be the stage-4 cause.
+    void restoreStage4FailurePropagatesOriginalErrorOverLogFailure() {
+        QTemporaryDir dir;
+        put(dir.filePath("asset.dat"), "v1");
+        Library library(dir.filePath("library"));
+        const auto asset = library.importFile(dir.filePath("asset.dat"));
+        const qint64 first = library.revisions(asset.id).first().id;
+        // Unrecorded change to the working copy: the protect (stage 1) records
+        // it BEFORE the log row exists, so the trigger stays silent for the
+        // protect and only fires for the stage-4 append.
+        put(asset.path, "v2");
+        const QString conn = QStringLiteral("restore_stage4_")
+                             + QUuid::createUuid().toString(QUuid::WithoutBraces);
+        {
+            QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), conn);
+            db.setDatabaseName(dir.filePath(QStringLiteral("library/catalog.sqlite")));
+            QVERIFY(db.open());
+            QSqlQuery q(db);
+            QVERIFY(q.exec(QStringLiteral(
+                "CREATE TRIGGER fail_stage4_append BEFORE INSERT ON revisions "
+                "BEGIN SELECT RAISE(ABORT, 'injected stage4 append') "
+                "WHERE (SELECT COUNT(*) FROM restore_log) > 0; END")));
+            QVERIFY(q.exec(QStringLiteral(
+                "CREATE TRIGGER fail_stage4_log BEFORE UPDATE ON restore_log "
+                "BEGIN SELECT RAISE(ABORT, 'injected stage4 log'); END")));
+        }
+        QSqlDatabase::removeDatabase(conn);
+        bool threw = false;
+        QString message;
+        try {
+            library.restore(asset, first);
+        } catch (const std::exception &e) {
+            threw = true;
+            message = QString::fromUtf8(e.what());
+        }
+        QVERIFY(threw);
+        // The stage-4 cause propagates; the failed log update must not replace it.
+        QVERIFY(message.contains(QStringLiteral("injected stage4 append")));
+        QVERIFY(!message.contains(QStringLiteral("injected stage4 log")));
+        // The log update failed too, so the row stays planned for the
+        // convergence on reopen; the working file was rolled back to "v2".
+        const auto logs = library.restoreLogs();
+        QCOMPARE(logs.size(), 1);
+        QCOMPARE(logs.first().state, QStringLiteral("planned"));
+        QCOMPARE(get(asset.path), QByteArray("v2"));
+        QCOMPARE(library.revisions(asset.id).size(), 2);
+        QCOMPARE(library.revisions(asset.id).first().note, QStringLiteral("恢复前自动保存"));
+    }
+    // P1 audit (2026-11-12): if the stage-4 rollback write itself fails, BOTH
+    // causes — the stage error and the rollback-write error — must be joined
+    // into the log's error field, and the stage error must still propagate.
+    void restoreJoinsErrorsWhenRollbackWriteFails() {
+        if (::geteuid() == 0) QSKIP("root bypasses directory write permissions");
+        QTemporaryDir dir;
+        // A large asset stretches stage 4 (it re-verifies the restored object)
+        // into a window wide enough to make the directory unwritable AFTER the
+        // stage-3 file replacement committed, without a race on the fast path.
+        const QString source = dir.filePath("big.dat");
+        {
+            QFile f(source);
+            QVERIFY(f.open(QIODevice::WriteOnly));
+            const QByteArray zeros(256 * 1024, '\0');
+            for (int i = 0; i < 128; ++i) QVERIFY(f.write(zeros) == zeros.size()); // 32 MiB
+            f.close();
+        }
+        Library library(dir.filePath("library"));
+        const auto asset = library.importFile(source);
+        const qint64 first = library.revisions(asset.id).first().id;
+        // Unrecorded change to the working copy: the protect (stage 1) records
+        // it BEFORE the log row exists, so the trigger must stay silent for the
+        // protect and only fire for the stage-4 append (the log row exists).
+        put(asset.path, "v2");
+        const QString conn = QStringLiteral("restore_join_")
+                             + QUuid::createUuid().toString(QUuid::WithoutBraces);
+        {
+            QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), conn);
+            db.setDatabaseName(dir.filePath(QStringLiteral("library/catalog.sqlite")));
+            QVERIFY(db.open());
+            QSqlQuery q(db);
+            QVERIFY(q.exec(QStringLiteral(
+                "CREATE TRIGGER fail_stage4_append BEFORE INSERT ON revisions "
+                "BEGIN SELECT RAISE(ABORT, 'injected stage4 append') "
+                "WHERE (SELECT COUNT(*) FROM restore_log) > 0; END")));
+        }
+        QSqlDatabase::removeDatabase(conn);
+        const QString workingDir = QFileInfo(asset.path).absolutePath();
+        const qint64 baselineMtime = QFileInfo(asset.path).lastModified().toMSecsSinceEpoch();
+        std::thread watcher([&] {
+            // Wait for the stage-3 replacement to commit (the target's mtime
+            // moves on the atomic rename), then make the directory unwritable
+            // so the catch's rollback write fails.
+            const auto deadline = std::chrono::steady_clock::now()
+                                  + std::chrono::seconds(60);
+            while (std::chrono::steady_clock::now() < deadline) {
+                if (QFileInfo(asset.path).lastModified().toMSecsSinceEpoch()
+                    != baselineMtime) {
+                    ::chmod(workingDir.toLocal8Bit().constData(), 0555);
+                    return;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+        });
+        bool threw = false;
+        QString message;
+        try {
+            library.restore(asset, first);
+        } catch (const std::exception &e) {
+            threw = true;
+            message = QString::fromUtf8(e.what());
+        }
+        watcher.join();
+        QVERIFY(::chmod(workingDir.toLocal8Bit().constData(), 0755) == 0);
+        QVERIFY(threw);
+        qWarning() << "ACTUAL MESSAGE:" << message;
+        QVERIFY(message.contains(QStringLiteral("injected stage4 append")));
+        const auto logs = library.restoreLogs();
+        QCOMPARE(logs.size(), 1);
+        QCOMPARE(logs.first().state, QStringLiteral("failed"));
+        // BOTH errors are recorded, neither is lost.
+        QVERIFY(logs.first().error.contains(QStringLiteral("injected stage4 append")));
+        QVERIFY(logs.first().error.contains(QStringLiteral("回滚工作副本也失败")));
+        // The rollback write failed, so the working file still holds the
+        // restored content (the 32 MiB of zeros, not "v2"); the protect
+        // revision keeps "v2" recoverable and convergence on reopen takes it
+        // from the log row.
+        {
+            QFile working(asset.path);
+            QVERIFY(working.open(QIODevice::ReadOnly));
+            QCOMPARE(working.size(), qint64(32) * 1024 * 1024);
+            QCOMPARE(working.read(4), QByteArray(4, '\0'));
+        }
+        const auto history = library.revisions(asset.id);
+        QCOMPARE(history.size(), 2);
+        QCOMPARE(history.first().note, QStringLiteral("恢复前自动保存"));
+        library.exportRevision(asset.id, history.first().id,
+                               dir.filePath("preserved.dat"));
+        QCOMPARE(get(dir.filePath("preserved.dat")), QByteArray("v2"));
+    }
     // P-315: the preview lists exactly what a restore would do without writing.
     void restorePreviewListsActionsWithoutWriting() {
         QTemporaryDir dir;

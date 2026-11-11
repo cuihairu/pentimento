@@ -184,19 +184,45 @@ void Library::restore(const Asset &asset, const RestorePlan &plan) {
         markRestoreLog(logId, QStringLiteral("failed"), db().lastError().text());
         fail(db().lastError().text());
     }
+    // The file WAS replaced but the index did not commit: restore the previous
+    // content so file and index agree, and record the failure in the log
+    // (in-process path; a power loss here is handled by convergence on reopen
+    // instead). Returns the error text to record — if the rollback write itself
+    // fails, BOTH causes are joined so neither is lost, and a failed log update
+    // never swallows the stage error it was reporting.
+    const auto abortStage4 = [&](const QString &stageError) {
+        db().rollback();
+        if (existed) {
+            try {
+                writeFile(asset.path, previous);
+            } catch (const std::exception &rollbackError) {
+                return Library::tr("%1；回滚工作副本也失败：%2")
+                    .arg(stageError, QString::fromUtf8(rollbackError.what()));
+            }
+        } else {
+            QFile::remove(asset.path);
+        }
+        return stageError;
+    };
     try {
         append(asset, bytes, QStringLiteral("恢复历史版本 #%1").arg(plan.revisionId));
         markRestoreLog(logId, QStringLiteral("done"));
         if (!db().commit()) fail(db().lastError().text());
+    } catch (const std::exception &error) {
+        const QString details = abortStage4(QString::fromUtf8(error.what()));
+        try {
+            markRestoreLog(logId, QStringLiteral("failed"), details);
+        } catch (...) {
+            // The row stays planned; convergence on reopen finishes it.
+        }
+        throw;
     } catch (...) {
-        // The file WAS replaced but the index did not commit: restore the
-        // previous content so file and index agree, and record the failure in
-        // the log (in-process path; a power loss here is handled by convergence
-        // on reopen instead).
-        db().rollback();
-        if (existed) writeFile(asset.path, previous);
-        else QFile::remove(asset.path);
-        markRestoreLog(logId, QStringLiteral("failed"), db().lastError().text());
+        const QString details = abortStage4(Library::tr("未知错误"));
+        try {
+            markRestoreLog(logId, QStringLiteral("failed"), details);
+        } catch (...) {
+            // The row stays planned; convergence on reopen finishes it.
+        }
         throw;
     }
 }
