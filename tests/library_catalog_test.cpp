@@ -709,6 +709,50 @@ private slots:
         // No snapshot was committed for the failed publish.
         QCOMPARE(lib.snapshots().size(), 1);
     }
+    // P0 audit (2026-11-12): a failed publish must roll back the emergency
+    // anchor revision with the rest of the transaction — retrying the snapshot
+    // must not accumulate one anchor revision per failed attempt.
+    void snapshotFailureRollsBackEmergencyAnchor() {
+        QTemporaryDir dir;
+        put(dir.filePath("hero.png"), "hero-bytes");
+        Library lib(dir.filePath("lib"));
+        const auto asset = lib.importFile(dir.filePath("hero.png"));
+        const auto rev1 = lib.revisions(asset.id).first();
+        QCOMPARE(rev1.hash, digestHex("hero-bytes"));
+        // Diverge the working copy so the next snapshot records an emergency
+        // anchor for the current content before publishing the manifest.
+        put(asset.path, "hero-bytes-infected");
+        // Break the anchored revision's object so insertEntry verification fails.
+        const QString anchorObject = lib.objectPath(rev1.hash);
+        QVERIFY(platform::makeMutable(anchorObject));
+        QVERIFY(QFile::remove(anchorObject));
+        bool threw = false;
+        QString message;
+        try {
+            lib.snapshotAll(QStringLiteral("corrupt"));
+        } catch (const std::exception &e) {
+            threw = true;
+            message = QString::fromUtf8(e.what());
+        }
+        QVERIFY(threw);
+        QVERIFY(message.contains(QStringLiteral("对象校验失败")));
+        // The rolled-back attempt leaves no snapshot and no anchor revision.
+        QCOMPARE(lib.snapshots().size(), 0);
+        QCOMPARE(lib.revisions(asset.id).size(), 1);
+        QCOMPARE(lib.revisions(asset.id).first().id, rev1.id);
+        // Restore the object and retry: exactly one anchor revision is recorded.
+        put(anchorObject, "hero-bytes");
+        const qint64 snap = lib.snapshotAll(QStringLiteral("retry"));
+        QCOMPARE(lib.snapshots().size(), 1);
+        const auto history = lib.revisions(asset.id);
+        QCOMPARE(history.size(), 2);
+        QCOMPARE(history.first().note, QStringLiteral("紧急快照锚点"));
+        QCOMPARE(history.first().hash, digestHex("hero-bytes-infected"));
+        const auto entry = lib.snapshotEntries(snap).first();
+        QCOMPARE(entry.revisionId, rev1.id);
+        QCOMPARE(entry.hash, rev1.hash);
+        QCOMPARE(entry.state, QStringLiteral("present"));
+    }
     // Rows written before manifests carried path/hash read back through the
     // asset's current recorded location (deleted assets still have their row).
     void snapshotEntriesLegacyRowsFallBackToCurrentPaths() {
