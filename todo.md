@@ -330,3 +330,15 @@
 - [x] P0-5 `runTask` 裸 `self` 指针析构后悬空，建议改 `QPointer<TaskQueue>`。（完成 2026-11-12：核实不成立且建议更弱——析构函数在 emitMutex 下先置 alive=false 再释放 QObject（src/taskqueue.cpp:74-92），runTask 同锁下检查 alive 才解引用 self（src/taskqueue.cpp:165），两者互斥故无窗口；QPointer 晚至 ~QObject 完成才置空，弱于现有守卫且跨线程语义另添风险，故不采纳改法。以确定性回归测试锁定 `taskQueueDetachedWorkerNeverEmitsAfterDestruction`（tests/library_services_test.cpp:201）：阻塞任务 + 已入队任务均越过析构在死队列上走完 emit 段，槽位由同尺寸活队列顶占——守卫被剥除则信号落到活队列被计数/崩溃。变异验证：剥除 alive 检查 3/3 段错误，正确代码 5/5 通过，16/16 绿，2ee46f7）
 
 门禁：每项 commit 前全量 `ctest --test-dir build-cov -j1` 16/16 绿（P0-3 前 38.12s / P0-4 前 56.53s / P0-5 前 73.83s）；P0-4、P0-5 审计主张与代码事实不符，仅补回归测试不改源码（禁凑数：两测试均先证实可失败——P0-4 首版误写源文件路径即失败，P0-5 变异实验 3/3 崩溃）。
+
+## 审核修复批 P1（同源 audit-batch2 2026-11-11 pentimento 节，2026-11-12 按余力推进）
+
+已完成 5 条，每条 commit+push、全量 16/16 绿后入库：
+
+- [x] P1-16 `storage.cpp:33` statSource 与 `mainwindow_backup.cpp` 恢复演练对工作副本 `readAll` 全量哈希、无上限。（完成 2026-11-12：05db7df——两处改 1 MiB 分块流式哈希（storage.cpp:31-49、mainwindow_backup.cpp:284-303），中途读错误按无哈希处理不再静默半读；回归：`storageInterfaceReportsConsistentLocalInfo` 尾部加 257 MiB 稀疏文件用例（期望哈希亦分块计算，不整装内存），16/16 绿）
+- [x] P1-10 `verifyBackupPackage` 公共 API 不加锁。（完成 2026-11-12：05db7df——补 `mutex_` 守卫（library_backup.cpp:110），restoreBackupPackage 原本持锁经递归锁重入不受影响。锁的互斥无单线程可观测行为，以 16/16 回归作门禁）
+- [x] P1-14 `git_source.cpp:31` `waitForFinished` 后才 `readAllStandardOutput`，>64 KiB 输出死锁。（完成 2026-11-12：核实不成立——Qt6 QProcess 的 waitForFinished 在内部持续服务 stdout/stderr 两通道，170 KiB 的 log 经旧代码完整返回；以 `logDrainsOutputLargerThanThePipeBuffer`（200 提交 ≈170 KiB，逐条断言完整且 newest-first）锁定该行为。写该测试时反揪出真 bug：第 2..n 条 log 记录带 git 行间换行前导字节，commit 字段永不等于真实 id → 已修（`record.trimmed()` 后再 split）+ 同测试断言收口，16/16 绿，7663976）
+- [x] P1-9 `library_restore.cpp` stage-4 catch 的 `writeFile` 回滚失败异常覆盖原始错误、且 `db().lastError()` 常非真实原因。（完成 2026-11-12：508ae2e——catch 重构为 `abortStage4`：回滚写失败把两错误拼进 log error 字段（「%1；回滚工作副本也失败：%2」），log 更新自身失败不再吞掉所报告的 stage 错误（行保持 planned 待 reopen 收敛），原始异常恒传播。两个回归测试：①双触发器（append 失败 + log 更新失败）断言异常仍是 stage-4 原因；②触发器 + 恢复中线程把工作目录改只读（32 MiB 大素材把 stage-4 对象复核拉宽成确定性窗口）断言 log 行 failed 且含双错误、protect 版本保住 v2。变异验证：摘掉 guard/log-try 两处均致测试红（过程中一次 `git checkout` 误丢未提交修复，测试对未修代码正确变红后重修——已按事实记录），16/16 绿）
+- [x] P1-15 `git_source.cpp:255` LFS `extract()` 对已存对象 `readAll()` 无上限，几十 GB 资产 OOM。（完成 2026-11-12：034be4c——超 256 MiB（与库 kMaxObjectBytes 同口径）直接报错拒绝；回归 `extractRefusesOversizeLfsObject`（257 MiB 稀疏 LFS 对象，期望错误含「超过 256 MiB」），16/16 绿）
+
+未推进（按余力到此，余项皆需用户拍板或结构性改造）：P1-6 锚点改 snapshot 行显式 `anchor_revision_id`（schema 迁移 + 语义重设计）；P1-7 `integrity_` 缓存上限（MainWindow 版本页 UI 流程测试基建缺口）；P1-8 批量打标签 revision 膨胀（「一条聚合 revision」vs「字段历史不并入 revision 序列」两个设计方向需用户选）；P1-11/12 `snapshotAll`/sentinel 移出 UI 线程（结构性并发改造，动 P-311 快照语义与 UI 队列）；P1-13 Windows junction/硬链接目录防护（本平台不可验证，不盲改）；P1-17 manifest JSON double 精度（轻微，备查）。
