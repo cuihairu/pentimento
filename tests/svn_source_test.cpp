@@ -184,6 +184,32 @@ private slots:
                     {QStringLiteral("unlock"), QStringLiteral("-q"),
                      QStringLiteral("assets/hero.png")}));
     }
+    // Read-API failure paths: a path outside any working copy (and a URL that
+    // cannot be contacted) reports a message through the error out-param with
+    // an empty result — never a throw and never fabricated data.
+    void errorPathsReportMessages() {
+        QTemporaryDir notWc;
+        QString error;
+        QVERIFY(svn_source::log(notWc.path(), 10, &error).isEmpty());
+        QVERIFY(!error.isEmpty());
+        QVERIFY(svn_source::tree(notWc.path(), 0, QString(), &error).isEmpty());
+        QVERIFY(!error.isEmpty());
+        QByteArray bytes;
+        QVERIFY(!svn_source::extract(notWc.path(), 1, QStringLiteral("f.png"), &bytes, &error));
+        QVERIFY(!error.isEmpty());
+        const auto lock = svn_source::lockInfo(notWc.path(), &error);
+        QVERIFY(!error.isEmpty());
+        QVERIFY(!lock.locked);
+        // A URL for a closed port is an immediate refusal, not an empty
+        // success (no 30 s network timeout: the connection is rejected).
+        const QString deadUrl = QStringLiteral("svn://127.0.0.1:1/repo");
+        const auto bad = svn_source::identify(deadUrl);
+        QVERIFY(!bad.error.isEmpty());
+        QVERIFY(svn_source::log(deadUrl, 10, &error).isEmpty());
+        QVERIFY(!error.isEmpty());
+        QVERIFY(!svn_source::extract(deadUrl, 1, QStringLiteral("f.png"), &bytes, &error));
+        QVERIFY(!error.isEmpty());
+    }
 };
 
 int main(int argc, char **argv) {

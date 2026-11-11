@@ -156,6 +156,49 @@ private slots:
         QCOMPARE(list.first().head, head);
         QVERIFY(list.first().isCurrent);
     }
+    // Read-API failure paths: a non-repository path reports a message through
+    // the error out-param with an empty result (and fetchLfs refuses), never a
+    // throw or fabricated data. A detached HEAD is flagged as such.
+    void errorPathsAndDetachedHead() {
+        QTemporaryDir notRepo;
+        QString error;
+        QVERIFY(git_source::branches(notRepo.path(), &error).isEmpty());
+        QVERIFY(!error.isEmpty());
+        QVERIFY(git_source::status(notRepo.path(), &error).isEmpty());
+        QVERIFY(!error.isEmpty());
+        QVERIFY(git_source::log(notRepo.path(), 10, &error).isEmpty());
+        QVERIFY(!error.isEmpty());
+        QVERIFY(git_source::tree(notRepo.path(), QStringLiteral("HEAD"),
+                                 QString(), &error).isEmpty());
+        QVERIFY(!error.isEmpty());
+        // The LFS fetch is network/write consent-gated: off a repository it
+        // fails closed with a message and nothing fetched.
+        QVERIFY(!git_source::fetchLfs(notRepo.path(),
+                                      QStringLiteral("assets/big.png"),
+                                      QString(), &error));
+        QVERIFY(!error.isEmpty());
+        // Detached HEAD: no current branch, the flag set, commits intact.
+        QTemporaryDir dir;
+        QString head;
+        QVERIFY(makeRepo(dir.path(), &head));
+        QProcess git;
+        git.setProgram(QStringLiteral("git"));
+        git.setWorkingDirectory(dir.path());
+        git.setArguments({QStringLiteral("checkout"), QStringLiteral("--detach"), head});
+        git.start();
+        QVERIFY(git.waitForFinished(10000));
+        const auto info = git_source::identify(dir.path());
+        QVERIFY(info.error.isEmpty());
+        QVERIFY(info.detached);
+        QVERIFY(info.currentBranch.isEmpty());
+        QCOMPARE(info.headCommit, head);
+        // Branch listing still works; on a detached HEAD no branch is current.
+        const auto list = git_source::branches(dir.path(), &error);
+        QVERIFY(error.isEmpty());
+        QVERIFY(!list.isEmpty());
+        for (const auto &b : list)
+            QVERIFY(!b.isCurrent);
+    }
     void statusReflectsWorktreeWithoutWriting() {
         QTemporaryDir dir;
         QVERIFY(makeRepo(dir.path()));
