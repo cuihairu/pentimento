@@ -31,6 +31,8 @@
 #include <QRegularExpression>
 #include <QSqlDatabase>
 #include <QSqlQuery>
+#include <QUuid>
+#include <stdexcept>
 #include <QTemporaryDir>
 #include <QtTest>
 #include <sys/stat.h>
@@ -524,6 +526,166 @@ private slots:
         snaps = lib.snapshots();
         QCOMPARE(snaps.first().assets, 2);
         QCOMPARE(snaps.first().excluded, 0);
+    }
+
+    // Unknown rule kinds are refused at the API, not silently stored.
+    void addExclusionRefusesUnknownKind() {
+        QTemporaryDir dir;
+        Library lib(dir.filePath("lib"));
+        bool threw = false;
+        QString message;
+        try {
+            lib.addExclusion(QStringLiteral("colour"), QStringLiteral("red"));
+        } catch (const std::exception &e) {
+            threw = true;
+            message = QString::fromUtf8(e.what());
+        }
+        QVERIFY(threw);
+        QVERIFY(message.contains(QStringLiteral("未知的排除规则类型")));
+        QVERIFY(lib.exclusions().isEmpty());
+    }
+    // A catalog path that exists but is not a database (a directory) must fail
+    // the open with the corrupt-index error — never a silent rebuild.
+    void libraryCtorRefusesUnopenableCatalog() {
+        QTemporaryDir dir;
+        QVERIFY(QDir(dir.path()).mkpath(QStringLiteral("lib/catalog.sqlite")));
+        bool threw = false;
+        QString message;
+        try {
+            Library lib(dir.filePath("lib"));
+        } catch (const std::exception &e) {
+            threw = true;
+            message = QString::fromUtf8(e.what());
+        }
+        QVERIFY(threw);
+        QVERIFY(message.contains(QStringLiteral("素材库损坏或索引无法打开")));
+    }
+    // An unreadable catalog file is refused before SQLite even tries.
+    void libraryCtorRefusesUnreadableCatalog() {
+        if (::geteuid() == 0) QSKIP("root bypasses file permissions");
+        QTemporaryDir dir;
+        {
+            Library lib(dir.filePath("lib"));
+        }
+        const QString catalog = dir.filePath(QStringLiteral("lib/catalog.sqlite"));
+        QVERIFY(QFileInfo::exists(catalog));
+        QVERIFY(::chmod(catalog.toLocal8Bit().constData(), 0000) == 0);
+        bool threw = false;
+        QString message;
+        try {
+            Library lib(dir.filePath("lib"));
+        } catch (const std::exception &e) {
+            threw = true;
+            message = QString::fromUtf8(e.what());
+        }
+        QVERIFY(threw);
+        QVERIFY(message.contains(QStringLiteral("素材库索引不可读")));
+        QVERIFY(::chmod(catalog.toLocal8Bit().constData(), 0644) == 0);
+    }
+    // The library_id row is load-bearing identity: a catalog missing it is
+    // corrupt and libraryId() must fail loudly instead of returning garbage.
+    void libraryIdRefusesMissingIdentityRow() {
+        QTemporaryDir dir;
+        Library lib(dir.filePath("lib"));
+        QVERIFY(!lib.libraryId().isEmpty());
+        const QString conn = QStringLiteral("cat_idwipe_")
+                             + QUuid::createUuid().toString(QUuid::WithoutBraces);
+        {
+            QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", conn);
+            db.setDatabaseName(dir.filePath(QStringLiteral("lib/catalog.sqlite")));
+            QVERIFY(db.open());
+            QSqlQuery q(db);
+            QVERIFY(q.exec(QStringLiteral("DELETE FROM meta WHERE key='library_id'")));
+        }
+        QSqlDatabase::removeDatabase(conn);
+        bool threw = false;
+        QString message;
+        try {
+            lib.libraryId();
+        } catch (const std::exception &e) {
+            threw = true;
+            message = QString::fromUtf8(e.what());
+        }
+        QVERIFY(threw);
+        QVERIFY(message.contains(QStringLiteral("library_id")));
+    }
+    // Publishing a snapshot verifies every referenced object; a missing or
+    // resized object refuses the whole snapshot (no partial manifest).
+    void snapshotPublishVerifiesReferencedObjects() {
+        QTemporaryDir dir;
+        put(dir.filePath("hero.png"), "hero-bytes");
+        Library lib(dir.filePath("lib"));
+        const auto asset = lib.importFile(dir.filePath("hero.png"));
+        QVERIFY(lib.snapshotAll(QStringLiteral("good")) > 0);
+        const QString object = lib.objectPath(lib.revisions(asset.id).last().hash);
+        QVERIFY(platform::makeMutable(object));
+        QVERIFY(QFile::remove(object));
+        bool threw = false;
+        QString message;
+        try {
+            lib.snapshotAll(QStringLiteral("corrupt"));
+        } catch (const std::exception &e) {
+            threw = true;
+            message = QString::fromUtf8(e.what());
+        }
+        QVERIFY(threw);
+        QVERIFY(message.contains(QStringLiteral("对象校验失败")));
+        // No snapshot was committed for the failed publish.
+        QCOMPARE(lib.snapshots().size(), 1);
+    }
+    // Rows written before manifests carried path/hash read back through the
+    // asset's current recorded location (deleted assets still have their row).
+    void snapshotEntriesLegacyRowsFallBackToCurrentPaths() {
+        QTemporaryDir dir;
+        put(dir.filePath("legacy.png"), "legacy-bytes");
+        Library lib(dir.filePath("lib"));
+        lib.importFile(dir.filePath("legacy.png"));
+        const qint64 snap = lib.snapshotAll(QStringLiteral("legacy"));
+        QCOMPARE(lib.snapshotEntries(snap).size(), 1);
+        QCOMPARE(lib.snapshotEntries(snap).first().name, QStringLiteral("legacy.png"));
+        const QString conn = QStringLiteral("cat_legacy_")
+                             + QUuid::createUuid().toString(QUuid::WithoutBraces);
+        {
+            QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", conn);
+            db.setDatabaseName(dir.filePath(QStringLiteral("lib/catalog.sqlite")));
+            QVERIFY(db.open());
+            QSqlQuery q(db);
+            q.prepare(QStringLiteral("UPDATE snapshot_assets SET name='', folder='' WHERE snapshot_id=?"));
+            q.addBindValue(snap);
+            QVERIFY(q.exec());
+        }
+        QSqlDatabase::removeDatabase(conn);
+        const auto entries = lib.snapshotEntries(snap);
+        QCOMPARE(entries.size(), 1);
+        QCOMPARE(entries.first().name, QStringLiteral("legacy.png"));
+        QCOMPARE(entries.first().folder, QString()); // root level: folder stays ''
+    }
+    // The object store is content-addressed: a pre-existing file at the target
+    // path whose bytes do not match the hash refuses the put instead of
+    // silently overwriting a damaged object.
+    void putRefusesExistingCorruptObject() {
+        QTemporaryDir dir;
+        Library lib(dir.filePath("lib"));
+        const QByteArray bytes = QByteArrayLiteral("first-content");
+        const QString hash = digestHex(bytes);
+        const QString object = lib.objectPath(hash);
+        QVERIFY(QDir().mkpath(QFileInfo(object).absolutePath()));
+        QFile junk(object);
+        QVERIFY(junk.open(QIODevice::WriteOnly));
+        junk.write("junk-not-the-content");
+        junk.close();
+        const QString source = dir.filePath(QStringLiteral("content.bin"));
+        put(source, bytes);
+        bool threw = false;
+        QString message;
+        try {
+            lib.importFile(source);
+        } catch (const std::exception &e) {
+            threw = true;
+            message = QString::fromUtf8(e.what());
+        }
+        QVERIFY(threw);
+        QVERIFY(message.contains(QStringLiteral("历史对象校验失败")));
     }
 
 
