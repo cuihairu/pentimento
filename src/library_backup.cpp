@@ -102,6 +102,10 @@ Library::BackupPackage Library::exportBackupPackage(const QString &destinationDi
 }
 
 QVector<Library::BackupEntry> Library::verifyBackupPackage(const QString &packageDir) const {
+    // Serialize against writers like any other public read: as a public API it
+    // must never read objects/ or the manifest concurrently with a mutating
+    // call (restoreBackupPackage already holds this lock, reentrantly).
+    const std::lock_guard<QRecursiveMutex> guard(mutex_);
     const QDir dir(packageDir);
     // The completion marker decides "success": a half-package (interrupted
     // export, disk-full) has no marker and is reported incomplete, never

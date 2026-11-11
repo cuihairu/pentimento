@@ -29,8 +29,23 @@ SourceInfo statSource(const QString &path) {
         out.mtimeMs = info.lastModified().toMSecsSinceEpoch();
         if (!info.isDir()) {
             QFile file(info.absoluteFilePath());
-            if (file.open(QIODevice::ReadOnly))
-                out.contentHash = QCryptographicHash::hash(file.readAll(), QCryptographicHash::Sha256);
+            if (file.open(QIODevice::ReadOnly)) {
+                // Stream-hash in 1 MiB chunks: an oversize source must never be
+                // loaded whole into memory (P1 audit 2026-11-12).
+                QCryptographicHash h(QCryptographicHash::Sha256);
+                constexpr qint64 kChunk = 1 << 20; // 1 MiB
+                bool readError = false;
+                while (!file.atEnd()) {
+                    const auto chunk = file.read(kChunk);
+                    if (chunk.isEmpty() && file.error() != QFileDevice::NoError) {
+                        readError = true;
+                        break;
+                    }
+                    h.addData(chunk);
+                }
+                if (!readError && file.error() == QFileDevice::NoError)
+                    out.contentHash = h.result();
+            }
         }
     }
     return out;

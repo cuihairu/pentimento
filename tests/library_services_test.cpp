@@ -79,6 +79,22 @@ private slots:
             QVERIFY(::chmod(dir.filePath("ro.png").toLocal8Bit().constData(), 0444) == 0);
             QCOMPARE(statSource(dir.filePath("ro.png")).state, SourceState::ReadOnly);
         }
+        // P1 audit (2026-11-12): an oversize file is stream-hashed, never
+        // loaded whole — statvfs-style stat must not readAll a huge source.
+        QFile oversize(dir.filePath("huge.bin"));
+        QVERIFY(oversize.open(QIODevice::WriteOnly));
+        oversize.resize(257LL * 1024 * 1024); // sparse, just past the 256 MiB cap
+        oversize.close();
+        const SourceInfo huge = statSource(dir.filePath("huge.bin"));
+        QCOMPARE(huge.state, SourceState::Reachable);
+        QCOMPARE(huge.size, qint64(257LL * 1024 * 1024));
+        // Expected digest computed chunk-wise so the reference itself never
+        // holds the whole file either.
+        QCryptographicHash expected(QCryptographicHash::Sha256);
+        const QByteArray zeroChunk(4 * 1024 * 1024, '\0');
+        for (qint64 left = 257LL * 1024 * 1024; left > 0; left -= zeroChunk.size())
+            expected.addData(zeroChunk.left(int(qMin(left, qint64(zeroChunk.size())))));
+        QCOMPARE(huge.contentHash.toHex(), QString(expected.result().toHex()));
     }
     void taskQueueRunsOffThreadAndReportsProgressCancelAndResults() {
         TaskQueue queue;

@@ -281,11 +281,27 @@ void MainWindow::restoreBackupDrill() {
                     const auto revs = drill.revisions(e.assetId);
                     if (revs.isEmpty() || revs.first().hash != e.hash)
                         problems << e.name;
-                    // The recovered working file must hash to the same content.
-                    QFile working(it->path);
-                    if (!working.open(QIODevice::ReadOnly)
-                        || QString::fromLatin1(QCryptographicHash::hash(working.readAll(),
-                                                   QCryptographicHash::Sha256).toHex()) != e.hash)
+                    // The recovered working file must hash to the same content;
+                    // stream-hash in 1 MiB chunks so an oversize working copy
+                    // is never loaded whole into memory (P1 audit 2026-11-12).
+                    QString workingHash;
+                    {
+                        QFile working(it->path);
+                        if (working.open(QIODevice::ReadOnly)) {
+                            QCryptographicHash h(QCryptographicHash::Sha256);
+                            constexpr qint64 kChunk = 1 << 20; // 1 MiB
+                            while (!working.atEnd()) {
+                                const auto chunk = working.read(kChunk);
+                                if (chunk.isEmpty()
+                                    && working.error() != QFileDevice::NoError)
+                                    break;
+                                h.addData(chunk);
+                            }
+                            if (working.error() == QFileDevice::NoError)
+                                workingHash = QString::fromLatin1(h.result().toHex());
+                        }
+                    }
+                    if (workingHash != e.hash)
                         problems << e.name;
                     ++checked;
                 }
