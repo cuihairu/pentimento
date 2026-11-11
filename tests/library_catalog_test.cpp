@@ -96,6 +96,82 @@ private slots:
         QVERIFY(lib.tags(a.id).isEmpty());
     }
 
+    // Audit (2026-11-12, P0): a mid-transaction failure in the batch tag paths
+    // must roll back the WHOLE transaction (tags + revisions + field_history),
+    // never leave a leftover transaction that chains every later write into an
+    // uncommitted state (lost at process exit), and never report a failed
+    // commit as success. The failure is injected exactly where the audit names
+    // it: inside recordFieldChange, after the tag row was already inserted in
+    // the same transaction.
+    void batchTagRollsBackOnMidTransactionFailure() {
+        QTemporaryDir dir;
+        Library lib(dir.filePath("lib"));
+        put(dir.filePath("a.png"), "asset-a");
+        const auto a = lib.importFile(dir.filePath("a.png"));
+        QCOMPARE(lib.revisions(a.id).size(), 1);
+        // A tag present before the injection, so removeTagFromAssets has a row
+        // to delete before its own recordFieldChange write fails.
+        QCOMPARE(lib.addTag(a.id, QStringLiteral("保留")), 1);
+        QCOMPARE(lib.revisions(a.id).size(), 2);
+
+        const QString conn = QStringLiteral("cat_tagrollback_")
+                             + QUuid::createUuid().toString(QUuid::WithoutBraces);
+        auto withTrigger = [&](const QString &sql) {
+            QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", conn);
+            db.setDatabaseName(dir.filePath(QStringLiteral("lib/catalog.sqlite")));
+            QVERIFY(db.open());
+            QSqlQuery q(db);
+            QVERIFY(q.exec(sql));
+        };
+        withTrigger(QStringLiteral(
+            "CREATE TRIGGER fail_meta_revision BEFORE INSERT ON revisions "
+            "BEGIN SELECT RAISE(ABORT, 'injected meta revision failure'); END"));
+
+        // Batch add: the tag row is inserted, then recordFieldChange's
+        // metadata-only revision write aborts. The whole transaction (including
+        // the tag row) must be rolled back and the exception must propagate.
+        bool threw = false;
+        QString message;
+        try {
+            lib.addTagToAssets({a.id}, QStringLiteral("注入失败"));
+        } catch (const std::exception &e) {
+            threw = true;
+            message = QString::fromUtf8(e.what());
+        }
+        QVERIFY2(threw, qPrintable(message));
+        QVERIFY(message.contains(QStringLiteral("injected")));
+        QVERIFY(lib.tags(a.id) == QStringList({QStringLiteral("保留")}));
+        // Only the pre-injection "保留" change remains; the aborted "注入失败"
+        // field record was never committed and the rollback left no partial row.
+        const auto history = lib.fieldHistory(a.id);
+        QCOMPARE(history.size(), 1);
+        QCOMPARE(history.first().newValue, QStringLiteral("保留"));
+        QCOMPARE(lib.revisions(a.id).size(), 2);
+
+        // Batch remove: the delete succeeds, then the same recordFieldChange
+        // write aborts; the delete must be rolled back too.
+        threw = false;
+        message.clear();
+        try {
+            lib.removeTagFromAssets({a.id}, QStringLiteral("保留"));
+        } catch (const std::exception &e) {
+            threw = true;
+            message = QString::fromUtf8(e.what());
+        }
+        QVERIFY2(threw, qPrintable(message));
+        QCOMPARE(lib.tags(a.id), QStringList({QStringLiteral("保留")}));
+        QCOMPARE(lib.revisions(a.id).size(), 2);
+
+        withTrigger(QStringLiteral("DROP TRIGGER fail_meta_revision"));
+        QSqlDatabase::removeDatabase(conn);
+
+        // No leftover transaction: the connection is immediately usable and a
+        // later write is committed normally (not silently chained/lost).
+        QCOMPARE(lib.addTag(a.id, QStringLiteral("恢复")), 1);
+        QCOMPARE(lib.tags(a.id).size(), 2);
+        QCOMPARE(lib.revisions(a.id).size(), 3);
+    }
+
     void ratingAndNotePersistAcrossReopen() {
         QTemporaryDir dir;
         QString assetId;

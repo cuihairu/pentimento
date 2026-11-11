@@ -87,17 +87,31 @@ int Library::addTagToAssets(const QStringList &assetIds, const QString &tag) {
     const QString value = tag.trimmed();
     if (value.isEmpty() || assetIds.isEmpty()) return 0;
     int changed = 0;
-    db().transaction();
-    for (const QString &id : assetIds) {
-        QSqlQuery q(db());
-        q.prepare("INSERT OR IGNORE INTO tags(asset_id,tag) VALUES(?,?)");
-        q.addBindValue(id);
-        q.addBindValue(value);
-        if (!q.exec()) { db().rollback(); fail(q.lastError().text()); }
-        if (q.numRowsAffected() > 0) recordFieldChange(id, QStringLiteral("标签"), QString(), value);
-        changed += q.numRowsAffected();
+    // Audit (2026-11-12, P0): a metadata change also writes revisions +
+    // field_history inside the same transaction. Any statement failure (the
+    // tag INSERT or recordFieldChange) must roll back the WHOLE transaction,
+    // or the leftover transaction chains every later write into an
+    // uncommitted state that is lost at process exit. The transaction and
+    // commit returns were previously ignored, so a failed commit was reported
+    // as success.
+    if (!db().transaction())
+        fail(tr("无法开启事务：%1").arg(db().lastError().text()));
+    try {
+        for (const QString &id : assetIds) {
+            QSqlQuery q(db());
+            q.prepare("INSERT OR IGNORE INTO tags(asset_id,tag) VALUES(?,?)");
+            q.addBindValue(id);
+            q.addBindValue(value);
+            if (!q.exec()) fail(q.lastError().text());
+            if (q.numRowsAffected() > 0) recordFieldChange(id, QStringLiteral("标签"), QString(), value);
+            changed += q.numRowsAffected();
+        }
+    } catch (...) {
+        db().rollback();
+        throw;
     }
-    db().commit();
+    if (!db().commit())
+        fail(tr("提交事务失败：%1").arg(db().lastError().text()));
     return changed;
 }
 
@@ -106,17 +120,24 @@ int Library::removeTagFromAssets(const QStringList &assetIds, const QString &tag
     const QString value = tag.trimmed();
     if (value.isEmpty() || assetIds.isEmpty()) return 0;
     int changed = 0;
-    db().transaction();
-    for (const QString &id : assetIds) {
-        QSqlQuery q(db());
-        q.prepare("DELETE FROM tags WHERE asset_id=? AND tag=?");
-        q.addBindValue(id);
-        q.addBindValue(value);
-        if (!q.exec()) { db().rollback(); fail(q.lastError().text()); }
-        if (q.numRowsAffected() > 0) recordFieldChange(id, QStringLiteral("标签"), value, QString());
-        changed += q.numRowsAffected();
+    if (!db().transaction())
+        fail(tr("无法开启事务：%1").arg(db().lastError().text()));
+    try {
+        for (const QString &id : assetIds) {
+            QSqlQuery q(db());
+            q.prepare("DELETE FROM tags WHERE asset_id=? AND tag=?");
+            q.addBindValue(id);
+            q.addBindValue(value);
+            if (!q.exec()) fail(q.lastError().text());
+            if (q.numRowsAffected() > 0) recordFieldChange(id, QStringLiteral("标签"), value, QString());
+            changed += q.numRowsAffected();
+        }
+    } catch (...) {
+        db().rollback();
+        throw;
     }
-    db().commit();
+    if (!db().commit())
+        fail(tr("提交事务失败：%1").arg(db().lastError().text()));
     return changed;
 }
 
