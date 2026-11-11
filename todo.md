@@ -318,3 +318,15 @@
 6. **Qt 构建相关嗅探行为**：`preview.cpp` 81（qtico 误判 TGA→footer 纠正行；本机 Qt 6.10.2 不产生该误判，行不可达）、151-156（Format_Alpha8 无任何真实文件编码可达；default 兜底）。
 
 结论：非 UI 模块中所有可达行为行已在本批补齐真实测试；剩余未覆盖行为上述 6 类，其中第 1 类若要提升需结构性拆层（等用户拍板），第 2 类建议删除（等用户确认），3/4 类需要故障注入基建，5/6 类按构造不可达。CI（nightly）在本批推送窗口出现 runner 侧「Install Qt 6.10.2」步骤反复挂起（43041233328、43045126416 已取消重派），本批以本地 16/16 + coverage 全绿为门禁。
+
+## 审核修复批 P0（audit-batch2 2026-11-11 pentimento 节，巡检单 2026-10-20 执行 2026-11-12）
+
+来源 /home/cui/audit-batch2-6repos-2026-11-11.md pentimento 节 P0 共 5 条，逐项 commit+push，每项门禁本地 16/16 套件绿：
+
+- [x] P0-1 `exportBackup()` 在 UI 线程同步 `probeBackupTarget(dir)`（statvfs），挂死 NAS 冻结界面。（完成 2026-11-12：6615b20——探测经 `targetQueue_` 异步提交（`src/mainwindow_backup.cpp:64` `exportBackupTo`，connect-before-submit + shared id/processed 防快任务信号丢失），探测完回填可写性与可用空间再 `QMessageBox::question` 确认，导出再经 `captureQueue_` 后台执行，全程状态栏提示「后台进行，界面可继续操作」；不可写目标直接警告不确认。顺手修掉同函数既有 submit-then-connect 竞态（taskFinished 在 worker 线程发出早于 UI connect 则信号丢失）。新增 2 个 offscreen UI 测试 `exportBackupRejectsUnwritableTargetAsync`/`exportBackupConfirmsAfterAsyncProbe`（tests/mainwindow_test.cpp，重复 QTimer 驱动模态），16/16 绿）
+- [x] P0-2 `addTagToAssets`/`removeTagFromAssets` 忽略 transaction/commit 返回值，中途失败事务不回滚。（完成 2026-11-12：3270908——两函数统一 try/catch：`transaction()` 失败即 fail（`src/library_meta.cpp:98/124`），循环内任何语句失败抛出统一 rollback 再抛，`commit()` 失败 fail（`src/library_meta.cpp:114/140`），移除旧内联双 rollback。触发器注入回归测试 `batchTagRollsBackOnMidTransactionFailure`（tests/library_catalog_test.cpp）：BEFORE INSERT ON revisions RAISE(ABORT) 使中途失败，断言 tag/field_history/revisions 全部回滚、连接仍可用无残留事务，16/16 绿）
+- [x] P0-3 `convergeRestoreLog()` 用 `readFile()`（256 MiB 上限抛异常）哈希工作副本，超限文件令 Library 构造抛出、素材库打不开。（完成 2026-11-12：b45f0ca——`src/library_restore.cpp:312` 改流式 `hashFile()`（1 MiB 分块、不抛、超限安全），不可读/不可校验降级 `conflict` 并写「工作副本不可读或无法校验，未自动处理」，不再让收敛异常外溢到构造函数。回归测试 `convergeOversizeWorkingCopyDegradesToConflict`（tests/library_restore_test.cpp）：QFile::resize 257 MiB 稀疏文件 + 注入 planned restore_log，重开 Library 不抛、状态 conflict、文件与版本不动，16/16 绿（38.12s））
+- [x] P0-4 `snapshotAll` insertEntry 失败 rollback 后紧急锚点 revision 不回退、重试堆积锚点版本。（完成 2026-11-12：核实不属实——`recordRevision`（src/library.cpp:372）无自有事务，锚点 INSERT 随 snapshotAll 外层事务（src/library_snapshot.cpp:138-271），catch 统一 rollback 一并回退；审计建议的「移出事务」反而会让失败快照遗留锚点。以回归测试锁定不变量 `snapshotFailureRollsBackEmergencyAnchor`（tests/library_catalog_test.cpp:715）：破坏锚点对象令 insertEntry 校验失败 → 无快照、无锚点（revisions 仍 1 条）；恢复对象重试 → 恰好 1 条「紧急快照锚点」且复用已落盘对象，16/16 绿，509639e）
+- [x] P0-5 `runTask` 裸 `self` 指针析构后悬空，建议改 `QPointer<TaskQueue>`。（完成 2026-11-12：核实不成立且建议更弱——析构函数在 emitMutex 下先置 alive=false 再释放 QObject（src/taskqueue.cpp:74-92），runTask 同锁下检查 alive 才解引用 self（src/taskqueue.cpp:165），两者互斥故无窗口；QPointer 晚至 ~QObject 完成才置空，弱于现有守卫且跨线程语义另添风险，故不采纳改法。以确定性回归测试锁定 `taskQueueDetachedWorkerNeverEmitsAfterDestruction`（tests/library_services_test.cpp:201）：阻塞任务 + 已入队任务均越过析构在死队列上走完 emit 段，槽位由同尺寸活队列顶占——守卫被剥除则信号落到活队列被计数/崩溃。变异验证：剥除 alive 检查 3/3 段错误，正确代码 5/5 通过，16/16 绿，2ee46f7）
+
+门禁：每项 commit 前全量 `ctest --test-dir build-cov -j1` 16/16 绿（P0-3 前 38.12s / P0-4 前 56.53s / P0-5 前 73.83s）；P0-4、P0-5 审计主张与代码事实不符，仅补回归测试不改源码（禁凑数：两测试均先证实可失败——P0-4 首版误写源文件路径即失败，P0-5 变异实验 3/3 崩溃）。
