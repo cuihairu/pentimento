@@ -584,6 +584,45 @@ private slots:
         QCOMPARE(get(a.path), QByteArray("edited by someone else")); // left alone
         QCOMPARE(reopened.revisions(a.id).size(), 2); // nothing invented
     }
+    // Audit (2026-11-12, P0): convergeRestoreLog hashed the working copy with
+    // readFile(), which caps at 256 MiB and throws. A working copy over the cap
+    // made the Library constructor throw inside convergeRestoreLog (with the
+    // lock already held), leaving the whole library unopenable. It now streams
+    // via the non-throwing hashFile and degrades an unhashable/oversize copy to
+    // a conflict, never a constructor failure.
+    void convergeOversizeWorkingCopyDegradesToConflict() {
+        QTemporaryDir dir;
+        const QString root = dir.filePath("library");
+        QString assetId;
+        qint64 rev1Id = 0;
+        QString rev1Hash;
+        {
+            put(dir.filePath("a.dat"), "v1");
+            Library lib(root);
+            const auto a = lib.importFile(dir.filePath("a.dat"));
+            assetId = a.id;
+            rev1Id = lib.revisions(a.id).first().id;
+            rev1Hash = lib.revisions(a.id).first().hash;
+            // A working copy just over the old 256 MiB readFile cap. The
+            // streaming hash handles it; the old readFile threw here, so the
+            // library could never be reopened.
+            QFile huge(a.path);
+            QVERIFY(huge.open(QIODevice::WriteOnly));
+            QVERIFY(huge.resize(257LL * 1024 * 1024));
+            huge.close();
+            // Third content (neither prev nor target): must converge to conflict.
+            injectPendingRestoreLog(root, a.id, rev1Id, digestHex("v2"), rev1Hash, 0);
+        }
+        // Reopening succeeds (no throw from convergeRestoreLog) and the row is
+        // flagged conflict; the over-limit working copy is left untouched and
+        // no restore revision was invented.
+        Library reopened(root);
+        QCOMPARE(reopened.restoreLogs().first().state, QStringLiteral("conflict"));
+        QVERIFY(reopened.restoreLogs().first().error.contains(QStringLiteral("未自动处理")));
+        QCOMPARE(reopened.assets().first().id, assetId);
+        QCOMPARE(QFileInfo(reopened.assets().first().path).size(), qint64(257LL * 1024 * 1024));
+        QCOMPARE(reopened.revisions(assetId).size(), 1);
+    }
     // The forward-convergence path with a vanished target object must mark the
     // row failed with a concrete reason instead of claiming completion.
     void convergeForwardWithMissingObjectMarksFailed() {

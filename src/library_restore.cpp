@@ -298,7 +298,20 @@ void Library::convergeRestoreLog() {
         if (!rev.next()) { markRestoreLog(row.id, QStringLiteral("aborted"), Library::tr("目标版本不存在")); continue; }
         const QString targetHash = rev.value(0).toString();
         const QFileInfo info(workingPath);
-        const QString fileHash = (info.exists() && info.isReadable()) ? digest(readFile(workingPath)) : QString();
+        // Audit (2026-11-12, P0): the working copy is hashed with the streaming,
+        // non-throwing hashFile — the old readFile() caps at 256 MiB and throws,
+        // so an over-limit (or mid-read-failing) copy would make the Library
+        // constructor throw in convergeRestoreLog and leave the whole library
+        // unopenable (with the lock already held). A copy that cannot be hashed
+        // never matches a hash: it is flagged conflict and left untouched.
+        QString fileHash;
+        const bool hashed = info.exists() && info.isReadable()
+            && hashFile(workingPath, &fileHash, nullptr);
+        if (!hashed) {
+            markRestoreLog(row.id, QStringLiteral("conflict"),
+                           Library::tr("工作副本不可读或无法校验，未自动处理"));
+            continue;
+        }
         if (fileHash == targetHash) {
             // The file WAS replaced; the index never committed. Complete it now.
             QByteArray bytes;
