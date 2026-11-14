@@ -25,7 +25,7 @@
 
 ## Build & run
 
-Requires CMake 3.24+, Ninja, a C++17-capable compiler, and Qt 6.4+ (Core, Gui, Widgets, Sql, Test); the Qt SQLite driver is needed at runtime. Verified with a local Qt 6.10.2/Linux build; macOS/Windows builds are not yet verified on real machines.
+Requires CMake 3.24+, Ninja, a C++17-capable compiler, and Qt 6.4+ (Core, Gui, Widgets, Sql, Network; Test is additionally needed when building the test suites); the Qt SQLite driver is needed at runtime. Verified with a local Qt 6.10.2/Linux build; macOS/Windows builds are not yet verified on real machines.
 
 ```sh
 cmake --preset dev

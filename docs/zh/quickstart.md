@@ -5,7 +5,7 @@
 - CMake 3.24+
 - Ninja
 - 支持 C++17 的编译器
-- Qt 6.4+（Core、Gui、Widgets、Sql、Test），运行时需要 Qt SQLite 驱动
+- Qt 6.4+（Core、Gui、Widgets、Sql、Network；构建测试套件时还需 Test），运行时需要 Qt SQLite 驱动
 
 已在本地 Qt 6.10.2 / Linux 构建验证；macOS 与 Windows 尚待真机构建验证。
 

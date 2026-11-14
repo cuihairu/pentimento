@@ -5,7 +5,7 @@
 - CMake 3.24+
 - Ninja
 - A C++17-capable compiler
-- Qt 6.4+ with Core, Gui, Widgets, Sql and Test (the Qt SQLite driver is needed at runtime)
+- Qt 6.4+ with Core, Gui, Widgets, Sql and Network; Test is needed additionally when building the test suites (the Qt SQLite driver is needed at runtime)
 
 Verified with a local Qt 6.10.2 / Linux build; macOS and Windows builds are not yet verified on real machines.
 

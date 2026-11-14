@@ -117,7 +117,7 @@ background integrity, and dialogs under the offscreen platform.
 9. Verification is an architecture layer, not an afterthought: core, security, and UI suites intentionally exercise different entry points and lifecycles, including background integrity and detached probe shutdown (`CMakeLists.txt:72`, `CMakeLists.txt:79`, `CMakeLists.txt:85`).
 ## Structure
 
-`pentimento_core` is a Qt Core/Sql library with no Widgets dependency; the desktop layer calls into the Library, and Qt Test covers storage and restore behavior. CMake is the only build entry; all targets use ISO C++17 with compiler extensions disabled.
+`pentimento_core` is a Qt Core/Gui/Sql/Network library with no Widgets dependency; the desktop layer calls into the Library, and Qt Test covers storage and restore behavior. CMake is the only build entry; all targets use ISO C++17 with compiler extensions disabled.
 
 ```text
 library/

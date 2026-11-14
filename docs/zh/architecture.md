@@ -80,7 +80,7 @@
 9. 验证是架构层而非附属：核心、安全、UI 套件刻意覆盖不同入口和生命周期，包括后台完整性与 detach 探测关闭（`CMakeLists.txt:72`、`CMakeLists.txt:79`、`CMakeLists.txt:85`）。
 ## 结构
 
-`pentimento_core` 是 Qt Core/Sql 库，不依赖 Widgets；桌面层调用 Library，Qt Test 覆盖存储与恢复行为。CMake 为唯一构建入口，所有目标采用 ISO C++17、禁编译器扩展。
+`pentimento_core` 是 Qt Core/Gui/Sql/Network 库，不依赖 Widgets；桌面层调用 Library，Qt Test 覆盖存储与恢复行为。CMake 为唯一构建入口，所有目标采用 ISO C++17、禁编译器扩展。
 
 ```text
 library/
