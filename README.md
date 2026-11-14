@@ -6,7 +6,7 @@
 
 <p align="center"><a href="https://cuihairu.github.io/pentimento/"><img src="docs/public/badges/docs.svg" alt="docs" /></a> <img src="docs/public/badges/cpp17.svg" alt="language: C++17" /> <img src="docs/public/badges/qt6.svg" alt="framework: Qt 6" /> <img src="docs/public/badges/cmake.svg" alt="build: CMake 3.24+" /> <img src="docs/public/badges/license.svg" alt="license: Apache-2.0" /> <img src="docs/public/badges/platform.svg" alt="platform: Linux | Windows | macOS" /> <img src="docs/public/badges/status.svg" alt="status: prototype stage" /></p>
 
-**A local desktop asset manager for game art assets, centered on version-history browsing and restore.** It takes inspiration from Eagle's asset-organizing workflow and macOS Time Machine's version rollback experience, with the code and UI implemented from scratch.
+**A local desktop asset manager for game art assets, centered on version-history browsing and restore.** It takes inspiration from Eagle's asset-organizing workflow and macOS Time Machine's version rollback experience; the application code and UI are our own, built on top of Qt 6.
 
 **Tech stack: C++17, Qt 6 Widgets, Qt SQL/SQLite, managed by CMake.** No WebView.
 
@@ -37,6 +37,8 @@ ctest --preset dev
 On macOS the bundle entry point is `build/dev/pentimento.app/Contents/MacOS/pentimento`. If your Qt install is not on the default search path, add `-DCMAKE_PREFIX_PATH=/path/to/Qt/6.x/platform` to the configure command. Qt Creator can also open `CMakeLists.txt` directly.
 
 **Linux tarball runtime dependencies.** The packaged app bundles the Qt runtime and the xcb/X11 helper libraries (including `libxcb-cursor.so.0`, which minimal desktop installs often lack). The `pentimento` launcher verifies all shared libraries resolve before starting and prints per-distro install hints if something is missing; if a package was built on a machine without `libxcb-cursor.so.0`, install it manually: `libxcb-cursor0` (Ubuntu/Debian), `xcb-util-cursor` (Fedora, Arch), plus `libxkbcommon-x11-0` where not bundled.
+
+**Prebuilt Linux tarball.** A rolling nightly build is published as a prerelease on the [Releases page](https://github.com/cuihairu/pentimento/releases/tag/nightly) (tag `nightly`), built from the latest `main`: `pentimento-linux-x64.tar.gz` plus a `SHA256SUMS` checksum file. The package carries the Qt runtime, the xcb platform plugin, and the SQLite driver. It is a trial build of current `main`, not a versioned release; numbered releases carry the version.
 
 Without `--library`, the library lives under Qt's AppLocalDataLocation as `library/`. A library contains `catalog.sqlite`, `objects/`, and `working/`; open a file in the library with "Edit working copy", and after editing it is recorded automatically or via "Record version". The original file imported into the library is never updated by edits.
 

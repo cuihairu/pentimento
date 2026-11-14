@@ -38,6 +38,8 @@ macOS 的 bundle 入口为 `build/dev/pentimento.app/Contents/MacOS/pentimento`�
 
 **Linux 压缩包运行依赖。** 发布包内置 Qt 运行库与 xcb/X11 助手库（含最小安装桌面常缺的 `libxcb-cursor.so.0`）。`pentimento` 启动器会在启动前校验全部共享库可解析，缺失时打印各发行版的安装提示；若包在缺少该库的机器上构建，请手动安装：`libxcb-cursor0`（Ubuntu/Debian）、`xcb-util-cursor`（Fedora、Arch），以及未捆绑时的 `libxkbcommon-x11-0`。
 
+**Linux 预编译包。** [Releases 页面](https://github.com/cuihairu/pentimento/releases/tag/nightly) 上有一个滚动夜间构建（prerelease，标签 `nightly`），从最新 `main` 产出：`pentimento-linux-x64.tar.gz` 以及用于校验的 `SHA256SUMS` 文件。包内带有 Qt 运行库、xcb 平台插件与 SQLite 驱动。它是当前 `main` 的试用构建，不是带版本号的正式版本；版本号以正式版本为准。
+
 不传 `--library` 时使用 Qt AppLocalDataLocation 下的 `library/`。素材库内有 `catalog.sqlite`、`objects/`、`working/`；通过“编辑工作副本”打开库内文件，编辑完成后自动记录或点击“记录版本”。编辑导入前的原文件不会更新库内副本。
 
 ## 安全防线（防勒索病毒）
