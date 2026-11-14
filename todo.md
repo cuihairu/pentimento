@@ -366,3 +366,17 @@
 - [Minor] TODO 夸大日志测试的逐条验证范围 | 位置 [todo.md:340](/home/cui/workspaces/pentimento/todo.md:340) | 问题：声称“逐条断言完整且 newest-first”，但 `7663976` 的测试仅检查总数、首尾 commit 和首尾 subject（[tests/git_source_test.cpp:266](/home/cui/workspaces/pentimento/tests/git_source_test.cpp:266)） | 影响：中间记录损坏或乱序仍可能通过；换行修复有真实依据，但覆盖范围记录不实 | 修复方向：逐项比较预期 commit、subject 及顺序，再保留该声明。
 - [Minor] 回滚失败测试依赖调度时机，不能保证确定性 | 位置 [tests/library_restore_test.cpp:233](/home/cui/workspaces/pentimento/tests/library_restore_test.cpp:233) | 问题：watcher 轮询 mtime 后 `chmod`，主线程没有等待该动作完成；32 MiB 校验只是扩大时间窗口 | 影响：watcher 调度较晚时，回滚已成功，正确实现也可能测试失败；todo.md:341 的“确定性窗口”表述过强 | 修复方向：在 stage 3 完成与 stage 4 继续之间增加可控测试同步点。
 - [Minor] 新增 LFS 测试遗漏可选依赖跳过逻辑 | 位置 [tests/git_source_test.cpp:377](/home/cui/workspaces/pentimento/tests/git_source_test.cpp:377) | 问题：直接 `QVERIFY(makeLfsRepo(dir.path()))`；相邻 LFS 测试会先探测 git-lfs 并 `QSKIP`，初始化仅探测 git | 影响：只有 git、没有 git-lfs 的环境新增失败，破坏原有可选依赖约定 | 修复方向：复用统一的 git-lfs 探测与跳过逻辑。
+
+## 文档一致性 G2 轮（2026-11-14，舰队巡检单 fleet-docs-audit-G2）
+
+文档 vs 代码：上轮 2026-11-05 后 211 commits，重点核新增代码漂移。本轮增量三桶：**文档超前于码（幽灵功能）0**、**码超前于文档 4**、**描述不符 0**。
+
+- **G2-F1（P1，已修）** README×2 称「external directory indexing … not implemented / 外部目录索引……尚未实现」，但 P-204 已落地且已接 UI：`src/mainwindow_sources.cpp:335`（indexExternalDirectory）、菜单 `src/mainwindow.cpp:98`、`src/library_external.cpp:52,101`。
+- **G2-F2（P1，已修）** docs/architecture.md:163 与 zh:129 称「删除墓碑未落地」，但 P-310 已落地：`src/library.h:76-81,235-242`、`src/library_restore.cpp:470,502`、UI 删除 `src/mainwindow.cpp:408`→`src/mainwindow_metadata.cpp:169-188`。
+- **G2-F3（P2，已修）** 只读 Git/SVN 源接入（P-401..408）、LFS 同意门 fetch（P-405）、远端地址解析（P-509）、发现记录合并（P-508）全无文档记载；核心模块+测试在位（`CMakeLists.txt:97-116`），src/ 内无 UI 消费方 → 按 F5 口径补记「核心已备、无界面入口」。
+- **G2-F4（P2，已修）** 库内删除（墓碑）未列入 README/quickstart 功能清单。
+- 修复 6 文件（README×2、architecture×2、quickstart×2），en/zh 孪生同轮同步，无 P0、无反向改码；详见 `docs/审计-文档一致性.md`「G2 轮」节。
+
+语言面：README.md↔README.zh.md 成对 + vitepress `locales: root(en-US)/zh(zh-CN)`，契约正常（探针 `/`→200 lang=en-US、`/zh/`→200 lang=zh-CN）；**无浏览器语言自动识别**（`docs/.vitepress/config.mts` 与 theme 内无 rootLocale/navigator.language/localeDetect）。
+
+- [ ] **G2-L1（P2，待用户拍板）** 浏览器语言自动切换增强：vitepress 首页语言探测跳转（`navigator.language` → `/zh/`，localStorage 记忆选择）或 `rootLocale` 重定向，二者择一。全舰队 0 仓有自动切换，属增强项非受规基线，需用户圈定上线范围后执行。
