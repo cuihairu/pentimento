@@ -18,6 +18,8 @@
 - Browse and export historical versions; restoring adds a new version, saving any not-yet-recorded current content first, so existing history is preserved.
 - Side-by-side or sliding-divider version comparison; tags (single and batch); per-field metadata history (read-only review).
 - Scheduled whole-tree snapshots (off by default, 15/30/60-minute periods), snapshot exclusion rules, and one-click consistent backup-package export.
+- External directory indexing: index a folder outside the library read-only, without copying or modifying anything; a refresh marks vanished files as missing instead of dropping them.
+- In-app deletion writes a tombstone revision: the asset leaves the live list while its history and objects stay browsable.
 - SHA-256 content addressing: identical file content reuses objects; SQLite keeps the index, QSaveFile gives atomic writes, and a library-level lock restricts access to one process.
 - Restore/export verifies historical object hashes; if a working copy is accidentally deleted it can be recovered from history.
 
@@ -52,8 +54,8 @@ This is a runnable early prototype — not a full Eagle replacement, and not a s
 
 - Automatic recording only works while the app is running; file-stability detection is heuristic and does not guarantee capture of every editor save, and content not written to disk in the editor cannot be recorded. Close external editors before restoring so they don't overwrite the restore result.
 - Image previews depend on the local Qt image plugins. PSDs, models, and similar files keep their history as raw bytes, but layers are not parsed and models are not rendered. Single-file limit is 256 MiB; I/O and thumbnails currently run on the UI thread — small libraries are the priority for trial use.
-- Whole-library point-in-time restore exists today as "Restore to anchor" (snapshot anchors, whole-tree rollback) rather than arbitrary time travel; AI recognition is not yet available, and batch folder import has a core scan pipeline but no UI entry yet.
-- This release uses managed copy-in import; rename/move tracking, external directory indexing, library migration, history cleanup, and remote backup are not implemented. Working-file paths are currently absolute, so a library cannot be moved wholesale and continue editing.
+- Whole-library point-in-time restore exists today as "Restore to anchor" (snapshot anchors, whole-tree rollback) rather than arbitrary time travel; AI recognition is not yet available, and batch folder import has a core scan pipeline but no UI entry yet. Read-only Git/SVN source access and remote-source discovery are likewise core modules with tests but no UI entry yet.
+- This release uses managed copy-in import; rename/move tracking, library migration, history cleanup, and remote backup are not implemented. Working-file paths are currently absolute, so a library cannot be moved wholesale and continue editing.
 - Objects and the index are not in a single cross-file transaction; if the process crashes between restoring to disk and committing the database, the current working copy must be recorded once after reopening. Orphaned objects are not cleaned up for now, to avoid deleting history by mistake.
 - Same-disk history is not a substitute for off-disk backup; to back up, close the app first, then copy the entire library.
 

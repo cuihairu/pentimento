@@ -24,7 +24,7 @@
 
 ### L3 导入、来源与备份服务
 
-该层管理跨文件系统边界的受控内容移动。导入器扫描并生成计划，但只导入用户确认的文件；`SourceConnection` 只读探测已挂载来源，且不会把不可达解释为删除；备份目标探测单独判断目的地是否可写；备份包先校验内容，最后才写 `COMPLETE`。
+该层管理跨文件系统边界的受控内容移动。导入器扫描并生成计划，但只导入用户确认的文件；`SourceConnection` 只读探测已挂载来源，且不会把不可达解释为删除；备份目标探测单独判断目的地是否可写；备份包先校验内容，最后才写 `COMPLETE`。只读 Git 与 SVN 源接入（`src/git_source.cpp`、`src/svn_source.cpp`）、远端地址解析（`src/remote_address.cpp`）与发现记录合并（`src/discovery.cpp`）是带测试覆盖的核心模块，尚未接入界面。
 
 - 实现：`src/importer.cpp:57`、`src/importer.cpp:91`、`src/importer.cpp:108`、`src/source_connection.cpp:36`、`src/storage.cpp:21`、`src/storage.cpp:64`、`src/library_snapshot.cpp:104`。
 - 配置 schema：用户忽略规则由 `src/importer.cpp:22` 解析；来源路径和备份路径是 `src/mainwindow_sources.cpp:105` 渲染的对话框输入；CMake 翻译目录是 `src/i18n.cpp:23` 的输入。
@@ -126,6 +126,6 @@ UI 定时器检查文件大小和修改时间，连续两次（2 秒间隔）相
 
 ## 版本与备份
 
-单资源内容历史、整库快照锚点（`snapshotAll`/`snapshots`）、批量时间点恢复（`rollbackAll`，即「恢复到锚点」）、定时快照（默认关闭）、快照排除规则、逐字段元数据历史（P-309，只读回看）与一键备份包导出（`exportBackupPackage`）已落地；删除墓碑与保留策略未落地。对象库必须和 SQLite 一起备份，当前仅支持关闭应用后的冷备。库不可直接跨路径移动（工作路径暂为绝对路径）。
+单资源内容历史、整库快照锚点（`snapshotAll`/`snapshots`）、批量时间点恢复（`rollbackAll`，即「恢复到锚点」）、定时快照（默认关闭）、快照排除规则、逐字段元数据历史（P-309，只读回看）、一键备份包导出（`exportBackupPackage`）与库内删除（P-310，`Library::deleteAsset` → `src/library_restore.cpp:470`，写入墓碑版本）已落地；保留策略与历史清理未落地。对象库必须和 SQLite 一起备份，当前仅支持关闭应用后的冷备。库不可直接跨路径移动（工作路径暂为绝对路径）。
 
 完整职责映射、术语表和编号理由见上方[分层小节](#源码分层)与[术语表](./glossary.md)。

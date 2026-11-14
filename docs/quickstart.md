@@ -34,6 +34,7 @@ On macOS the bundle entry point is `build/dev/pentimento.app/Contents/MacOS/pent
 - Side-by-side or sliding-divider version comparison; tags; per-field metadata history (read-only review).
 - Browse and export historical versions; restore preserves all existing history.
 - Restore/export verify historical object hashes; an accidentally deleted working copy can be recovered from history.
+- In-app deletion writes a tombstone revision, so the asset leaves the live list while its history and objects stay browsable.
 
 ## First-release boundaries
 

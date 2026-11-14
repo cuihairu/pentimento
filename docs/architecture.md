@@ -42,7 +42,10 @@ This layer owns controlled movement across filesystem boundaries. The importer
 scans and plans, but only imports confirmed files; `SourceConnection` probes a
 mounted source read-only and never interprets unreachability as deletion; the
 backup-target probe separately asks whether a destination can be written;
-backup packages verify content before writing `COMPLETE`.
+backup packages verify content before writing `COMPLETE`. Read-only Git and SVN
+source access (`src/git_source.cpp`, `src/svn_source.cpp`), remote-address
+parsing (`src/remote_address.cpp`) and discovery-record merging
+(`src/discovery.cpp`) are core modules with test coverage but no UI entry yet.
 
 - Implementation: `src/importer.cpp:57`, `src/importer.cpp:91`, `src/importer.cpp:108`, `src/source_connection.cpp:36`, `src/storage.cpp:21`, `src/storage.cpp:64`, `src/library_snapshot.cpp:104`.
 - Configuration schema: user ignore rules are parsed by `src/importer.cpp:22`; the source path and backup path are dialog inputs rendered in `src/mainwindow_sources.cpp:105`; CMake translation locations are inputs to `src/i18n.cpp:23`.
@@ -160,7 +163,7 @@ A UI timer checks file size and mtime; a read happens once they have stayed the 
 
 ## Versioning and backup
 
-Per-asset content history, whole-library snapshot anchors (`snapshotAll`/`snapshots`), batch point-in-time restore (`rollbackAll`, the "Restore to anchor" path), scheduled snapshots (off by default), snapshot exclusion rules, per-field metadata history (P-309, read-only review), and one-click backup-package export (`exportBackupPackage`) have landed. Deletion tombstones and retention policies have not. The object store must be backed up together with SQLite; only a cold backup taken while the app is closed is supported. A library cannot be moved to a new path directly (working paths are currently absolute).
+Per-asset content history, whole-library snapshot anchors (`snapshotAll`/`snapshots`), batch point-in-time restore (`rollbackAll`, the "Restore to anchor" path), scheduled snapshots (off by default), snapshot exclusion rules, per-field metadata history (P-309, read-only review), one-click backup-package export (`exportBackupPackage`), and in-app deletion with tombstone revisions (P-310, `Library::deleteAsset` → `src/library_restore.cpp:470`) have landed. Retention policies and history cleanup have not. The object store must be backed up together with SQLite; only a cold backup taken while the app is closed is supported. A library cannot be moved to a new path directly (working paths are currently absolute).
 
 For the complete responsibility map, terminology table, and numbered rationale,
 see the [layer sections](#source-layers) above and the
