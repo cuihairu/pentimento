@@ -369,13 +369,15 @@
 
 ## 文档一致性 G2 轮（2026-11-14，舰队巡检单 fleet-docs-audit-G2）
 
-文档 vs 代码：上轮 2026-11-05 后 211 commits，重点核新增代码漂移。本轮增量三桶：**文档超前于码（幽灵功能）0**、**码超前于文档 4**、**描述不符 0**。
+文档 vs 代码：上轮 2026-11-05 后 211 commits，重点核新增代码漂移。本轮增量三桶：**文档超前于码（幽灵功能）0**、**码超前于文档 5**、**描述不符 0**；另措辞合规 1 项（不占三桶）。
 
 - **G2-F1（P1，已修）** README×2 称「external directory indexing … not implemented / 外部目录索引……尚未实现」，但 P-204 已落地且已接 UI：`src/mainwindow_sources.cpp:335`（indexExternalDirectory）、菜单 `src/mainwindow.cpp:98`、`src/library_external.cpp:52,101`。
 - **G2-F2（P1，已修）** docs/architecture.md:163 与 zh:129 称「删除墓碑未落地」，但 P-310 已落地：`src/library.h:76-81,235-242`、`src/library_restore.cpp:470,502`、UI 删除 `src/mainwindow.cpp:408`→`src/mainwindow_metadata.cpp:169-188`。
 - **G2-F3（P2，已修）** 只读 Git/SVN 源接入（P-401..408）、LFS 同意门 fetch（P-405）、远端地址解析（P-509）、发现记录合并（P-508）全无文档记载；核心模块+测试在位（`CMakeLists.txt:97-116`），src/ 内无 UI 消费方 → 按 F5 口径补记「核心已备、无界面入口」。
 - **G2-F4（P2，已修）** 库内删除（墓碑）未列入 README/quickstart 功能清单。
-- 修复 6 文件（README×2、architecture×2、quickstart×2），en/zh 孪生同轮同步，无 P0、无反向改码；详见 `docs/审计-文档一致性.md`「G2 轮」节。
+- **G2-F6（P1，已修）** 已有 Linux 滚动夜间预编译包（tag `nightly`，prerelease，资产 `pentimento-linux-x64.tar.gz` 27.6 MiB + `SHA256SUMS`，`.github/workflows/nightly.yml:55-62`），README×2 却全篇无下载入口 → 补「预编译 Linux 包」段并指向 `releases/tag/nightly`，如实标注滚动 prerelease、非版本号正式发布。
+- **G2-F5（P2，措辞合规，不占三桶）** README.md:9「implemented from scratch」与《文档写作风格规范》诚实口径「禁从零自研」冲突（底座为 Qt 6），改为「our own, built on top of Qt 6」；全量禁用词 grep 修后零命中。
+- 修复 6 文件（README×2、architecture×2、quickstart×2）+ README×2 补记，en/zh 孪生同轮同步，无 P0、无反向改码；commit `525f20a`、`8f69a58`、`e2967f0`；详见 `docs/审计-文档一致性.md`「G2 轮」节。
 
 语言面：README.md↔README.zh.md 成对 + vitepress `locales: root(en-US)/zh(zh-CN)`，契约正常（探针 `/`→200 lang=en-US、`/zh/`→200 lang=zh-CN）；**无浏览器语言自动识别**（`docs/.vitepress/config.mts` 与 theme 内无 rootLocale/navigator.language/localeDetect）。
 
