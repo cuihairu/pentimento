@@ -382,4 +382,4 @@
 
 语言面：README.md↔README.zh.md 成对 + vitepress `locales: root(en-US)/zh(zh-CN)`，契约正常（探针 `/`→200 lang=en-US、`/zh/`→200 lang=zh-CN）；**无浏览器语言自动识别**（`docs/.vitepress/config.mts` 与 theme 内无 rootLocale/navigator.language/localeDetect）。
 
-- [ ] **G2-L1（P2，待用户拍板）** 浏览器语言自动切换增强：vitepress 首页语言探测跳转（`navigator.language` → `/zh/`，localStorage 记忆选择）或 `rootLocale` 重定向，二者择一。全舰队 0 仓有自动切换，属增强项非受规基线，需用户圈定上线范围后执行。
+- [ ] **G2-L1（P2，待用户拍板）** 浏览器语言自动切换增强：vitepress 首页语言探测跳转（`navigator.language` → `/zh/`，localStorage 记忆选择）或 `rootLocale` 重定向，二者择一。语言自动切换为增强项，默认手动切换+显式链接为受规基线，待用户拍板（复核实证 2026-11-15：页源内无 `navigator.languages`/`rootLocale`/`location.replace` 重定向脚本，线上 `/` 与 `/zh/` 均 200）。
