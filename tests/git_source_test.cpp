@@ -282,16 +282,25 @@ private slots:
         QString error;
         const auto entries = git_source::log(dir.path(), commits + 1, &error);
         QCOMPARE(error, QString());
-        QCOMPARE(entries.size(), commits + 1);
-        QByteArray headNow;
-        QVERIFY(run(dir.path(), {QStringLiteral("rev-parse"), QStringLiteral("HEAD")}, &headNow));
         // Newest first: the tip is the last commit made, the oldest is
-        // makeRepo's original head. All records arrived complete — no
-        // truncation at the pipe buffer.
-        QCOMPARE(entries.first().commit, QString::fromLatin1(headNow.trimmed()));
-        QVERIFY(entries.first().subject.startsWith(QStringLiteral("c%1 ").arg(commits - 1)));
-        QCOMPARE(entries.last().commit, head);
-        QVERIFY(entries.last().subject == QStringLiteral("add hero"));
+        // makeRepo's original head. EVERY record is compared — ids against
+        // `git rev-list`, subjects against the exact strings this test
+        // wrote — so a truncated, dropped, reordered or mangled middle
+        // record fails; first/last spot checks would let it pass.
+        QStringList subjects;
+        for (int i = commits - 1; i >= 0; --i)
+            subjects << QStringLiteral("c%1 ").arg(i) + QString(790, QChar('x'));
+        subjects << QStringLiteral("add hero");
+        QByteArray revList;
+        QVERIFY(run(dir.path(), {QStringLiteral("rev-list"), QStringLiteral("HEAD")}, &revList));
+        const QStringList ids = QString::fromLatin1(revList.trimmed()).split(QLatin1Char('\n'));
+        QCOMPARE(ids.last(), head);
+        QCOMPARE(entries.size(), ids.size());
+        QCOMPARE(entries.size(), subjects.size());
+        for (int i = 0; i < entries.size(); ++i) {
+            QCOMPARE(entries[i].commit, ids.at(i));
+            QCOMPARE(entries[i].subject, subjects.at(i));
+        }
     }
     void treeListsCommitFilesWithSubdir() {
         QTemporaryDir dir;
