@@ -175,54 +175,73 @@ void Library::restore(const Asset &asset, const RestorePlan &plan) {
         writeFile(asset.path, bytes);
     } catch (const std::exception &error) {
         // The file was not replaced (QSaveFile keeps the original on failure);
-        // record the failure so the log never claims a finished restore.
-        markRestoreLog(logId, QStringLiteral("failed"), QString::fromUtf8(error.what()));
+        // record the failure so the log never claims a finished restore. A
+        // failed log update must not replace the stage error being reported:
+        // the row then stays 'planned' and reopening converges it (audit
+        // 2026-11-15 — the old code let a throwing markRestoreLog override
+        // the real cause).
+        try {
+            markRestoreLog(logId, QStringLiteral("failed"), QString::fromUtf8(error.what()));
+        } catch (...) {
+            // Row stays planned; convergence on reopen finishes it.
+        }
         throw;
     }
+    if (stageGapForTest_) stageGapForTest_();  // deterministic injection point (tests only)
     // Stage 4: append the restore revision and mark the log done (one commit).
-    if (!db().transaction()) {
-        markRestoreLog(logId, QStringLiteral("failed"), db().lastError().text());
-        fail(db().lastError().text());
-    }
-    // The file WAS replaced but the index did not commit: restore the previous
-    // content so file and index agree, and record the failure in the log
-    // (in-process path; a power loss here is handled by convergence on reopen
-    // instead). Returns the error text to record — if the rollback write itself
-    // fails, BOTH causes are joined so neither is lost, and a failed log update
-    // never swallows the stage error it was reporting.
-    const auto abortStage4 = [&](const QString &stageError) {
+    // The file is already replaced at this point, so a failure here must leave
+    // the log in a state that reopening can resolve — 'failed' only when the
+    // rollback actually restored file and index to agreement, otherwise
+    // 'rollback-pending' (audit 2026-11-15: marking a failed rollback terminal
+    // left the target content on disk with no restore revision and no
+    // convergence, because reopen only looked at 'planned').
+    const auto beginFailure = [&](const QString &stageError) {
         db().rollback();
+        // Restore file and index to agreement. Returns "" when the rollback
+        // fully succeeded; otherwise the joined cause text (both errors kept:
+        // the stage error is never lost to the rollback error).
         if (existed) {
             try {
                 writeFile(asset.path, previous);
+                return QString();
             } catch (const std::exception &rollbackError) {
                 return Library::tr("%1；回滚工作副本也失败：%2")
                     .arg(stageError, QString::fromUtf8(rollbackError.what()));
             }
-        } else {
-            QFile::remove(asset.path);
         }
-        return stageError;
+        // The asset did not exist before: rolling back means removing the file
+        // the restore created. An ignored remove() result used to hide a
+        // failure that left the file behind (audit 2026-11-15).
+        if (QFile::exists(asset.path) && !QFile::remove(asset.path)) {
+            return Library::tr("%1；回滚删除新建的工作副本也失败：%2").arg(stageError, asset.path);
+        }
+        return QString();
     };
+    const auto recordFailure = [&](const QString &stageError) {
+        const QString rollbackError = beginFailure(stageError);
+        const QString details = rollbackError.isEmpty() ? stageError : rollbackError;
+        const QString state = rollbackError.isEmpty() ? QStringLiteral("failed")
+                                                      : QStringLiteral("rollback-pending");
+        try {
+            markRestoreLog(logId, state, details);
+        } catch (...) {
+            // The row stays planned; convergence on reopen finishes it.
+        }
+    };
+    if (!db().transaction()) {
+        const QString reason = db().lastError().text();
+        recordFailure(reason);
+        fail(reason);
+    }
     try {
         append(asset, bytes, QStringLiteral("恢复历史版本 #%1").arg(plan.revisionId));
         markRestoreLog(logId, QStringLiteral("done"));
         if (!db().commit()) fail(db().lastError().text());
     } catch (const std::exception &error) {
-        const QString details = abortStage4(QString::fromUtf8(error.what()));
-        try {
-            markRestoreLog(logId, QStringLiteral("failed"), details);
-        } catch (...) {
-            // The row stays planned; convergence on reopen finishes it.
-        }
+        recordFailure(QString::fromUtf8(error.what()));
         throw;
     } catch (...) {
-        const QString details = abortStage4(Library::tr("未知错误"));
-        try {
-            markRestoreLog(logId, QStringLiteral("failed"), details);
-        } catch (...) {
-            // The row stays planned; convergence on reopen finishes it.
-        }
+        recordFailure(Library::tr("未知错误"));
         throw;
     }
 }
@@ -289,15 +308,29 @@ void Library::markRestoreLog(qint64 logId, const QString &state, const QString &
 
 // P-320: on open, finish or roll back any restore that was interrupted between
 // the file replacement and the index commit. A log row left in 'planned' means
-// the file write may or may not have happened; comparing the current working
-// file against the logged previous/target hashes decides which way to converge
-// — forward (the file is the target, complete the index) or backward (the file
-// is still the original, record the abort). Any other file state is an external
-// edit after the interruption: left untouched and flagged, never overwritten.
+// the file write may or may not have happened; 'rollback-pending' means the
+// in-process rollback itself failed and the file is known to hold the target.
+// Comparing the current working file against the logged previous/target hashes
+// decides which way to converge — forward (the file is the target, complete
+// the index) or backward (the file is still the original, record the abort).
+// Any other file state is an external edit after the interruption: left
+// untouched and flagged, never overwritten.
 void Library::convergeRestoreLog() {
+    // Audit 2026-11-15: every log write here runs inside the Library
+    // constructor — a throwing markRestoreLog must never break opening the
+    // library, and a failed update must not mask the cause being reported.
+    // tryMark degrades any such failure to "row keeps its state; the next
+    // reopen retries convergence".
+    const auto tryMark = [&](qint64 id, const QString &state, const QString &message) {
+        try {
+            markRestoreLog(id, state, message);
+        } catch (const std::exception &) {
+            // Leave the row for the next reopen.
+        }
+    };
     QSqlQuery q(db());
     q.prepare("SELECT id,asset_id,revision_id,previous_hash,target_hash,protect_revision_id "
-              "FROM restore_log WHERE state='planned'");
+              "FROM restore_log WHERE state='planned' OR state='rollback-pending'");
     execute(q);
     struct Pending { qint64 id; QString assetId; qint64 revisionId; QString prev; QString target; };
     QVector<Pending> pending;
@@ -310,9 +343,9 @@ void Library::convergeRestoreLog() {
         asset.prepare("SELECT name,path,deleted FROM assets WHERE id=?");
         asset.addBindValue(row.assetId);
         execute(asset);
-        if (!asset.next()) { markRestoreLog(row.id, QStringLiteral("aborted"), Library::tr("素材记录不存在")); continue; }
+        if (!asset.next()) { tryMark(row.id, QStringLiteral("aborted"), Library::tr("素材记录不存在")); continue; }
         const bool deleted = asset.value(2).toInt() != 0;
-        if (deleted) { markRestoreLog(row.id, QStringLiteral("aborted"), Library::tr("素材已删除，不自动复活")); continue; }
+        if (deleted) { tryMark(row.id, QStringLiteral("aborted"), Library::tr("素材已删除，不自动复活")); continue; }
         const QString stored = asset.value(1).toString();
         const QString workingPath = QFileInfo(stored).isAbsolute() ? stored : root_ + "/" + stored;
         // The target object must still exist for a forward convergence.
@@ -321,9 +354,24 @@ void Library::convergeRestoreLog() {
         rev.addBindValue(row.assetId);
         rev.addBindValue(row.revisionId);
         execute(rev);
-        if (!rev.next()) { markRestoreLog(row.id, QStringLiteral("aborted"), Library::tr("目标版本不存在")); continue; }
+        if (!rev.next()) { tryMark(row.id, QStringLiteral("aborted"), Library::tr("目标版本不存在")); continue; }
         const QString targetHash = rev.value(0).toString();
         const QFileInfo info(workingPath);
+        if (!info.exists()) {
+            // Audit 2026-11-15: distinguish a working file that never existed
+            // (nothing to lose — the restore simply did not complete) from one
+            // that vanished after the interruption (external interference).
+            if (row.prev.isEmpty())
+                tryMark(row.id, QStringLiteral("aborted"), Library::tr("恢复未完成，已取消"));
+            else
+                tryMark(row.id, QStringLiteral("conflict"), Library::tr("工作副本已丢失，未自动处理"));
+            continue;
+        }
+        if (!info.isReadable()) {
+            tryMark(row.id, QStringLiteral("conflict"),
+                    Library::tr("工作副本不可读或无法校验，未自动处理"));
+            continue;
+        }
         // Audit (2026-11-12, P0): the working copy is hashed with the streaming,
         // non-throwing hashFile — the old readFile() caps at 256 MiB and throws,
         // so an over-limit (or mid-read-failing) copy would make the Library
@@ -331,11 +379,9 @@ void Library::convergeRestoreLog() {
         // unopenable (with the lock already held). A copy that cannot be hashed
         // never matches a hash: it is flagged conflict and left untouched.
         QString fileHash;
-        const bool hashed = info.exists() && info.isReadable()
-            && hashFile(workingPath, &fileHash, nullptr);
-        if (!hashed) {
-            markRestoreLog(row.id, QStringLiteral("conflict"),
-                           Library::tr("工作副本不可读或无法校验，未自动处理"));
+        if (!hashFile(workingPath, &fileHash, nullptr)) {
+            tryMark(row.id, QStringLiteral("conflict"),
+                    Library::tr("工作副本不可读或无法校验，未自动处理"));
             continue;
         }
         if (fileHash == targetHash) {
@@ -343,32 +389,40 @@ void Library::convergeRestoreLog() {
             QByteArray bytes;
             try { bytes = readObject(targetHash); }
             catch (const std::exception &error) {
-                markRestoreLog(row.id, QStringLiteral("failed"),
-                               Library::tr("目标内容损坏，无法完成恢复：%1").arg(QString::fromUtf8(error.what())));
+                tryMark(row.id, QStringLiteral("failed"),
+                        Library::tr("目标内容损坏，无法完成恢复：%1").arg(QString::fromUtf8(error.what())));
                 continue;
             }
             Asset a;
             a.id = row.assetId;
             a.name = asset.value(0).toString();
             a.path = workingPath;
-            if (!db().transaction()) { markRestoreLog(row.id, QStringLiteral("failed"), db().lastError().text()); continue; }
+            if (!db().transaction()) {
+                tryMark(row.id, QStringLiteral("failed"), db().lastError().text());
+                continue;
+            }
             try {
                 append(a, bytes, QStringLiteral("恢复历史版本 #%1").arg(row.revisionId));
                 markRestoreLog(row.id, QStringLiteral("done"));
                 if (!db().commit()) fail(db().lastError().text());
+            } catch (const std::exception &error) {
+                db().rollback();
+                // The actual exception, not a database lookup that may no
+                // longer reflect the cause (audit 2026-11-15).
+                tryMark(row.id, QStringLiteral("failed"), QString::fromUtf8(error.what()));
             } catch (...) {
                 db().rollback();
-                markRestoreLog(row.id, QStringLiteral("failed"), db().lastError().text());
+                tryMark(row.id, QStringLiteral("failed"), Library::tr("未知错误"));
             }
         } else if (fileHash == row.prev) {
             // The file was never replaced (or was already rolled back). Nothing
             // to undo; the protect revision (if any) is a legit version. The
             // restore simply did not complete — record the abort.
-            markRestoreLog(row.id, QStringLiteral("aborted"), Library::tr("恢复未完成，已取消"));
+            tryMark(row.id, QStringLiteral("aborted"), Library::tr("恢复未完成，已取消"));
         } else {
             // The working file changed after the interruption for another reason:
             // never overwrite it. Flag the row and leave the file alone.
-            markRestoreLog(row.id, QStringLiteral("conflict"), Library::tr("工作副本在中断后被外部修改，未自动处理"));
+            tryMark(row.id, QStringLiteral("conflict"), Library::tr("工作副本在中断后被外部修改，未自动处理"));
         }
     }
 }

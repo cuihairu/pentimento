@@ -483,6 +483,12 @@ public:
     // (same id) before opening it at the new path. Throws when the directory is
     // not a valid library.
     static QString peekLibraryId(const QString &root);
+    // Test seam (audit 2026-11-15): invoked between restore stage 3 (the
+    // working file is replaced) and stage 4 (the index transaction), so a
+    // failure-injection test can arrange filesystem state deterministically
+    // — the former mtime-polling watcher raced the stage-4 rollback. Unused
+    // by production callers.
+    void setStageGapForTest(std::function<void()> hook) { stageGapForTest_ = std::move(hook); }
 private:
     QString root_;
     QString connection_;
@@ -499,6 +505,7 @@ private:
     // own library calls. Recursive because public methods call other public
     // methods (capture -> captureRevision -> revisions, restore -> append).
     mutable QRecursiveMutex mutex_;
+    std::function<void()> stageGapForTest_;  // see setStageGapForTest()
     // Exception-safe construction helper (P-201): open the catalog, stamp the
     // schema/identity metadata, and validate the schema version.
     void openAndInitialize(const QString &catalog);
