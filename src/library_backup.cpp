@@ -122,6 +122,30 @@ QVector<Library::BackupEntry> Library::verifyBackupPackage(const QString &packag
     const auto arr = doc.object().value(QStringLiteral("entries")).toArray();
     QVector<BackupEntry> entries;
     QSet<QString> verified;
+    // Audit 2026-11-15 (deep review): manifest fields reach filesystem paths
+    // verbatim — assetId/name/folder build the working path and hash builds
+    // the object path, so a crafted package could write outside the library
+    // before any digest check ran. Verification therefore rejects anything
+    // but plain path segments and lowercase hex hashes before ANY file is
+    // copied.
+    const auto plainSegment = [](const QString &value) {
+        if (value.isEmpty() || value == QLatin1String(".") || value == QLatin1String(".."))
+            return false;
+        for (const QChar &c : value) {
+            if (c == QLatin1Char('/') || c == QLatin1Char('\\') || c.unicode() < 0x20)
+                return false;
+        }
+        return true;
+    };
+    const auto hexHash = [](const QString &value) {
+        if (value.size() != 64) return false;
+        for (const QChar &c : value) {
+            if (!((c >= QLatin1Char('0') && c <= QLatin1Char('9'))
+                  || (c >= QLatin1Char('a') && c <= QLatin1Char('f'))))
+                return false;
+        }
+        return true;
+    };
     for (const auto v : arr) {
         const QJsonObject o = v.toObject();
         BackupEntry entry;
@@ -131,6 +155,16 @@ QVector<Library::BackupEntry> Library::verifyBackupPackage(const QString &packag
         entry.hash = o.value(QStringLiteral("hash")).toString();
         entry.size = static_cast<qint64>(o.value(QStringLiteral("size")).toDouble());
         entry.revisionId = static_cast<qint64>(o.value(QStringLiteral("revisionId")).toDouble());
+        if (!plainSegment(entry.assetId) || !plainSegment(entry.name)
+            || !hexHash(entry.hash))
+            fail(Library::tr("备份包清单路径字段不合法：%1").arg(entry.name));
+        if (!entry.folder.isEmpty()) {
+            const auto segments = entry.folder.split(QLatin1Char('/'));
+            for (const auto &segment : segments) {
+                if (!plainSegment(segment))
+                    fail(Library::tr("备份包清单路径字段不合法：%1").arg(entry.folder));
+            }
+        }
         // A package object must exist with the declared size and the exact
         // content hash — anything else is a corrupt/half package, reported, not
         // accepted.
@@ -178,8 +212,28 @@ QVector<Library::BackupEntry> Library::restoreBackupPackage(const QString &packa
             // Reconstruct the asset with its recorded identity: the manifest's
             // asset id, folder/name path, and latest-revision content. Revision
             // ids are new (autoincrement) but the hash/size are preserved.
+            // Defense in depth on top of the manifest field checks: the
+            // resolved path must stay inside <root>/working, and a symlink
+            // planted in the drill library must not redirect the write out.
             const QString relative = QStringLiteral("working/%1/%2").arg(entry.assetId, entry.name);
-            const QString workingPath = root_ + QLatin1Char('/') + relative;
+            const QString workingPath = QDir::cleanPath(root_ + QLatin1Char('/') + relative);
+            const QString workingRoot = QDir::cleanPath(root_ + QStringLiteral("/working"));
+            if (!workingPath.startsWith(workingRoot + QLatin1Char('/'))
+                || QFileInfo(workingPath).isSymbolicLink())
+                fail(Library::tr("备份包目标路径越出工作目录：%1").arg(entry.name));
+            if (QFileInfo::exists(workingRoot)) {
+                // The drill library may be pre-seeded: canonicalize the
+                // deepest existing ancestor and require it to sit inside the
+                // real (symlink-resolved) working root.
+                QString probe = QFileInfo(workingPath).absolutePath();
+                while (!QFileInfo::exists(probe))
+                    probe = QFileInfo(probe).absolutePath();
+                const QString canonicalProbe = QDir(probe).canonicalPath();
+                const QString canonicalRoot = QDir(workingRoot).canonicalPath();
+                if (canonicalProbe != canonicalRoot
+                    && !canonicalProbe.startsWith(canonicalRoot + QLatin1Char('/')))
+                    fail(Library::tr("备份包目标路径越出工作目录：%1").arg(entry.name));
+            }
             if (!QDir().mkpath(QFileInfo(workingPath).absolutePath()))
                 fail(Library::tr("无法创建工作目录"));
             copyFileStreaming(objectSource, workingPath);

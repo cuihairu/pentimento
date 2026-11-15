@@ -502,6 +502,68 @@ private slots:
         catch (const std::exception &) { rejected = true; }
         QVERIFY(rejected);
     }
+    // Audit 2026-11-15 (deep review): manifest fields reach filesystem paths
+    // verbatim, so verification must refuse non-plain path segments and
+    // non-hex hashes before any file is copied, and the drill must refuse a
+    // symlink planted inside the target library.
+    void restoreDrillRejectsManifestPathTraversalAndSymlinks() {
+        QTemporaryDir dir;
+        QTemporaryDir target;
+        put(dir.filePath("a.png"), "bytes-a");
+        Library library(dir.filePath("library"));
+        QVERIFY(!library.importFile(dir.filePath("a.png")).id.isEmpty());
+        const auto package = library.exportBackupPackage(target.path());
+        QVERIFY(!package.entries.isEmpty());
+        const auto &e = package.entries.first();
+        const auto manifestWith = [&](const QJsonObject &override) {
+            QJsonObject entry{{"assetId", e.assetId}, {"name", e.name},
+                              {"folder", QString()}, {"hash", e.hash},
+                              {"size", static_cast<double>(e.size)},
+                              {"revisionId", static_cast<double>(e.revisionId)}};
+            for (auto it = override.begin(); it != override.end(); ++it)
+                entry.insert(it.key(), it.value());
+            QJsonObject manifest;
+            manifest.insert(QStringLiteral("format"), QStringLiteral("pentimento-backup-v1"));
+            manifest.insert(QStringLiteral("exported"), QStringLiteral("x"));
+            manifest.insert(QStringLiteral("entries"), QJsonArray{entry});
+            put(package.manifestPath, QJsonDocument(manifest).toJson(QJsonDocument::Indented));
+        };
+        const auto drillRefuses = [&](const QString &drillName) {
+            Library drill(dir.filePath(drillName));
+            bool refused = false;
+            try { drill.restoreBackupPackage(target.path()); }
+            catch (const std::exception &) { refused = true; }
+            return refused;
+        };
+        manifestWith(QJsonObject{{"name", QStringLiteral("../outside.txt")}});
+        QVERIFY(drillRefuses("drill1"));
+        QVERIFY(!QFile::exists(dir.filePath("outside.txt")));
+        QVERIFY(!QFile::exists(dir.filePath("drill1/working/outside.txt")));
+        manifestWith(QJsonObject{{"assetId", QStringLiteral("../evil")}});
+        QVERIFY(drillRefuses("drill2"));
+        manifestWith(QJsonObject{{"hash", QStringLiteral("../../objects/evil")}});
+        QVERIFY(drillRefuses("drill3"));
+        manifestWith(QJsonObject{{"folder", QStringLiteral("/abs")}});
+        QVERIFY(drillRefuses("drill4"));
+        manifestWith(QJsonObject{{"folder", QStringLiteral("a/../../b")}});
+        QVERIFY(drillRefuses("drill5"));
+        QVERIFY(!QFile::exists(dir.filePath("outside.txt")));
+        // A symlink planted where the drill would create the asset must not
+        // redirect the write outside the library.
+        const QString outside = dir.filePath("escape");
+        QVERIFY(QDir().mkpath(outside));
+        manifestWith(QJsonObject{});
+        {
+            Library drill(dir.filePath("drill6"));
+            QVERIFY(QDir().mkpath(dir.filePath("drill6/working")));
+            QVERIFY(QFile::link(outside, dir.filePath("drill6/working/" + e.assetId)));
+            bool refused = false;
+            try { drill.restoreBackupPackage(target.path()); }
+            catch (const std::exception &) { refused = true; }
+            QVERIFY(refused);
+            QVERIFY(QDir(outside).isEmpty());
+        }
+    }
     // The drill refuses an empty manifest outright, and a package whose
     // manifest lists one asset twice rolls the whole drill back — the target
     // library stays empty (no half-imported drill state).
