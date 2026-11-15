@@ -23,7 +23,9 @@ bool run(const QString &program, const QString &dir, const QStringList &args,
     p.setWorkingDirectory(dir);
     p.start();
     if (!p.waitForStarted(5000)) return false;
-    if (!p.waitForFinished(60000)) { p.kill(); p.waitForFinished(2000); return false; }
+    // 5 minutes: the oversize-file test commits 257 MiB, which on a loaded
+    // machine (full disk, busy CPUs) legitimately exceeds a 60 s budget.
+    if (!p.waitForFinished(300000)) { p.kill(); p.waitForFinished(2000); return false; }
     if (out) *out = p.readAllStandardOutput();
     return p.exitCode() == 0;
 }

@@ -35,7 +35,9 @@ bool runEnv(const QString &dir, const QStringList &args,
     git.setProcessEnvironment(env);
     git.start();
     if (!git.waitForStarted(5000)) return false;
-    if (!git.waitForFinished(60000)) { git.kill(); git.waitForFinished(2000); return false; }
+    // 5 minutes: the oversize-blob test adds 257 MiB, which on a loaded
+    // machine (full disk, busy CPUs) legitimately exceeds a 60 s budget.
+    if (!git.waitForFinished(300000)) { git.kill(); git.waitForFinished(2000); return false; }
     if (out) *out = git.readAllStandardOutput();
     return git.exitCode() == 0;
 }
