@@ -158,6 +158,35 @@ private slots:
                                      QStringLiteral("assets/nope.png"), &bytes, &error));
         QVERIFY(!error.isEmpty());
     }
+    // Audit 2026-11-15: a file beyond the 256 MiB cap is refused by the
+    // `svn ls --xml` size pre-check — svn cat never buffers it whole.
+    void extractRefusesOversizeFile() {
+        QTemporaryDir dir;
+        QString wc;
+        QVERIFY(makeRepo(dir.path(), &wc));
+        QFile big(wc + "/assets/big.dat");
+        QVERIFY(big.open(QIODevice::WriteOnly));
+        big.resize(257LL * 1024 * 1024); // sparse: just past the 256 MiB cap
+        big.close();
+        QVERIFY(run(QStringLiteral("svn"), wc,
+                    {QStringLiteral("add"), QStringLiteral("-q"),
+                     QStringLiteral("assets/big.dat")}));
+        QVERIFY(run(QStringLiteral("svn"), wc,
+                    {QStringLiteral("commit"), QStringLiteral("-q"),
+                     QStringLiteral("-m"), QStringLiteral("add big")}));
+        const auto info = svn_source::identify(wc);
+        QString error;
+        QByteArray bytes;
+        QVERIFY(!svn_source::extract(wc, info.headRevision,
+                                     QStringLiteral("assets/big.dat"), &bytes, &error));
+        QVERIFY(error.contains(QStringLiteral("超过 256 MiB")));
+        // The small sibling still extracts normally through the same path.
+        error.clear();
+        QVERIFY(svn_source::extract(wc, info.headRevision,
+                                    QStringLiteral("assets/hero.png"), &bytes, &error));
+        QVERIFY(error.isEmpty());
+        QCOMPARE(bytes, QByteArrayLiteral("hero-v1"));
+    }
     void lockInfoReportsState() {
         QTemporaryDir dir;
         QString wc;

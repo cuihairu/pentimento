@@ -1,5 +1,6 @@
 #include "git_source.h"
 
+#include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
 #include <QProcess>
@@ -236,6 +237,22 @@ bool isLfsPointer(const QByteArray &bytes) {
 bool extract(const QString &path, const QString &commit, const QString &filePath,
              QByteArray *bytes, QString *error) {
     const QString rev = commit.isEmpty() ? QStringLiteral("HEAD") : commit;
+    // Audit 2026-11-15: pre-check the blob size — `git show` would otherwise
+    // stream the whole object into the process buffer before any post-hoc
+    // check could refuse it. A rev-pinned blob is immutable, so the size seen
+    // here is what show returns. cat-file failing means the path does not
+    // exist at that rev: let the show below report the real error.
+    QByteArray sizeOut, sizeErr;
+    if (runGit(path, {QStringLiteral("cat-file"), QStringLiteral("-s"),
+                      rev + QLatin1Char(':') + filePath},
+               &sizeOut, &sizeErr) == 0) {
+        bool ok = false;
+        const qint64 blobSize = QString::fromUtf8(sizeOut).trimmed().toLongLong(&ok);
+        if (ok && blobSize > (256LL << 20)) {
+            if (error) *error = QStringLiteral("对象超过 256 MiB 单文件上限：%1").arg(filePath);
+            return false;
+        }
+    }
     QByteArray out, err;
     // <rev>:<path> resolves in the object DB, not the worktree — read-only.
     if (runGit(path, {QStringLiteral("show"), rev + QLatin1Char(':') + filePath},
@@ -247,6 +264,13 @@ bool extract(const QString &path, const QString &commit, const QString &filePath
         return false;
     }
     *bytes = out;
+    // Belt and suspenders on the same cap: cat-file -s covered the normal
+    // path, but a git too old to answer it must not turn into an unbounded
+    // accept either.
+    if (out.size() > (256LL << 20)) {
+        if (error) *error = QStringLiteral("对象超过 256 MiB 单文件上限：%1").arg(filePath);
+        return false;
+    }
     // A git-lfs pointer is returned as the pointer text (never silently the
     // object); when the object is already stored locally, hand back the real
     // bytes from .git/lfs/objects without touching the worktree.
@@ -258,12 +282,28 @@ bool extract(const QString &path, const QString &commit, const QString &filePath
             // Refuse instead of readAll: the library caps a single object at
             // 256 MiB, and a tens-of-GB LFS asset must not be loaded whole
             // into memory (P1 audit 2026-11-12).
-            if (obj.open(QIODevice::ReadOnly)) {
-                if (obj.size() > (256LL << 20)) {
-                    if (error) *error = QStringLiteral("LFS 对象超过 256 MiB 单文件上限：%1").arg(objPath);
-                    return false;
-                }
-                *bytes = obj.readAll();
+            if (!obj.open(QIODevice::ReadOnly)) {
+                if (error) *error = QStringLiteral("无法读取 LFS 对象：%1").arg(objPath);
+                return false;
+            }
+            if (obj.size() > (256LL << 20)) {
+                if (error) *error = QStringLiteral("LFS 对象超过 256 MiB 单文件上限：%1").arg(objPath);
+                return false;
+            }
+            *bytes = obj.readAll();
+            // A cached object can be truncated or tampered in place: read
+            // success alone proves nothing. The pointer declares the sha256
+            // oid, so the bytes must hash back to it before they count as the
+            // file's history content (audit 2026-11-15).
+            if (obj.error() != QFileDevice::NoError) {
+                if (error) *error = QStringLiteral("LFS 对象读取失败：%1").arg(objPath);
+                return false;
+            }
+            const QString actual = QString::fromLatin1(
+                QCryptographicHash::hash(*bytes, QCryptographicHash::Sha256).toHex());
+            if (actual != oid) {
+                if (error) *error = QStringLiteral("LFS 对象校验失败（内容与指针 oid 不符）：%1").arg(objPath);
+                return false;
             }
         }
     }

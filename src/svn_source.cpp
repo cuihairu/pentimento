@@ -218,6 +218,45 @@ bool extract(const QString &path, qint64 revision, const QString &filePath,
     // Resolve against the repository root so a file deleted in the working
     // copy is still readable at any historical revision.
     const QString url = info.repoRoot + QLatin1Char('/') + filePath;
+    // Audit 2026-11-15: pre-check the file size — `svn cat` would otherwise
+    // buffer the whole file in the process before a post-hoc check could
+    // refuse it. The revision-pinned directory listing reports each file's
+    // repository size (<size> is present in `svn ls --xml`; `svn info --xml`
+    // does not carry it — verified against svn 1.14). A missing entry or a
+    // failed listing is left to cat, which reports the real error.
+    const int slash = filePath.lastIndexOf(QLatin1Char('/'));
+    const QString parent = slash >= 0 ? filePath.left(slash) : QString();
+    const QString fileName = slash >= 0 ? filePath.mid(slash + 1) : filePath;
+    const QString listUrl = parent.isEmpty()
+        ? info.repoRoot
+        : info.repoRoot + QLatin1Char('/') + parent;
+    QByteArray sizeOut, sizeErr;
+    if (runSvn(cwdFor(path), {QStringLiteral("ls"), QStringLiteral("--xml"),
+                              QStringLiteral("-r"), QString::number(revision), listUrl},
+               &sizeOut, &sizeErr) == 0) {
+        QXmlStreamReader xml(sizeOut);
+        while (!xml.atEnd()) {
+            xml.readNext();
+            if (!xml.isStartElement() || xml.name() != QLatin1String("entry"))
+                continue;
+            QString name;
+            qint64 fileSize = -1;
+            while (!xml.atEnd()) {
+                xml.readNext();
+                if (xml.isEndElement() && xml.name() == QLatin1String("entry")) break;
+                if (xml.isStartElement()) {
+                    if (xml.name() == QLatin1String("name"))
+                        name = xml.readElementText();
+                    else if (xml.name() == QLatin1String("size"))
+                        fileSize = xml.readElementText().trimmed().toLongLong();
+                }
+            }
+            if (name == fileName && fileSize > (256LL << 20)) {
+                if (error) *error = QStringLiteral("对象超过 256 MiB 单文件上限：%1").arg(filePath);
+                return false;
+            }
+        }
+    }
     QByteArray out, err;
     if (runSvn(cwdFor(path), {QStringLiteral("cat"), QStringLiteral("-r"),
                               QString::number(revision), url},
@@ -226,6 +265,10 @@ bool extract(const QString &path, qint64 revision, const QString &filePath,
         return false;
     }
     *bytes = out;
+    if (out.size() > (256LL << 20)) {
+        if (error) *error = QStringLiteral("对象超过 256 MiB 单文件上限：%1").arg(filePath);
+        return false;
+    }
     if (error) error->clear();
     return true;
 }

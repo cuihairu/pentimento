@@ -93,6 +93,17 @@ bool makeLfsRepo(const QString &dir, QString *head = nullptr) {
     return true;
 }
 
+// Shared probe: every LFS-backed test skips cleanly when git-lfs is absent
+// (makeLfsRepo runs real `git lfs` commands).
+static bool gitLfsAvailable() {
+    QProcess lfs;
+    lfs.setProgram(QStringLiteral("git"));
+    lfs.setArguments({QStringLiteral("lfs"), QStringLiteral("version")});
+    lfs.start();
+    return lfs.waitForStarted(5000) && lfs.waitForFinished(5000)
+           && lfs.exitCode() == 0;
+}
+
 // Snapshot of everything a "read-only" call must not change: HEAD bytes,
 // refs, index presence and mtime, and the worktree file list.
 QByteArray repoFingerprint(const QString &dir) {
@@ -112,6 +123,12 @@ QByteArray repoFingerprint(const QString &dir) {
 
 QByteArray digest(const QByteArray &data) {
     return QCryptographicHash::hash(data, QCryptographicHash::Sha256).toHex();
+}
+
+bool putBytes(const QString &path, const QByteArray &bytes) {
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly)) return false;
+    return file.write(bytes) == bytes.size();
 }
 
 } // namespace
@@ -322,6 +339,31 @@ private slots:
         QVERIFY(error.isEmpty());
         QCOMPARE(bytes, QByteArrayLiteral("hero-v1"));
     }
+    // Audit 2026-11-15: a plain (non-LFS) blob beyond the 256 MiB cap is
+    // refused by the cat-file -s pre-check — git show never streams it into
+    // the process buffer.
+    void extractRefusesOversizeBlob() {
+        QTemporaryDir dir;
+        QVERIFY(run(dir.path(), {QStringLiteral("init"), QStringLiteral("-b"),
+                                 QStringLiteral("main")}));
+        QVERIFY(run(dir.path(), {QStringLiteral("config"),
+                                 QStringLiteral("user.email"), QStringLiteral("t@example.com")}));
+        QVERIFY(run(dir.path(), {QStringLiteral("config"),
+                                 QStringLiteral("user.name"), QStringLiteral("Test")}));
+        QDir(dir.path()).mkpath(QStringLiteral("assets"));
+        QFile big(dir.path() + "/assets/big.dat");
+        QVERIFY(big.open(QIODevice::WriteOnly));
+        big.resize(257LL * 1024 * 1024); // sparse: just past the 256 MiB cap
+        big.close();
+        QVERIFY(run(dir.path(), {QStringLiteral("add"), QStringLiteral("assets/big.dat")}));
+        QVERIFY(run(dir.path(), {QStringLiteral("commit"), QStringLiteral("-m"),
+                                 QStringLiteral("add big")}));
+        QString error;
+        QByteArray bytes;
+        QVERIFY(!git_source::extract(dir.path(), QString(),
+                                     QStringLiteral("assets/big.dat"), &bytes, &error));
+        QVERIFY(error.contains(QStringLiteral("超过 256 MiB")));
+    }
     void extractReportsBadPath() {
         QTemporaryDir dir;
         QString head;
@@ -334,11 +376,7 @@ private slots:
         QVERIFY(bytes.isEmpty());
     }
     void lfsPointerAndMissingObject() {
-        QProcess lfs;
-        lfs.setProgram(QStringLiteral("git"));
-        lfs.setArguments({QStringLiteral("lfs"), QStringLiteral("version")});
-        lfs.start();
-        if (!lfs.waitForStarted(5000) || !lfs.waitForFinished(5000) || lfs.exitCode() != 0)
+        if (!gitLfsAvailable())
             QSKIP("git-lfs not on PATH");
         QTemporaryDir dir;
         QString head;
@@ -375,6 +413,8 @@ private slots:
     // the worker. Objects beyond the library's 256 MiB single-object cap are
     // refused with an error instead.
     void extractRefusesOversizeLfsObject() {
+        if (!gitLfsAvailable())
+            QSKIP("git-lfs not on PATH");
         QTemporaryDir dir;
         QVERIFY(makeLfsRepo(dir.path()));
         const QString oid = QString::fromLatin1(digest(QByteArrayLiteral("PNG-big-bytes")));
@@ -389,6 +429,42 @@ private slots:
         QVERIFY(!git_source::extract(dir.path(), QString(),
                                      QStringLiteral("assets/big.png"), &bytes, &error));
         QVERIFY(error.contains(QStringLiteral("超过 256 MiB")));
+    }
+    // Audit 2026-11-15: extract() success must mean the cached LFS object's
+    // bytes hash back to the pointer's sha256 oid — a truncated or tampered
+    // cache file is refused, never handed out as history content.
+    void extractVerifiesLfsObjectDigest() {
+        if (!gitLfsAvailable())
+            QSKIP("git-lfs not on PATH");
+        QTemporaryDir dir;
+        QString head;
+        QVERIFY(makeLfsRepo(dir.path(), &head));
+        const QByteArray original = QByteArrayLiteral("PNG-big-bytes");
+        const QString oid = QString::fromLatin1(digest(original));
+        const QString objPath = dir.path() + QStringLiteral("/.git/lfs/objects/%1/%2/%3")
+                                                   .arg(oid.left(2), oid.mid(2, 2), oid);
+        // Same length, different bytes: a same-size tamper must not pass.
+        QByteArray tampered = original;
+        tampered[0] = 'X';
+        QVERIFY(putBytes(objPath, tampered));
+        QString error;
+        QByteArray bytes;
+        QVERIFY(!git_source::extract(dir.path(), head,
+                                     QStringLiteral("assets/big.png"), &bytes, &error));
+        QVERIFY(error.contains(QStringLiteral("校验失败")));
+        // Truncated: a half-written cache file must not pass either.
+        QVERIFY(putBytes(objPath, original.left(4)));
+        error.clear();
+        QVERIFY(!git_source::extract(dir.path(), head,
+                                     QStringLiteral("assets/big.png"), &bytes, &error));
+        QVERIFY(error.contains(QStringLiteral("校验失败")));
+        // Restored to the real content, the same call succeeds again.
+        QVERIFY(putBytes(objPath, original));
+        error.clear();
+        QVERIFY(git_source::extract(dir.path(), head,
+                                    QStringLiteral("assets/big.png"), &bytes, &error));
+        QCOMPARE(error, QString());
+        QCOMPARE(bytes, original);
     }
     void fetchLfsWithConsent() {
         QProcess lfs;
