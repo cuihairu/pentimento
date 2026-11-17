@@ -969,9 +969,10 @@ private slots:
         const auto skip = library.importFile(dir.filePath("skip.tmp"));
         library.addExclusion(QStringLiteral("extension"), QStringLiteral("tmp"));
         const qint64 anchor = library.snapshotAll("with exclusion");
-        const auto summary = std::find_if(library.snapshots().begin(), library.snapshots().end(),
+        const auto all = library.snapshots();
+        const auto summary = std::find_if(all.cbegin(), all.cend(),
                                           [&](const Snapshot &s) { return s.id == anchor; });
-        QVERIFY(summary != library.snapshots().end());
+        QVERIFY(summary != all.cend());
         QCOMPARE(summary->excluded, 1);
         // The excluded entry plans as a skip and never restores.
         const auto items = library.planSnapshotRestore(anchor, {skip.id});
