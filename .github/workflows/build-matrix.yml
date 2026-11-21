@@ -78,16 +78,16 @@ jobs:
           $stage = Join-Path $env:RUNNER_TEMP 'deploy'
           New-Item -ItemType Directory -Force $stage | Out-Null
           Copy-Item "$bin" $stage
-          {
-            "windows: $bin"
-            "windows: windeployqt --no-compiler-runtime (staged copy)"
-            $wq = Get-Command windeployqt -ErrorAction SilentlyContinue
-            if (-not $wq) { $wq = Join-Path $env:QT_ROOT_DIR 'bin\windeployqt.exe' }
-            & $wq --no-compiler-runtime "$stage\pentimento.exe" 2>&1 | Select-Object -Last 6
-            "windows: deployed files"
-            Get-ChildItem -Recurse -File $stage |
-              ForEach-Object { $_.FullName.Substring($stage.Length + 1) } | Sort-Object
-          } > deploy-list.txt 2>&1
+          $wq = Get-Command windeployqt -ErrorAction SilentlyContinue
+          if (-not $wq) { $wq = Join-Path $env:QT_ROOT_DIR 'bin\windeployqt.exe' }
+          $out = @("windows: $bin",
+                   "windows: windeployqt --no-compiler-runtime (staged copy)")
+          $out += & $wq --no-compiler-runtime "$stage\pentimento.exe" 2>&1 |
+            Select-Object -Last 6
+          $out += "windows: deployed files"
+          $out += Get-ChildItem -Recurse -File $stage |
+            ForEach-Object { $_.FullName.Substring($stage.Length + 1) } | Sort-Object
+          $out | Out-File deploy-list.txt
           Get-Content deploy-list.txt
       # Test targets are POSIX-coupled: ten of them simulate read-only and
       # unreadable files with chmod(2)/geteuid(2), which Windows has no
