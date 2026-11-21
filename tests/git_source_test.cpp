@@ -21,7 +21,10 @@ bool run(const QString &dir, const QStringList &args, QByteArray *out = nullptr)
     git.setWorkingDirectory(dir);
     git.start();
     if (!git.waitForStarted(5000)) return false;
-    if (!git.waitForFinished(30000)) { git.kill(); git.waitForFinished(2000); return false; }
+    // 5 minutes: the oversize-blob test adds 257 MiB through this helper,
+    // which on a loaded machine (full disk, busy CPUs) legitimately exceeds
+    // a 60 s budget. The tiny setup calls never come close.
+    if (!git.waitForFinished(300000)) { git.kill(); git.waitForFinished(2000); return false; }
     if (out) *out = git.readAllStandardOutput();
     return git.exitCode() == 0;
 }
