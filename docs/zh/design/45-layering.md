@@ -76,8 +76,11 @@ pentimento (exe, src/main.cpp)
 - 全部 10 个 `library_*` 套件 `#include "compare_canvas.h"/"preview_canvas.h"`（其中 8 个
   仅是 LAY-001 拆分时的残留 include，实际只用于注释说明「需 QApplication」），统一在套件
   include 路径加 `src/ui`。
-- 已知后续项（非本批范围）：那 8 个残留 include 可清除；canvas 渲染用例可收敛到
-  `library_canvas`/`library_journey` 两套件，避免核心套件头文件级依赖 UI 头。
+- 后续项（2026-11-22 完成）：8 个非 canvas 套件的残留 include 已清除（连带移除共享
+  注释里的 canvas 措辞），`src/ui` include 路径收敛到 `library_canvas`/
+  `library_journey` 两套件。至此核心测试套件不再头文件级依赖 UI 头；tests/ 中引用
+  UI 头的仅剩 `library_canvas`/`library_journey`（直接测画布）与
+  `mainwindow_test.cpp`（desktop_keyboard_zoom）。
 
 ## 6. 验收证据（本批）
 

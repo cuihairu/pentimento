@@ -93,9 +93,11 @@ if(BUILD_TESTING)
             list(APPEND sources src/ui/compare_canvas.cpp src/ui/preview_canvas.cpp)
         endif()
         add_executable(${target} ${sources})
-        # UI-3: canvas headers moved to src/ui/; every suite includes them, so src/ui is on
-        # each suite's include path (core headers come via the pentimento_core PUBLIC src).
-        target_include_directories(${target} PRIVATE src/ui)
+        # Only the canvas suites include the UI canvas headers; the other library
+        # suites are core-side and keep no UI headers (UI-3 layering).
+        if(suite IN_LIST library_canvas_suites)
+            target_include_directories(${target} PRIVATE src/ui)
+        endif()
         target_compile_definitions(${target} PRIVATE PENTIMENTO_SOURCE_TRANSLATIONS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/translations")
         target_link_libraries(${target} PRIVATE pentimento_core Qt6::Test Qt6::Widgets)
         add_test(NAME ${suite} COMMAND ${target})
