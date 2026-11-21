@@ -23,7 +23,7 @@
 | 后台队列 | Task Queue | 串行工作线程，支持协作取消、逐项进度以及 join/detach 两种关闭方式。 | `src/taskqueue.h:10` |
 | 缩略图缓存 | Thumbnail Cache | 以内容哈希和解码器版本为键的 `thumbnails/` 缓存；损坏条目删除后重建。 | `src/thumbnails.h:7` |
 | 受限解码 | Bounded Decode | 基于文件头读取元数据、按预算降采样解码，避免大图耗尽内存。 | `src/preview.h:8` |
-| 统一对比变换 | Shared Comparison Transform | 双版画布共用一个比例与图像坐标原点，滑动分界线也随缩放保持坐标。 | `src/compare_canvas.h:7` |
+| 统一对比变换 | Shared Comparison Transform | 双版画布共用一个比例与图像坐标原点，滑动分界线也随缩放保持坐标。 | `src/ui/compare_canvas.h:7` |
 | 筛选事实 | Filter Facts | 来自目录的格式、像素尺寸、标签、评分与逻辑路径，供纯函数筛选器使用。 | `src/filter.h:6` |
 | 出处记录 | Provenance | 追加式记录用户输入的来源、作者、许可和证据对象。 | `src/library.h:109` |
 | 字段历史 | Field History | 只读回看新旧字段值，并与元数据版本保持对齐。 | `src/library.h:130` |
@@ -32,5 +32,5 @@
 | 能力模型 | Capability Model | 将后端能力拆成 History、SnapshotTree、Restore、Lock、RemoteFetch，再映射到安全 UI 动作。 | `src/backend.h:6` |
 | 最近库 | Recent Library | QSettings 中按稳定库 ID 去重的列表，用于重定位后验证同一库。 | `src/recent.h:6` |
 | 应用配置 | Application Settings | 用户作用域 QSettings 键，如最近库和 `ui/language`。 | `src/i18n.cpp:10` |
-| 用户界面壳层 | UI Shell | 主窗口与对话框，拥有控件、定时器、动作门控和用户确认。 | `src/mainwindow.h:28` |
+| 用户界面壳层 | UI Shell | 主窗口与对话框，拥有控件、定时器、动作门控和用户确认。 | `src/ui/mainwindow.h:28` |
 | 核心库 | Core Library | 可执行程序消费的无 Widgets Qt Core/Gui/Sql 领域与服务组件。 | `CMakeLists.txt:53` |

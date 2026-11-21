@@ -26,7 +26,7 @@ responsibility layers documented in
 | 后台队列 | Task Queue | A serial worker with cooperative cancellation, item-boundary progress, and join/detach shutdown modes. | `src/taskqueue.h:10` |
 | 缩略图缓存 | Thumbnail Cache | Content-hash plus decoder-version cache entries under `thumbnails/`; corrupt entries are removed and regenerated. | `src/thumbnails.h:7` |
 | 受限解码 | Bounded Decode | Header-based metadata and downsampled image reads that keep huge files from exhausting memory. | `src/preview.h:8` |
-| 统一对比变换 | Shared Comparison Transform | One scale and one image-space origin synchronized across compare panes and the sliding divider. | `src/compare_canvas.h:7` |
+| 统一对比变换 | Shared Comparison Transform | One scale and one image-space origin synchronized across compare panes and the sliding divider. | `src/ui/compare_canvas.h:7` |
 | 筛选事实 | Filter Facts | Catalog-derived format, pixel size, tags, rating, and logical path consumed by a pure AND/OR filter matcher. | `src/filter.h:6` |
 | 出处记录 | Provenance | Append-only, user-entered source, author, license, and evidence-object records. | `src/library.h:109` |
 | 字段历史 | Field History | Read-only old/new field values aligned to metadata-only revisions. | `src/library.h:130` |
@@ -35,5 +35,5 @@ responsibility layers documented in
 | 能力模型 | Capability Model | Independent backend flags (`History`, `SnapshotTree`, `Restore`, `Lock`, `RemoteFetch`) mapped to safe UI actions. | `src/backend.h:6` |
 | 最近库 | Recent Library | A QSettings list keyed by stable library ID so a moved library can be re-validated. | `src/recent.h:6` |
 | 应用配置 | Application Settings | User-scope QSettings keys such as recent libraries and `ui/language`. | `src/i18n.cpp:10` |
-| 用户界面壳层 | UI Shell | The main window and dialogs that own widgets, timers, action gating, and user confirmation. | `src/mainwindow.h:28` |
+| 用户界面壳层 | UI Shell | The main window and dialogs that own widgets, timers, action gating, and user confirmation. | `src/ui/mainwindow.h:28` |
 | 核心库 | Core Library | The widget-free Qt Core/Gui/Sql domain and service components consumed by the executable. | `CMakeLists.txt:53` |

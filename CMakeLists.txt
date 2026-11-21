@@ -54,8 +54,19 @@ add_library(pentimento_core src/backend.cpp src/backend.h src/discovery.cpp src/
 target_include_directories(pentimento_core PUBLIC src)
 target_compile_definitions(pentimento_core PRIVATE PENTIMENTO_SOURCE_TRANSLATIONS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/translations")
 target_link_libraries(pentimento_core PUBLIC Qt6::Core Qt6::Gui Qt6::Sql Qt6::Network Threads::Threads)
-add_executable(pentimento WIN32 MACOSX_BUNDLE src/main.cpp src/mainwindow.cpp src/mainwindow_versions.cpp src/mainwindow_metadata.cpp src/mainwindow_snapshots.cpp src/mainwindow_backup.cpp src/mainwindow_sources.cpp src/mainwindow.h src/compare_canvas.cpp src/compare_canvas.h src/preview_canvas.cpp src/preview_canvas.h)
-target_link_libraries(pentimento PRIVATE pentimento_core Qt6::Widgets)
+# UI-3 layering: src/ui/ holds every Qt Widgets control. Dependency direction is one-way —
+# pentimento (exe) -> pentimento_ui -> pentimento_core. The core stays a leaf: no
+# Qt::Widgets, no UI headers (see docs/zh/design/45-layering.md for the ownership table).
+add_library(pentimento_ui
+    src/ui/mainwindow.cpp src/ui/mainwindow_versions.cpp src/ui/mainwindow_metadata.cpp
+    src/ui/mainwindow_snapshots.cpp src/ui/mainwindow_backup.cpp
+    src/ui/mainwindow_sources.cpp src/ui/mainwindow.h
+    src/ui/compare_canvas.cpp src/ui/compare_canvas.h
+    src/ui/preview_canvas.cpp src/ui/preview_canvas.h)
+target_include_directories(pentimento_ui PUBLIC src/ui)
+target_link_libraries(pentimento_ui PUBLIC pentimento_core Qt6::Widgets)
+add_executable(pentimento WIN32 MACOSX_BUNDLE src/main.cpp)
+target_link_libraries(pentimento PRIVATE pentimento_ui)
 set_target_properties(pentimento PROPERTIES MACOSX_BUNDLE_GUI_IDENTIFIER org.pentimento.desktop)
 # Copy the compiled translations next to the dev binary so `pentimento --library ...`
 # loads them from applicationDirPath()/translations (P-107).
@@ -79,9 +90,12 @@ if(BUILD_TESTING)
         set(target pentimento_${suite}_tests)
         set(sources tests/${suite}_test.cpp)
         if(suite IN_LIST library_canvas_suites)
-            list(APPEND sources src/compare_canvas.cpp src/preview_canvas.cpp)
+            list(APPEND sources src/ui/compare_canvas.cpp src/ui/preview_canvas.cpp)
         endif()
         add_executable(${target} ${sources})
+        # UI-3: canvas headers moved to src/ui/; every suite includes them, so src/ui is on
+        # each suite's include path (core headers come via the pentimento_core PUBLIC src).
+        target_include_directories(${target} PRIVATE src/ui)
         target_compile_definitions(${target} PRIVATE PENTIMENTO_SOURCE_TRANSLATIONS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/translations")
         target_link_libraries(${target} PRIVATE pentimento_core Qt6::Test Qt6::Widgets)
         add_test(NAME ${suite} COMMAND ${target})
@@ -117,8 +131,8 @@ if(BUILD_TESTING)
     # P-606: desktop keyboard/zoom acceptance — offscreen MainWindow checks
     # (minimum window, core shortcuts, tab traversal, non-color-only state,
     # dialog buttons reachable after scaling).
-    add_executable(pentimento_ui_tests tests/mainwindow_test.cpp src/mainwindow.cpp src/mainwindow_versions.cpp src/mainwindow_metadata.cpp src/mainwindow_snapshots.cpp src/mainwindow_backup.cpp src/mainwindow_sources.cpp src/mainwindow.h src/compare_canvas.cpp src/compare_canvas.h src/preview_canvas.cpp src/preview_canvas.h)
-    target_include_directories(pentimento_ui_tests PRIVATE src)
+    add_executable(pentimento_ui_tests tests/mainwindow_test.cpp src/ui/mainwindow.cpp src/ui/mainwindow_versions.cpp src/ui/mainwindow_metadata.cpp src/ui/mainwindow_snapshots.cpp src/ui/mainwindow_backup.cpp src/ui/mainwindow_sources.cpp src/ui/mainwindow.h src/ui/compare_canvas.cpp src/ui/compare_canvas.h src/ui/preview_canvas.cpp src/ui/preview_canvas.h)
+    target_include_directories(pentimento_ui_tests PRIVATE src src/ui)
     target_compile_definitions(pentimento_ui_tests PRIVATE PENTIMENTO_TESTING=1)
     target_link_libraries(pentimento_ui_tests PRIVATE pentimento_core Qt6::Test Qt6::Widgets)
     add_test(NAME desktop_keyboard_zoom COMMAND pentimento_ui_tests)
