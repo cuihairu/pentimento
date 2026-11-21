@@ -24,6 +24,7 @@ export default defineConfig({
           { text: 'Home', link: '/' },
           { text: 'Quickstart', link: '/quickstart' },
           { text: 'Configuration', link: '/configuration' },
+          { text: 'Configuration effects', link: '/configuration-effects' },
           { text: 'Architecture', link: '/architecture' },
           { text: 'Glossary', link: '/glossary' }
         ],
@@ -33,6 +34,7 @@ export default defineConfig({
             items: [
               { text: 'Quickstart', link: '/quickstart' },
               { text: 'Configuration', link: '/configuration' },
+              { text: 'Configuration effects', link: '/configuration-effects' },
               { text: 'Architecture', link: '/architecture' },
               { text: 'Glossary', link: '/glossary' }
             ]
@@ -49,6 +51,7 @@ export default defineConfig({
           { text: '首页', link: '/zh/' },
           { text: '快速开始', link: '/zh/quickstart' },
           { text: '配置', link: '/zh/configuration' },
+          { text: '配置效果', link: '/zh/configuration-effects' },
           { text: '架构', link: '/zh/architecture' },
           { text: '术语表', link: '/zh/glossary' }
         ],
@@ -58,6 +61,7 @@ export default defineConfig({
             items: [
               { text: '快速开始', link: '/zh/quickstart' },
               { text: '配置', link: '/zh/configuration' },
+              { text: '配置效果', link: '/zh/configuration-effects' },
               { text: '架构', link: '/zh/architecture' },
               { text: '术语表', link: '/zh/glossary' }
             ]
