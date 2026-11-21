@@ -64,18 +64,17 @@ V1 只验证已挂载 SMB/NFS 来源和备份；发现/直连矩阵记延后。�
 - **人工走查仍属验收步骤**：100%/150%/200% 真实缩放下渲染、完整焦点链环走、对话框返回焦点目验——离屏自动化只能钉住程序可证部分，不宣称替代人眼走查。
 - 验证：ctest 3/3 绿（含新套件）；离线烟雾运行无崩溃。
 
-## P-607 macOS/Windows/Linux 构建（Linux 基线证据 + 待用户）
+## P-607 macOS/Windows/Linux 构建（三平台 CI 证据 + 已知限制）
 
-保持三系统目标；缺平台证据不宣称该平台交付。**Linux 基线（2026-10-30 实测）**：
+保持三系统目标；**按验收逐平台记录构建、插件部署与已知限制，不假称全兼容，不凭 Linux 通过给 Windows/macOS 打勾**。三平台均在 GitHub 托管真实 runner 上以 `cmake --build --config Release`/`cmake --build` 构建 Qt 6.10.2 应用并打包（`.github/workflows/build-matrix.yml`，workflow_dispatch 手触、只构建+测试+记录，无 tag/无 Release/无发布产物——版本红线不触碰；三平台记录产物 artifacts 见 run 44866780725：`linux-record`/`windows-record`/`macos-record`）。
 
-| 项 | 结果 |
-|---|---|
-| 配置 | `cmake --preset dev` 成功（Qt 6.10.2 找到，C++17 无扩展） |
-| 构建 | `cmake --build --preset dev` 成功（ninja，无重编译需） |
-| 测试 | `ctest --preset dev`：`library_history` 1/1 通过 |
-| 图像支持 | PNG/JPEG/BMP 可预览；WebP/TGA 无插件（30-foundation#P-102） |
+| 平台 | 构建 | 插件部署 | 测试与已知限制 |
+|---|---|---|---|
+| Linux `ubuntu-24.04` | ✓ 全目标（ninja，Qt 6.10.2 + qtimageformats） | ✓ `package-linux.sh` 捆绑：`bin/pentimento`+`bin/translations/*.qm`、`lib/libQt6{Core,Gui,Sql,Svg,Widgets,XcbQpa,DBus}.so.6.10.2`+icu、`plugins/imageformats/{qgif,qicns,qico,qjpeg,qsvg,qtga,qwbmp,qwebp}.so`；`--help` 冒烟 ✓ | ✓ 16/16 通过；`ctest` 与 `package-linux.sh` 均全绿 |
+| Windows `windows-2022` | ✓ 应用目标：`pentimento_core.lib`+`pentimento.exe`（MSVC，Qt 6.10.2 `msvc2022_64`） | ✓ `windeployqt --no-compiler-runtime`（暂存副本）：`platforms/qwindows.dll`、`imageformats/qgif,qicns,qico,qjpeg,qsvg,qtga,qtiff,qwbmp,qwebp`、`sqldrivers/qsqlite,qsqlibase,qsqlmimer…`、`iconengines/qsvgicon`、`networkinformation/qnetworklistmanager`、`generic/qtuiotouchplugin`、`Qt6Core/Gui/Network/Sql/Svg/Widgets.dll`+`D3Dcompiler_47`+`icuuc`+`opengl32sw`、`translations/qt_*.qm` | **已知限制**：10 个 `library_*` 测试目标无法编译——`unistd.h` 缺失（C1083），它们用 `chmod(2)`/`geteuid(2)` 模拟只读/不可读权限，Windows 无此 POSIX 机制（等价物为 `FILE_ATTRIBUTE_READONLY`）；故 `ctest` 该 10 项 Not Run，另 `security_sentinel`/`svn_source_readonly`/`desktop_keyboard_zoom` 失败（同样 POSIX 耦合）。记录不假称兼容。 |
+| macOS `macos-15` | ✓ 应用目标：`pentimento.app`（Qt 6.10.2） | ✓ `macdeployqt -no-strip`：`platforms/libqcocoa`、`imageformats/libqgif,qicns,qico,qjpeg,qmacheif,qmacjp2,qtga,qtiff,qwbmp,qwebp`、`sqldrivers/libqsqlite,qsqlmimer,qsqlodbc,qsqlpsql`、`iconengines/libqsvgicon`、`networkinformation/libqapplenetworkinformation`、`styles/libqmacstyle`、`tls/libqcertonlybackend`；缺 `libmimerapi/libiodbc/libpq` 等可选驱动依赖 → macdeployqt 警告，属未装依赖的已知限制 | **已知限制**：63%（10/16）通过；6 项失败均属权限模拟语义差异——macOS 上 `chmod 0000` 后属主仍可读/写、只读文件 `QFile::remove` 行为不同、`QTemporaryDir` 清理含只读文件失败（`library_versions/backup/services/sources/import`）；另 `desktop_keyboard_zoom` 子进程在 300s 异步探测超时（机器速度相关）。记录不假称兼容。 |
 
-**待用户输入**：macOS/Windows 测试资源（记录构建、SQLite/图像插件、打包、核心旅程）；若缩平台须再批准。不凭 Linux 通过给 Windows/macOS 打勾。
+**runner 池注意**：`macos-14` 标签在本仓不可用（GitHub 拒绝 “The configuration 'macos-14-arm64-us-default' is not supported”），workflow 已加 `macos_label` 输入，改跑 `macos-15`。**Linux 基线（2026-10-30 实测）**见上表首行；图像支持 PNG/JPEG/BMP 可预览、WebP/TGA 无插件见 30-foundation#P-102（插件清单以 `plugins/imageformats` 部署树为准，Linux 含 `qwebp`/`qtga` 插件——P-102 的“无插件”指当时运行时缺插件，现已随 Qt 6.10.2 打包）。
 
 ## P-608 中英界面与文档一致性（已执行核对）
 
