@@ -1,0 +1,105 @@
+name: build matrix
+
+# P-607: verify the build on all three OS families and record per-OS build
+# commands, plugin deployment shape and known limits. Build-and-test only —
+# this workflow never publishes: no tags, no releases, no release assets
+# (the rolling nightly release stays owned by nightly.yml).
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt 6.10.2
+        uses: jurplel/install-qt-action@v4.5.0
+        with:
+          version: '6.10.2'
+          modules: 'qtimageformats'
+          cache: true
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ninja-build
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
+      - name: Build
+        run: cmake --build build
+      - name: Test
+        run: ctest --test-dir build --output-on-failure | tail -60
+      - name: Record plugin deployment shape
+        run: |
+          BIN=$(find build -maxdepth 3 -type f -name pentimento -executable | head -1)
+          test -n "$BIN"
+          ./scripts/package-linux.sh "$BIN" dist
+          find dist -type f | sort | head -40
+          QT_QPA_PLATFORM=offscreen ./dist/pentimento-linux-x64/pentimento --help >/dev/null
+          echo "linux: bundled lib+plugins tree above" >> summary.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-record
+          path: summary.txt
+          if-no-files-found: ignore
+
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt 6.10.2
+        uses: jurplel/install-qt-action@v4.5.0
+        with:
+          version: '6.10.2'
+          modules: 'qtimageformats'
+          cache: true
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR"
+      - name: Build
+        run: cmake --build build --config Release
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure | tail -60
+      - name: Record plugin deployment shape
+        run: |
+          $bin = Get-ChildItem -Recurse -Filter pentimento.exe build | Select-Object -First 1
+          $dir = Split-Path $bin.FullName
+          windeployqt --no-compiler-runtime --list release $bin.FullName | Out-File deploy-list.txt
+          Get-Content deploy-list.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-record
+          path: deploy-list.txt
+          if-no-files-found: ignore
+
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt 6.10.2
+        uses: jurplel/install-qt-action@v4.5.0
+        with:
+          version: '6.10.2'
+          modules: 'qtimageformats'
+          cache: true
+      - name: Install build tools
+        run: brew install ninja
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
+      - name: Build
+        run: cmake --build build
+      - name: Test
+        run: ctest --test-dir build --output-on-failure | tail -60
+      - name: Record plugin deployment shape
+        run: |
+          BIN=$(find build -maxdepth 4 -type f -name pentimento -perm -111 | head -1)
+          test -n "$BIN" || { find build -name "pentimento*" | head; exit 1; }
+          macdeployqt "$BIN" -no-strip 2>&1 | tail -20 || true
+          ls "$BIN.app/Contents/MacOS" "$BIN.app/Contents/PlugIns" 2>/dev/null | head -30
+          otool -L "$BIN.app/Contents/MacOS/pentimento" | head -15
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-record
+          path: deploy-log.txt
+          if-no-files-found: ignore
