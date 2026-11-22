@@ -3,7 +3,16 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   base: '/pentimento/',
   title: 'pentimento',
-  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/pentimento/favicon.svg' }]],
+  head: [
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/pentimento/favicon.svg' }],
+    // G2-L1: redirect first-time Chinese-browser visitors from the root home to /zh/,
+    // remembering an explicit choice in localStorage ('pentimento-lang').
+    [
+      'script',
+      {},
+      `(function(){if(location.pathname.replace(/\\/$/,'')!=='/pentimento')return;var k='pentimento-lang',s;try{s=localStorage.getItem(k)}catch(e){}if(s)return;var zh=(navigator.language||'').toLowerCase().startsWith('zh');if(zh)try{localStorage.setItem(k,'zh')}catch(e){};if(zh)location.replace('/pentimento/zh/')})();`
+    ]
+  ],
   description:
     'A local desktop asset manager for game art assets, centered on version-history browsing and restore.',
   srcExclude: [

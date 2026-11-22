@@ -384,7 +384,7 @@
 
 语言面：README.md↔README.zh.md 成对 + vitepress `locales: root(en-US)/zh(zh-CN)`，契约正常（探针 `/`→200 lang=en-US、`/zh/`→200 lang=zh-CN）；**无浏览器语言自动识别**（`docs/.vitepress/config.mts` 与 theme 内无 rootLocale/navigator.language/localeDetect）。
 
-- [ ] **G2-L1（P2，待用户拍板）** 浏览器语言自动切换增强：vitepress 首页语言探测跳转（`navigator.language` → `/zh/`，localStorage 记忆选择）或 `rootLocale` 重定向，二者择一。语言自动切换为增强项，默认手动切换+显式链接为受规基线，待用户拍板（复核实证 2026-11-15：页源内无 `navigator.languages`/`rootLocale`/`location.replace` 重定向脚本，线上 `/` 与 `/zh/` 均 200）。
+- [x] **G2-L1（P2，已拍板：语言探测跳转方案）** 浏览器语言自动切换增强：vitepress 首页语言探测跳转（`navigator.language` → `/zh/`，localStorage 记忆选择）或 `rootLocale` 重定向，二者择一。已定：config.mts head 注入首页探测脚本（仅 `/` 首页触发，`pentimento-lang` 记忆显式选择，zh 访客自动进 `/zh/`），构建验证脚本入产物。
 - [ ] UI-1 · P0 · NAS/仓库连接原型补全：`docs/prototypes/html/07-nas-connection.html`（高保真 HTML，对齐既有 6 张的暖米白/赭石强调/圆角细描边风格世界）+ 导出 `07-nas-connection.png`（2x、尺寸对齐 01）；信息面覆盖 spec：mDNS 发现列表/手动地址/认证错误态/能力徽标/离线降级；验收=与 01 并排视觉一致+spec NAS 节全落点+HTML 无外部依赖。
 - [ ] UI-2 · P0 · 任务中心原型补全：`docs/prototypes/html/08-task-center.html` + `08-task-center.png`——非模态进度列表（进行中含进度速度/已完成结果清单/失败错误重试/队列中），「浏览不受阻」示意可见；验收=同 UI-1 标准。
 - [ ] UI-3 · P0 · UI/核心代码分层：src/ 平铺 UI 件（mainwindow*.cpp×5、compare_canvas、preview_canvas 等）聚 `src/ui/`，CMake 建 `pentimento_ui` 目标，依赖方向硬约束 exe→ui→core，**pentimento_core 不依赖 Qt::Widgets 不含 UI 头**；先落归属表 `docs/zh/design/45-layering.md`（歧义文件逐个判定+理由）；验收=依赖方向满足+核心侧 grep UI 头零命中+全 ctest 绿+win 验证腿不回退。
