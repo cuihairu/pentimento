@@ -4,8 +4,6 @@
 
 #include "library.h"
 #include "backend.h"
-#include "compare_canvas.h"
-#include "preview_canvas.h"
 #include "exclusion.h"
 #include "filter.h"
 #include "i18n.h"
@@ -263,8 +261,7 @@ private slots:
 
 };
 
-// A QApplication is required: CompareCanvas/PreviewCanvas are widgets
-// and cannot be created under a QCoreApplication (canvas/journey).
+// A QApplication is required.
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
     BackendSourcesTest tc;

@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>pentimento · NAS / 仓库连接（原型 07）</title>
+<!--
+  原型 07 · NAS / 仓库连接（对应 desktop-prototype-spec 1.3 与 docs/zh/design/70-nas.md）
+  视觉基准：与 docs/prototypes/01..06 同一风格世界（暖米白 #F5F5F4 系、低饱和赭石/砖橙 #B26A00
+  强调、圆角 8–12px 卡片、1px 细描边 #D8D8D5、暖色相明度阶梯文字、预览画布 #E5E5E2/#444845）。
+  信息面（spec 1.3）：发现、手动地址、认证、能力与离线状态——全部落点在本图；
+  其中 P-011 代决为 V1 缩减的部分（mDNS 发现、完整协议地址表单、凭据认证、离线缓存）
+  以「未实现 · 未来范围」幽灵样式呈现，不渲染可点击但无功能的入口。
+  自包含：内联 CSS + 系统字体栈，无外部 CDN 依赖，离线可开。
+-->
+<style>
+  :root{
+    --bg:#F5F5F4;            /* 窗口底 */
+    --panel:#F0F0EE;         /* 侧栏/面板底 */
+    --toolbar:#ECECEA;       /* 工具栏底 */
+    --content:#FAFAF9;       /* 主内容底 */
+    --card:#FFFFFF;          /* 卡片底 */
+    --border:#D8D8D5;        /* 1px 细描边 */
+    --border-soft:#E2E2DF;   /* 次级分隔 */
+    --canvas:#E5E5E2;        /* 预览画布（DESIGN.md 固定中性色） */
+    --ink:#444845;           /* 主文字 */
+    --ink-2:#676A67;         /* 次文字 */
+    --ink-3:#9A9C97;         /* 弱文字 */
+    --amber:#B26A00;         /* 赭石/砖橙 强调 */
+    --amber-deep:#965600;
+    --amber-bg:#FDF3E3;
+    --danger:#C62828;
+    --danger-bg:#FDECEA;
+    --ok:#2E7D32;
+    --ok-bg:#E9F1E8;
+    --info:#2F6FBA;
+    --info-bg:#DCE8F6;
+    --future:#8C8F8A;        /* 未来范围 */
+    --radius:10px;
+    --radius-sm:7px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{width:1440px;height:900px;overflow:hidden;}
+  body{
+    background:var(--bg);color:var(--ink);
+    font-family:-apple-system,"Segoe UI","PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif;
+    font-size:13px;line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+    display:flex;flex-direction:column;
+  }
+
+  /* ---------- 标题栏 ---------- */
+  .titlebar{
+    height:34px;flex:none;background:var(--toolbar);
+    border-bottom:1px solid var(--border);
+    display:flex;align-items:center;gap:10px;padding:0 12px;
+  }
+  .logo{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:.2px;}
+  .logo .mark{
+    width:20px;height:20px;border-radius:6px;background:var(--amber);
+    color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;
+  }
+  .logo .sub{color:var(--ink-3);font-weight:400;font-size:12px;}
+  .crumb{margin-left:14px;color:var(--ink-2);display:flex;align-items:center;gap:6px;font-size:12.5px;}
+  .crumb b{color:var(--ink);font-weight:600;}
+  .crumb .sep{color:var(--border);}
+  .winbtns{margin-left:auto;display:flex;gap:14px;color:var(--ink-3);font-size:12px;}
+
+  /* ---------- 工具栏 ---------- */
+  .toolbar{
+    height:46px;flex:none;background:var(--panel);
+    border-bottom:1px solid var(--border);
+    display:flex;align-items:center;gap:8px;padding:0 12px;
+  }
+  .btn{
+    height:28px;padding:0 12px;border-radius:var(--radius-sm);
+    border:1px solid var(--border);background:var(--card);color:var(--ink);
+    font-size:12.5px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+  }
+  .btn.primary{background:var(--amber);border-color:var(--amber-deep);color:#fff;font-weight:600;}
+  .btn.ghost{background:transparent;}
+  .btn.active{background:var(--amber-bg);border-color:var(--amber);color:var(--amber-deep);font-weight:600;}
+  .toolbar .spacer{flex:1;}
+  .search{
+    width:250px;height:28px;border-radius:var(--radius-sm);
+    border:1px solid var(--border);background:var(--card);
+    color:var(--ink-3);display:flex;align-items:center;gap:7px;padding:0 10px;font-size:12.5px;
+  }
+  .search .kbd{
+    margin-left:auto;font-size:10.5px;color:var(--ink-3);
+    border:1px solid var(--border);border-radius:4px;padding:1px 5px;background:var(--panel);
+  }
+
+  /* ---------- 三栏主体 ---------- */
+  .body{flex:1;display:flex;min-height:0;}
+  .side{
+    width:252px;flex:none;background:var(--panel);
+    border-right:1px solid var(--border);
+    padding:12px 10px;display:flex;flex-direction:column;gap:4px;overflow:hidden;
+  }
+  .side h4{
+    font-size:11px;font-weight:700;color:var(--ink-2);letter-spacing:.6px;
+    margin:2px 6px 6px;text-transform:uppercase;
+  }
+  .nav{
+    border-radius:var(--radius-sm);padding:6px 8px;font-size:12.5px;
+    display:flex;align-items:center;gap:8px;color:var(--ink);
+  }
+  .nav .ico{width:15px;text-align:center;color:var(--ink-3);font-size:12px;}
+  .nav.on{background:var(--card);border:1px solid var(--border);font-weight:600;}
+  .nav .cnt{margin-left:auto;font-size:11px;color:var(--ink-3);}
+  .nav .dot{width:7px;height:7px;border-radius:50%;margin-left:auto;flex:none;}
+  .nav .dot.ok{background:var(--ok);}
+  .nav .dot.off{background:var(--danger);}
+  .nav.child{padding-left:31px;color:var(--ink-2);font-size:12px;}
+
+  .main{flex:1;min-width:0;background:var(--content);padding:12px 14px;overflow:hidden;}
+  .cols{display:flex;gap:11px;height:100%;min-height:0;}
+  .cols > div{overflow:hidden;}
+  .cols > div > *{flex:none;}
+
+  .card{
+    background:var(--card);border:1px solid var(--border);
+    border-radius:var(--radius);padding:9px 13px;overflow:hidden;
+  }
+  .card h3{
+    font-size:12.5px;font-weight:700;color:var(--ink);
+    display:flex;align-items:center;gap:8px;margin-bottom:2px;
+  }
+  .card .hint{font-size:11px;color:var(--ink-2);margin-bottom:7px;line-height:1.4;}
+
+  .badge{
+    display:inline-flex;align-items:center;gap:4px;
+    height:20px;padding:0 8px;border-radius:20px;
+    font-size:11px;font-weight:600;border:1px solid transparent;white-space:nowrap;
+  }
+  .badge.ok{background:var(--ok-bg);color:var(--ok);border-color:#CFE0CE;}
+  .badge.warn{background:var(--amber-bg);color:var(--amber-deep);border-color:#EBD8B4;}
+  .badge.bad{background:var(--danger-bg);color:var(--danger);border-color:#F0CBCA;}
+  .badge.info{background:var(--info-bg);color:var(--info);border-color:#C5D8EC;}
+  .badge.neutral{background:var(--panel);color:var(--ink-2);border-color:var(--border);}
+  .badge.future{
+    background:transparent;color:var(--future);
+    border:1px dashed var(--future);font-weight:500;
+  }
+
+  /* 未来范围：幽灵呈现，无可用入口 */
+  .future-wrap{position:relative;}
+  .future-wrap .ghost{opacity:.45;filter:grayscale(.5);pointer-events:none;}
+  .future-note{
+    display:flex;align-items:center;gap:6px;margin-top:8px;
+    font-size:11px;color:var(--future);
+  }
+
+  /* 来源行 */
+  .src{
+    border:1px solid var(--border-soft);border-radius:var(--radius-sm);
+    padding:9px 10px;margin-bottom:8px;background:var(--card);
+  }
+  .src.sel{border-color:var(--amber);background:var(--amber-bg);}
+  .src .row1{display:flex;align-items:center;gap:8px;}
+  .src .name{font-weight:600;font-size:12.5px;}
+  .src .path{font-size:11px;color:var(--ink-3);margin-top:2px;font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;}
+  .src .badges{margin-left:auto;display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;}
+  .src .meta{display:flex;gap:14px;margin-top:6px;font-size:11px;color:var(--ink-2);flex-wrap:wrap;}
+
+  /* 表单 */
+  .field{margin-bottom:9px;}
+  .field label{display:block;font-size:11.5px;color:var(--ink-2);margin-bottom:4px;}
+  .input{
+    height:28px;border:1px solid var(--border);border-radius:var(--radius-sm);
+    background:var(--card);display:flex;align-items:center;padding:0 9px;
+    font-size:12.5px;color:var(--ink);gap:8px;
+    font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;
+  }
+  .input .ph{color:var(--ink-3);}
+  .input .caret{width:1px;height:14px;background:var(--amber);margin-left:1px;}
+  .formrow{display:flex;gap:8px;align-items:center;}
+  .formrow .grow{flex:1;}
+
+  /* 能力徽标组 */
+  .capgrid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:6px 0 0;}
+  .cap{
+    border:1px solid var(--border-soft);border-radius:var(--radius-sm);
+    padding:6px 9px;background:var(--card);
+  }
+  .cap .t{font-size:10.5px;color:var(--ink-2);display:flex;align-items:center;gap:5px;}
+  .cap .v{font-size:12px;font-weight:700;margin-top:2px;color:var(--ink);}
+  .cap.ok .t i{color:var(--ok);font-style:normal;}
+  .cap.no .t i{color:var(--danger);font-style:normal;}
+
+  /* 失联卡 */
+  .offline{
+    border:1px solid #F0CBCA;background:var(--danger-bg);
+    border-radius:var(--radius-sm);padding:10px 11px;
+  }
+  .offline .head{display:flex;align-items:center;gap:8px;font-weight:700;color:var(--danger);font-size:12.5px;}
+  .offline .body{margin-top:5px;font-size:11.5px;color:var(--ink-2);line-height:1.55;word-break:break-word;overflow-wrap:anywhere;}
+  .offline .body b{white-space:nowrap;}
+  .offline .acts{display:flex;gap:8px;margin-top:8px;}
+
+  /* 键盘提示条 */
+  .kbdline{
+    margin-top:auto;display:flex;gap:14px;flex-wrap:wrap;
+    font-size:10.5px;color:var(--ink-3);padding-top:8px;
+  }
+  .kbdline b{
+    font-weight:500;color:var(--ink-2);border:1px solid var(--border);
+    border-radius:4px;padding:0 4px;background:var(--panel);font-size:10px;
+  }
+
+  /* 右栏 */
+  .aside{
+    width:300px;flex:none;background:var(--panel);
+    border-left:1px solid var(--border);padding:12px;display:flex;flex-direction:column;gap:10px;overflow:hidden;
+  }
+  .aside .card{padding:11px 12px;}
+  .kv{display:flex;justify-content:space-between;gap:10px;font-size:12px;padding:3px 0;}
+  .kv .k{color:var(--ink-2);flex:none;}
+  .kv .v{color:var(--ink);text-align:right;word-break:break-all;}
+  .sec-t{font-size:11px;font-weight:700;color:var(--ink-2);letter-spacing:.5px;margin:2px 0 4px;}
+
+  /* 状态栏 */
+  .statusbar{
+    height:30px;flex:none;background:var(--panel);
+    border-top:1px solid var(--border);
+    display:flex;align-items:center;gap:16px;padding:0 12px;
+    font-size:11.5px;color:var(--ink-2);
+  }
+  .statusbar .grow{flex:1;}
+  .statusbar .st{display:inline-flex;align-items:center;gap:5px;}
+  .statusbar .st i{width:7px;height:7px;border-radius:50%;display:inline-block;font-style:normal;}
+  .statusbar b{color:var(--ink);font-weight:600;}
+
+  /* 通用小列 */
+  .list-tight{display:flex;flex-direction:column;gap:5px;}
+  .trow{
+    display:flex;align-items:center;gap:8px;font-size:11.5px;
+    border:1px dashed var(--border);border-radius:var(--radius-sm);
+    padding:4px 9px;background:var(--content);
+  }
+  .trow .nm{font-weight:600;color:var(--ink-2);}
+  .trow .meta{color:var(--ink-3);font-size:10.5px;}
+  .trow .badge{margin-left:auto;}
+</style>
+</head>
+<body>
+
+  <!-- 标题栏 -->
+  <div class="titlebar">
+    <div class="logo"><span class="mark">P</span>pentimento <span class="sub">画迹</span></div>
+    <div class="crumb">我的素材库 <span class="sep">›</span> <b>连接与来源</b></div>
+    <div class="winbtns"><span>—</span><span>▢</span><span>✕</span></div>
+  </div>
+
+  <!-- 工具栏 -->
+  <div class="toolbar">
+    <span class="btn primary">＋ 导入</span>
+    <span class="btn">⎘ 记录版本</span>
+    <span class="btn">✎ 编辑工作副本</span>
+    <span class="btn">⌂ 打开素材库</span>
+    <span class="btn active">⇄ 连接</span>
+    <span class="spacer"></span>
+    <span class="btn ghost">一致性检查</span>
+    <span class="btn ghost">备份…</span>
+    <span class="search">⌕ 搜索素材名称、标签、格式… <span class="kbd">Ctrl K</span></span>
+  </div>
+
+  <!-- 主体 -->
+  <div class="body">
+
+    <!-- 左栏：来源导航 -->
+    <div class="side">
+      <h4>素材库</h4>
+      <div class="nav"><span class="ico">◈</span> 全部素材 <span class="cnt">2,590</span></div>
+      <div class="nav child"><span class="ico">▸</span> 角色幻想</div>
+      <div class="nav child"><span class="ico">▸</span> 场景设定</div>
+      <div class="nav child"><span class="ico">▸</span> UI 图标</div>
+
+      <h4 style="margin-top:12px;">来源与连接</h4>
+      <div class="nav on"><span class="ico">⇄</span> 挂载来源</div>
+      <div class="nav child">
+        <span class="ico">☁</span> Synology · photos
+        <span class="dot ok" title="在线"></span>
+      </div>
+      <div class="nav child">
+        <span class="ico">☁</span> OfficeNAS · archive
+        <span class="dot off" title="失联"></span>
+      </div>
+      <div class="nav child"><span class="ico">＋</span> 添加已挂载目录…</div>
+
+      <div class="kbdline">
+        <span><b>F6</b> 循环焦点</span>
+        <span><b>Ctrl 1</b> 素材</span>
+        <span><b>Ctrl 2</b> 预览</span>
+        <span><b>Ctrl 3</b> 时间轴</span>
+        <span><b>Esc</b> 返回浏览</span>
+      </div>
+    </div>
+
+    <!-- 中栏：连接面板 -->
+    <div class="main">
+      <div class="cols">
+
+        <!-- 左列 -->
+        <div style="flex:1.15;display:flex;flex-direction:column;gap:12px;min-width:0;">
+
+          <!-- 已挂载来源 + 能力徽标 -->
+          <div class="card">
+            <h3>已挂载来源 <span class="badge ok">2 个可达</span></h3>
+            <div class="hint">仅消费系统已挂载的 SMB/NFS 目录；断网不把远端文件当删除，不自动重新挂载。</div>
+
+            <div class="src sel">
+              <div class="row1">
+                <span class="name">Synology · photos</span>
+                <span class="badge ok">✓ 在线</span>
+                <span class="badge neutral">可读</span>
+                <span class="badges"></span>
+              </div>
+              <div class="path">/mnt/nas/photos</div>
+              <div class="meta"><span>最近检查 12:04</span><span>可用空间 1.4 TB</span><span>重扫预览：新增 3 · 已在库 486</span></div>
+            </div>
+
+            <div class="src">
+              <div class="row1">
+                <span class="name">OfficeNAS · archive</span>
+                <span class="badge bad">✕ 失联</span>
+                <span class="badge neutral">只读</span>
+              </div>
+              <div class="path">/mnt/nas/archive</div>
+              <div class="meta"><span>最近成功 11:26</span><span>本地副本照常可浏览</span></div>
+            </div>
+          </div>
+
+          <!-- 手动地址（V1：已挂载路径；完整协议表单=未来范围） -->
+          <div class="card">
+            <h3>手动添加地址</h3>
+            <div class="hint">V1 仅支持选择已挂载路径或系统目录选择器；协议地址表单未实现。</div>
+
+            <div class="field">
+              <label>已挂载路径</label>
+              <div class="formrow">
+                <div class="input grow">/mnt/nas/<span>new</span><span class="caret"></span><span class="ph">&nbsp;</span></div>
+                <span class="btn">选择目录…</span>
+                <span class="btn primary">检查并添加</span>
+              </div>
+            </div>
+
+            <div class="future-wrap">
+              <div class="ghost">
+                <div class="field" style="margin-bottom:6px;">
+                  <label>协议地址（sftp / webdav / smb）</label>
+                  <div class="input" style="color:var(--ink-3);"><span class="ph">sftp://user@host:22/export/media</span></div>
+                </div>
+                <div class="formrow">
+                  <span class="btn ghost">凭据…</span>
+                  <span class="btn ghost">TLS / 主机密钥</span>
+                </div>
+              </div>
+              <div class="future-note">
+                <span class="badge future">未实现 · 未来范围</span>
+                <span>WebDAV/SFTP 直连与凭据认证随 TLS/主机密钥校验成组上线（P-502/P-504/P-511/P-512）。</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 离线降级 -->
+          <div class="offline">
+            <div class="head">✕ 失联 — OfficeNAS · archive</div>
+            <div class="body">
+              路径 <b>/mnt/nas/archive</b> 暂不可达；探测不在界面线程等待，可随时重试。
+              本地已导入副本与缩略图照常浏览；重连后仅更新可达性，不把远端缺失当作本地删除。
+            </div>
+            <div class="acts">
+              <span class="btn primary">重试</span>
+              <span class="btn">查看导入任务</span>
+              <span class="btn ghost">清除该来源</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右列 -->
+        <div style="flex:1;display:flex;flex-direction:column;gap:12px;min-width:0;">
+
+          <!-- 能力徽标（来源读取与备份目标分开解释） -->
+          <div class="card">
+            <h3>能力与状态 <span class="badge neutral">Synology · photos</span></h3>
+            <div class="hint">来源读取（可达/可读）与备份目标写入（可写/空间）分别检查、分别解释，不合并成一个绿灯。</div>
+            <div class="capgrid">
+              <div class="cap ok"><div class="t"><i>●</i> 可达</div><div class="v">在线 · 12:04 检查</div></div>
+              <div class="cap ok"><div class="t"><i>●</i> 可读</div><div class="v">目录可列举</div></div>
+              <div class="cap ok"><div class="t"><i>●</i> 可写（备份目标）</div><div class="v">写入检查通过</div></div>
+              <div class="cap"><div class="t"><i style="color:var(--ink-3)">●</i> 可用空间</div><div class="v">1.4 TB · 足够</div></div>
+            </div>
+            <div class="formrow" style="margin-top:8px;">
+              <span class="btn primary">浏览并复制导入</span>
+              <span class="btn">重扫预览…</span>
+              <span class="btn">导出备份包…</span>
+            </div>
+          </div>
+
+          <!-- 未来范围：认证 + 发现（合并成一张卡，P-011 口径） -->
+          <div class="card future-wrap">
+            <h3>认证与发现 <span class="badge future">未实现 · 未来范围</span></h3>
+            <div class="hint">系统挂载已由系统完成认证；mDNS/DNS-SD 延后（P-506/P-507）。未发现 ≠ NAS 不存在。</div>
+            <div class="ghost">
+              <div class="list-tight">
+                <div class="trow"><span class="nm">认证失败</span><span class="meta">凭据无效或已过期</span><span class="badge bad">401</span></div>
+                <div class="trow"><span class="nm">TLS 证书校验失败</span><span class="meta">过期/主机名/链</span><span class="badge bad">证书</span></div>
+                <div class="trow"><span class="nm">SSH 主机密钥变化</span><span class="meta">停止并人工确认</span><span class="badge warn">密钥</span></div>
+                <div class="trow"><span class="nm">Synology-DS920</span><span class="meta">192.168.1.20 · SMB</span><span class="badge neutral">mDNS</span></div>
+                <div class="trow"><span class="nm">QNAP-TVS-471</span><span class="meta">192.168.1.31 · NFS</span><span class="badge neutral">mDNS</span></div>
+              </div>
+            </div>
+            <div class="future-note">
+              <span class="badge future">未实现</span>
+              <span>认证/权限/离线/TLS·SSH 分别显示，绝不静默忽略证书错误。</span>
+            </div>
+          </div>
+
+          <!-- 能力边界：V1 已实现 / 未来范围 -->
+          <div class="card">
+            <h3>能力边界</h3>
+            <div class="list-tight" style="margin-top:5px;">
+              <div class="trow" style="border-style:solid;padding:3px 8px;"><span class="nm">系统挂载 SMB/NFS</span><span class="badge ok">V1</span></div>
+              <div class="trow" style="border-style:solid;padding:3px 8px;"><span class="nm">失联状态机与重试</span><span class="badge ok">V1</span></div>
+              <div class="trow" style="border-style:solid;padding:3px 8px;"><span class="nm">备份包导出与校验</span><span class="badge ok">V1</span></div>
+              <div class="trow" style="padding:3px 8px;"><span class="nm">WebDAV / SFTP 直连</span><span class="badge future">未来</span></div>
+              <div class="trow" style="padding:3px 8px;"><span class="nm">mDNS / WS-Discovery</span><span class="badge future">未来</span></div>
+              <div class="trow" style="padding:3px 8px;"><span class="nm">离线缓存浏览</span><span class="badge future">未来</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右栏：详情 -->
+    <div class="aside">
+      <div class="card">
+        <div class="sec-t">来源详情</div>
+        <div class="kv"><span class="k">名称</span><span class="v">Synology · photos</span></div>
+        <div class="kv"><span class="k">路径</span><span class="v">/mnt/nas/photos</span></div>
+        <div class="kv"><span class="k">状态</span><span class="v" style="color:var(--ok);font-weight:600;">在线 · 可读</span></div>
+        <div class="kv"><span class="k">最近检查</span><span class="v">今天 12:04</span></div>
+        <div class="kv"><span class="k">最近成功</span><span class="v">今天 12:04</span></div>
+        <div class="kv"><span class="k">可用空间</span><span class="v">1.4 TB</span></div>
+        <div class="kv"><span class="k">重试策略</span><span class="v">手动重试 · 一次一个探测</span></div>
+      </div>
+
+      <div class="card">
+        <div class="sec-t">重扫预览（P-515）</div>
+        <div class="kv"><span class="k">新增可导入</span><span class="v" style="color:var(--info);font-weight:600;">3</span></div>
+        <div class="kv"><span class="k">已在库中</span><span class="v">486</span></div>
+        <div class="kv"><span class="k">不可读</span><span class="v">1（权限）</span></div>
+        <div style="font-size:11px;color:var(--ink-2);margin-top:6px;line-height:1.5;">
+          重扫只读、只增不改：来源端删除/改名/权限变化不冒充本地删除，不写墓碑。
+        </div>
+        <div class="formrow" style="margin-top:8px;">
+          <span class="btn primary">导入新增（3）</span>
+          <span class="btn">查看明细…</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="sec-t">备份目标（P-516）</div>
+        <div class="kv"><span class="k">目标</span><span class="v">/mnt/nas/backup</span></div>
+        <div class="kv"><span class="k">写入检查</span><span class="v" style="color:var(--ok);font-weight:600;">可写 · 空间满足</span></div>
+        <div class="kv"><span class="k">完成标记</span><span class="v">COMPLETE 校验</span></div>
+        <div style="font-size:11px;color:var(--ink-2);margin-top:6px;line-height:1.5;">
+          导出为完整备份包：清单+对象逐个校验后写完成标记；半包不标成功，非空目标拒绝覆盖。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 状态栏 -->
+  <div class="statusbar">
+    <span>素材库 <b>~/Pictures/pentimento-lib</b></span>
+    <span class="st"><i style="background:var(--ok);"></i> 在线来源 <b>1</b> / 2</span>
+    <span class="st"><i style="background:var(--amber);"></i> 后台任务 <b>1</b>（导入 3 项 · 任务中心可取消）</span>
+    <span class="grow"></span>
+    <span class="st" style="color:var(--danger);">✕ OfficeNAS 失联 · 最近成功 11:26 · 可重试</span>
+  </div>
+
+</body>
+</html>
