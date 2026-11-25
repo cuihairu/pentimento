@@ -175,7 +175,8 @@ jobs:
             otool -L build/pentimento.app/Contents/MacOS/pentimento 2>/dev/null | head -15
           } > deploy-log.txt 2>&1
           cat deploy-log.txt
-      # Same POSIX coupling as the windows leg: see that job's comment.
+      # All test targets build here now (the permission-simulation spans are
+      # Q_OS_UNIX-guarded, see the windows job); keep record-not-gate semantics.
       - name: Build test targets
         continue-on-error: true
         run: |
@@ -185,6 +186,33 @@ jobs:
       - name: Test
         continue-on-error: true
         run: ctest --test-dir build --output-on-failure > tests.txt 2>&1
+      # Same triage aid as the windows job: re-run failed suites with QtTest's
+      # own -o file output (flushed per test function) so a crashing suite
+      # still records where it died. Plain arrays/files only: macOS ships bash 3.2.
+      - name: Failed-suite detail
+        continue-on-error: true
+        run: |
+          ctest --test-dir build -C Release -N -V > test-commands.txt 2>&1
+          failed=$(grep -E '^[[:space:]]*[0-9]+ - [A-Za-z_]+ \(' tests.txt |
+                   sed -E 's/^[[:space:]]*[0-9]+ - ([A-Za-z_]+) \(/\1/' | sort -u)
+          echo "failed suites: $failed"
+          : > suite-map.txt
+          exe=""
+          while IFS= read -r line; do
+            case "$line" in
+              *"Test command:"*) exe="${line##*: Test command: }" ;;
+              *"Test  "#*)
+                name=$(printf '%s\n' "$line" | sed -E 's/^ *Test +#[0-9]+: +//')
+                if [ -n "$exe" ]; then printf '%s\t%s\n' "$name" "$exe" >> suite-map.txt; exe=""; fi ;;
+            esac
+          done < test-commands.txt
+          export QT_QPA_PLATFORM=offscreen
+          for t in $failed; do
+            exe=$(awk -F'\t' -v n="$t" '$1==n{print $2; exit}' suite-map.txt)
+            if [ -z "$exe" ]; then echo "no command for $t"; continue; fi
+            echo "re-running $t"
+            "$exe" -o "detail-$t.txt,txt" || true
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: macos-record
@@ -192,4 +220,5 @@ jobs:
             deploy-log.txt
             test-build-errors.txt
             tests.txt
+            detail-*.txt
           if-no-files-found: ignore
