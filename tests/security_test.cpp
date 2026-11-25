@@ -134,6 +134,9 @@ private slots:
         QVERIFY(beforeA.open(QIODevice::ReadOnly) && beforeB.open(QIODevice::ReadOnly));
         const QByteArray aBefore = beforeA.readAll();
         const QByteArray bBefore = beforeB.readAll();
+        // Windows: an open handle blocks the rename below; read then close.
+        beforeA.close();
+        beforeB.close();
         QVERIFY(!aBefore.isEmpty() && !bBefore.isEmpty());
         SentinelConfig cfg = isolating(2, 2, 2);
         Sentinel sentinel(library.root() + "/working", cfg);

@@ -378,6 +378,10 @@ private slots:
 }
 
     void recursiveScanAppliesIgnoreRulesWithoutFollowingSymlinks() {
+#ifndef Q_OS_UNIX
+        QSKIP("NTFS symlink creation/traversal semantics differ; the exact "
+              "scan counts asserted here are not portable");
+#endif
         QTemporaryDir dir;
         // Tree: two files, a subdir with one file, a hidden file, and a symlink
         // loop pointing at the root (must not be followed).

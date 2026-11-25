@@ -11,6 +11,7 @@
 #include <QFile>
 #include <QProcess>
 #include <QTemporaryDir>
+#include <QUrl>
 #include <QtTest>
 
 namespace {
@@ -45,7 +46,7 @@ bool makeRepo(const QString &base, QString *wcOut) {
     if (!run(QStringLiteral("svnadmin"), base,
              {QStringLiteral("create"), repo}))
         return false;
-    const QString url = QStringLiteral("file://") + QDir(repo).absolutePath();
+    const QString url = QUrl::fromLocalFile(repo).toString();
     if (!run(QStringLiteral("svn"), base,
              {QStringLiteral("checkout"), QStringLiteral("-q"), url, wc}))
         return false;

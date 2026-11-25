@@ -212,6 +212,7 @@ private slots:
         const QString hashB = digestHex("bytes-b");
         const QString orphanHash = digestHex("orphan-bytes");
         // A referenced object file deleted → missing.
+        QVERIFY(platform::makeMutable(objectsDir + "/" + hashA)); // Windows: readonly attr blocks remove
         QVERIFY(QFile::remove(objectsDir + "/" + hashA));
         // A referenced object overwritten with different bytes → corrupt.
         // (Objects are content-addressed and stored read-only, so clear the

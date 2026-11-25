@@ -127,6 +127,7 @@ private slots:
         const QString newestHash = history.first().hash;
         // A damaged object is still listed (the timeline marks it, never hides it).
         const QString damagedHash = history.at(2).hash; // oldest
+        QVERIFY(platform::makeMutable(lib.objectPath(damagedHash))); // Windows: readonly attr blocks remove/rewrite
         QFile::remove(lib.objectPath(damagedHash));
         put(lib.objectPath(damagedHash), "corrupted-not-the-hash");
         bool threw = false;
@@ -426,6 +427,10 @@ private slots:
         put(asset.path, "body");
         QCOMPARE(library.workingCopyHealth(asset), Library::Health::Healthy);
 
+#ifndef Q_OS_UNIX
+        QSKIP("the owner-read-bit simulation is not representable on Windows "
+              "(QFile maps permission bits to the single READONLY attribute)");
+#endif
         // Unreadable working copy (lost mount/permissions): "unreachable" —
         // explicitly not a deletion, so still no tombstone. Write-only (no read
         // bit) makes it unreadable for a non-root owner.
