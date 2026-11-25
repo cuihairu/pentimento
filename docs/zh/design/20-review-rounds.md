@@ -32,7 +32,11 @@
 
 ## P-013 第二轮原型交互审核：走查脚本（待用户执行）
 
-按关键任务逐步走查，覆盖错误态与键盘。用户按以下脚本在原型（`docs/zh/desktop-prototype-spec.md` + `docs/zh/design/10-prototype-states.md`）上走查，逐条记录问题与修订：
+按关键任务逐步走查，覆盖错误态与键盘。
+
+> **走查对象（2026-11-26 更新）**：V1 已实现，脚本可直接对**真实应用**走查——`cmake --preset dev && cmake --build --preset dev && ctest --preset dev` 后运行 `./build/dev/pentimento --library /path/to/library`（macOS 入口 `build/dev/pentimento.app/Contents/MacOS/pentimento`）；Windows 上同样有构建说明见 README。原型文档（`docs/zh/desktop-prototype-spec.md` + `docs/zh/design/10-prototype-states.md`）仍为交互设计依据，用于对照走查。下表 7 个任务均对应已实现功能（自动化测试证据见 80-reliability#P-609 与 20-review-rounds.md#P-014 追溯矩阵）。
+
+用户按以下脚本走查，逐条记录问题与修订：
 
 | 步骤 | 任务 | 必查错误态 | 键盘要求 |
 |---|---|---|---|

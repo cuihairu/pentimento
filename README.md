@@ -25,7 +25,7 @@
 
 ## Build & run
 
-Requires CMake 3.24+, Ninja, a C++17-capable compiler, and Qt 6.4+ (Core, Gui, Widgets, Sql, Network; Test is additionally needed when building the test suites); the Qt SQLite driver is needed at runtime. Verified with a local Qt 6.10.2/Linux build; macOS/Windows builds are not yet verified on real machines.
+Requires CMake 3.24+, Ninja, a C++17-capable compiler, and Qt 6.4+ (Core, Gui, Widgets, Sql, Network; Test is additionally needed when building the test suites); the Qt SQLite driver is needed at runtime. Verified with a local Qt 6.10.2/Linux build; macOS/Windows are additionally verified on GitHub-hosted runners in CI (build + test, 16/16 suites green on all three platforms — see `docs/zh/design/80-reliability.md#P-607`); real-machine walkthroughs remain a pending acceptance step.
 
 ```sh
 cmake --preset dev
@@ -46,7 +46,7 @@ Without `--library`, the library lives under Qt's AppLocalDataLocation as `libra
 
 When a local asset library is encrypted or tampered with by ransomware, the product must **prevent, detect, and quickly recover** (new core requirement added 2026-10-31). Only the library's own defenses are built — no antivirus engine, no virus database.
 
-- **Layer 1: immutable version store** (implemented) — history objects are content-addressed and append-only, then set read-only after write (Linux `chattr +i` when permitted, otherwise write bits are cleared; Windows/macOS read-only attributes are abstracted to the platform layer, with real-machine verification still TODO). The version store is separate from the workspace, and restore is one-way store→workspace; encrypting the workspace leaves history objects readable and restorable.
+- **Layer 1: immutable version store** (implemented) — history objects are content-addressed and append-only, then set read-only after write (Linux `chattr +i` when permitted, otherwise write bits are cleared; Windows/macOS read-only attributes are abstracted to the platform layer, covered by the three-platform CI test suites). The version store is separate from the workspace, and restore is one-way store→workspace; encrypting the workspace leaves history objects readable and restorable.
 - **Layer 2: batch-modification sentinel** (implemented) — watches the workspace for anomalous batch writes; any of three signals (many files changed / extension churn .png→.enc / abnormally rising content entropy) tripping its threshold raises an alert and automatically takes an emergency snapshot anchor. Normal small edits stay quiet (threshold-tested).
 - **Layer 3: whole-tree rollback** (implemented) — "Restore to anchor" restores the workspace to the pre-infection anchor in one action, using the existing "restore forms a new version" semantics; later history (including encrypted versions) is not destroyed.
 

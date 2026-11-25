@@ -25,7 +25,7 @@
 
 ## 构建与运行
 
-需要 CMake 3.24+、Ninja、支持 C++17 的编译器及 Qt 6.4+（Core、Gui、Widgets、Sql、Network；构建测试套件时还需 Test），运行时需要 Qt SQLite 驱动。已在本地 Qt 6.10.2/Linux 构建验证；macOS/Windows 尚待实际构建验证。
+需要 CMake 3.24+、Ninja、支持 C++17 的编译器及 Qt 6.4+（Core、Gui、Widgets、Sql、Network；构建测试套件时还需 Test），运行时需要 Qt SQLite 驱动。已在本地 Qt 6.10.2/Linux 构建验证；macOS/Windows 另在 GitHub 托管 runner 的 CI 中通过构建+测试验证（三平台 16/16 全绿，见 `docs/zh/design/80-reliability.md#P-607`）；真机走查仍属待完成的验收步骤。
 
 ```sh
 cmake --preset dev
@@ -46,7 +46,7 @@ macOS 的 bundle 入口为 `build/dev/pentimento.app/Contents/MacOS/pentimento`�
 
 本地素材库被勒索软件加密/篡改时，产品要能防住、发现、并快速恢复（用户 2026-10-31 新增核心需求）。只做素材库自身防线，不做杀毒引擎/病毒库。
 
-- **防线一：不可变版本库**（已实现）——历史对象按内容寻址 append-only，落盘后置只读（Linux `chattr +i` 可用则用，否则清除写权限位；Windows/macOS 只读属性抽象到平台层，真机验证 TODO）。版本库与工作区分离，恢复单向 库→工作区；加密工作区后历史对象仍可读可恢复。
+- **防线一：不可变版本库**（已实现）——历史对象按内容寻址 append-only，落盘后置只读（Linux `chattr +i` 可用则用，否则清除写权限位；Windows/macOS 只读属性抽象到平台层，三平台 CI 测试套件已覆盖）。版本库与工作区分离，恢复单向 库→工作区；加密工作区后历史对象仍可读可恢复。
 - **防线二：批量修改哨兵**（已实现）——监测工作区异常批量写入，三个信号（大量文件被改 / 被改扩展名 .png→.enc / 内容熵值异常升高）任一达阈值即告警并自动紧急快照锚点；正常小编辑不触发（阈值测试）。
 - **防线三：整树回滚**（已实现）——「恢复到锚点」一键恢复工作区到感染前锚点，走「恢复形成新版本」口径，不销毁后续历史（被加密版本仍保留）。
 
