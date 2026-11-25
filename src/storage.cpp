@@ -5,6 +5,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QTemporaryFile>
 
 namespace {
 SourceState stateFor(const QFileInfo &info) {
@@ -105,16 +106,18 @@ BackupTargetInfo probeBackupTarget(const QString &path) {
         out.reason = QObject::tr("备份目标只读（无写权限或只读挂载）：%1").arg(trimmed);
         return out;
     }
-    // A writable directory we can actually create a file in is the real
-    // acceptance; mode bits alone can be misleading on a mounted share.
-    out.writable = true;
-    QStorageInfo storage(probe.absoluteFilePath());
-    if (storage.isValid() && storage.isReadOnly()) {
+    // The real acceptance is creating a file in the target: mode bits and
+    // volume flags can mislead (QStorageInfo::isReadOnly misreports the macOS
+    // per-user temp volume; mounted shares lie about write bits either way).
+    // A genuinely read-only volume fails the touch below with EROFS/EACCES.
+    QTemporaryFile touch(probe.absoluteFilePath() + QStringLiteral("/.write-probe-XXXXXX"));
+    if (!touch.open()) {
         out.readOnly = true;
-        out.writable = false;
-        out.reason = QObject::tr("备份目标所在卷只读：%1").arg(trimmed);
+        out.reason = QObject::tr("备份目标只读（无写权限或只读挂载）：%1").arg(trimmed);
         return out;
     }
+    out.writable = true;
+    QStorageInfo storage(probe.absoluteFilePath());
     out.freeBytes = storage.isValid() ? storage.bytesAvailable() : 0;
     return out;
 }
