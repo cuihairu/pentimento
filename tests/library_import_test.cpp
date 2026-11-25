@@ -29,6 +29,7 @@
 #include <QRegularExpression>
 #include <QSqlDatabase>
 #include <QSqlQuery>
+#include <QSemaphore>
 #include <QTemporaryDir>
 #include <QtTest>
 // POSIX-only header: mode_t/stat are used solely in guarded spans.
@@ -452,16 +453,25 @@ private slots:
         const int workingDirs = QDir(dir.filePath("lib/working")).entryInfoList(
             QDir::Dirs | QDir::NoDotAndDotDot).size();
         QCOMPARE(workingDirs, 8);
-        // Cancellation at a file boundary: a pre-set cancel stops before any file,
-        // and the library stays consistent (reopen matches, no partial assets).
+        // Cancellation at a file boundary: the flag is observed before the
+        // first file, and the library stays consistent (reopen matches, no
+        // partial assets). The queue serializes tasks, so a gate task parks
+        // the worker and guarantees the cancel lands while the import is
+        // still queued — the outcome must not depend on thread scheduling
+        // (submit starts the worker immediately).
         Library cancelled(dir.filePath("lib2"));
         TaskQueue q2;
+        QSemaphore gate;
         std::atomic_bool done2 = false;
-        QObject::connect(&q2, &TaskQueue::taskFinished, [&](qint64, bool, const QString &) { done2 = true; });
+        q2.submit("gate", [&](TaskQueue::Progress &) { gate.acquire(); });
         const qint64 id2 = q2.submit("import", [&](TaskQueue::Progress &p) {
             importer::importPlan(cancelled, sources, p);
         });
-        q2.cancel(id2); // set before the worker starts: a boundary-clean no-op
+        QObject::connect(&q2, &TaskQueue::taskFinished, [&](qint64 id, bool, const QString &) {
+            if (id == id2) done2 = true;
+        });
+        q2.cancel(id2);
+        gate.release();
         QTRY_VERIFY_WITH_TIMEOUT(done2.load(), 5000);
         QCOMPARE(cancelled.assets().size(), 0);
         QVERIFY(!cancelled.assets().isEmpty() == false);
