@@ -29,6 +29,7 @@
 #include <QRegularExpression>
 #include <QSqlDatabase>
 #include <QSqlQuery>
+#include <QStorageInfo>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -214,6 +215,15 @@ private slots:
         const QString writable = dir.filePath("target");
         QVERIFY(QDir().mkpath(writable));
         const BackupTargetInfo ok = probeBackupTarget(writable);
+        if (!ok.writable) {
+            // macOS-only failure so far; print the underlying verdicts once so
+            // the next CI detail file carries the actual reason (no noise when green).
+            const QFileInfo fi(writable);
+            qWarning() << "probe refusal detail:" << ok.reason
+                       << "| readable:" << fi.isReadable() << "writable:" << fi.isWritable()
+                       << "| volume readonly:"
+                       << QStorageInfo(fi.absoluteFilePath()).isReadOnly();
+        }
         QVERIFY(ok.writable);
         QVERIFY(!ok.readOnly);
         QVERIFY(ok.reason.isEmpty());

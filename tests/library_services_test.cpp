@@ -30,6 +30,7 @@
 #include <QRegularExpression>
 #include <QSqlDatabase>
 #include <QSqlQuery>
+#include <QStorageInfo>
 #include <QTemporaryDir>
 #include <QtTest>
 // POSIX-only header: mode_t/stat are used solely in guarded spans.
@@ -536,6 +537,14 @@ private slots:
             QVERIFY(!ro.reason.isEmpty());
             // A healthy writable target passes with free space reported.
             const BackupTargetInfo healthy = probeBackupTarget(dir.path());
+            if (!healthy.writable) {
+                // macOS-only failure so far; print the verdicts once (no noise when green).
+                qWarning() << "healthy probe refusal detail:" << healthy.reason
+                           << "| exists:" << healthy.exists
+                           << "| writable:" << QFileInfo(dir.path()).isWritable()
+                           << "| volume readonly:"
+                           << QStorageInfo(QDir(dir.path()).canonicalPath()).isReadOnly();
+            }
             QVERIFY(healthy.writable && healthy.exists);
             QVERIFY(healthy.freeBytes > 0);
         }
