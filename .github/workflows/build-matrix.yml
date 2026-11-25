@@ -194,7 +194,7 @@ jobs:
         run: |
           ctest --test-dir build -C Release -N -V > test-commands.txt 2>&1
           failed=$(grep -E '^[[:space:]]*[0-9]+ - [A-Za-z_]+ \(' tests.txt |
-                   sed -E 's/^[[:space:]]*[0-9]+ - ([A-Za-z_]+) \(/\1/' | sort -u)
+                   sed -E 's/^[[:space:]]*[0-9]+ - ([A-Za-z_]+) \(.*/\1/' | sort -u)
           echo "failed suites: $failed"
           : > suite-map.txt
           exe=""
