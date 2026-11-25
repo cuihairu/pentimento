@@ -198,12 +198,15 @@ jobs:
           echo "failed suites: $failed"
           : > suite-map.txt
           exe=""
+          # ctest pads single-digit numbers ("Test  #1") but not two-digit ones
+          # ("Test #16") — match both via sed, and let case order keep command
+          # lines out of the name branch.
           while IFS= read -r line; do
             case "$line" in
               *"Test command:"*) exe="${line##*: Test command: }" ;;
-              *"Test  "#*)
-                name=$(printf '%s\n' "$line" | sed -E 's/^ *Test +#[0-9]+: +//')
-                if [ -n "$exe" ]; then printf '%s\t%s\n' "$name" "$exe" >> suite-map.txt; exe=""; fi ;;
+              *"Test "*": "*)
+                name=$(printf '%s\n' "$line" | sed -nE 's/^[[:space:]]*Test +#[0-9]+: +//p')
+                if [ -n "$name" ] && [ -n "$exe" ]; then printf '%s\t%s\n' "$name" "$exe" >> suite-map.txt; exe=""; fi ;;
             esac
           done < test-commands.txt
           export QT_QPA_PLATFORM=offscreen
