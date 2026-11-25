@@ -4,7 +4,7 @@
 <context>
     <name>CompareCanvas</name>
     <message>
-        <location filename="../src/compare_canvas.cpp" line="+124"/>
+        <location filename="../src/ui/compare_canvas.cpp" line="+124"/>
         <source>此版本不可预览</source>
         <translation>此版本不可预览</translation>
     </message>
@@ -511,7 +511,7 @@
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../src/mainwindow.cpp" line="+48"/>
+        <location filename="../src/ui/mainwindow.cpp" line="+48"/>
         <source>pentimento · 画迹</source>
         <translation>pentimento · 画迹</translation>
     </message>
@@ -527,7 +527,7 @@
     </message>
     <message>
         <location line="+2"/>
-        <location filename="../src/mainwindow_versions.cpp" line="+371"/>
+        <location filename="../src/ui/mainwindow_versions.cpp" line="+397"/>
         <source>记录版本</source>
         <translation>记录版本</translation>
     </message>
@@ -568,7 +568,7 @@
     </message>
     <message>
         <location line="-16"/>
-        <location filename="../src/mainwindow_snapshots.cpp" line="+351"/>
+        <location filename="../src/ui/mainwindow_snapshots.cpp" line="+351"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>恢复到锚点</translation>
@@ -595,7 +595,7 @@
     </message>
     <message>
         <location line="+52"/>
-        <location filename="../src/mainwindow_metadata.cpp" line="+259"/>
+        <location filename="../src/ui/mainwindow_metadata.cpp" line="+259"/>
         <location line="+16"/>
         <source>标签</source>
         <translation>标签</translation>
@@ -613,7 +613,7 @@
     </message>
     <message>
         <location line="+1"/>
-        <location filename="../src/mainwindow_snapshots.cpp" line="-208"/>
+        <location filename="../src/ui/mainwindow_snapshots.cpp" line="-208"/>
         <source>添加</source>
         <translation>添加</translation>
     </message>
@@ -811,7 +811,7 @@
     </message>
     <message>
         <location line="+3"/>
-        <location filename="../src/mainwindow_versions.cpp" line="-153"/>
+        <location filename="../src/ui/mainwindow_versions.cpp" line="-179"/>
         <source>历史版本</source>
         <translation>历史版本</translation>
     </message>
@@ -877,7 +877,7 @@
     </message>
     <message>
         <location line="+1"/>
-        <location filename="../src/mainwindow_metadata.cpp" line="-182"/>
+        <location filename="../src/ui/mainwindow_metadata.cpp" line="-182"/>
         <source>未附加证据</source>
         <translation>未附加证据</translation>
     </message>
@@ -903,10 +903,10 @@
     </message>
     <message>
         <location line="+1"/>
-        <location filename="../src/mainwindow_metadata.cpp" line="+211"/>
-        <location filename="../src/mainwindow_snapshots.cpp" line="+178"/>
-        <location filename="../src/mainwindow_sources.cpp" line="+164"/>
-        <location filename="../src/mainwindow_versions.cpp" line="+303"/>
+        <location filename="../src/ui/mainwindow_metadata.cpp" line="+211"/>
+        <location filename="../src/ui/mainwindow_snapshots.cpp" line="+178"/>
+        <location filename="../src/ui/mainwindow_sources.cpp" line="+164"/>
+        <location filename="../src/ui/mainwindow_versions.cpp" line="+329"/>
         <source>关闭</source>
         <translation>关闭</translation>
     </message>
@@ -927,14 +927,14 @@
     </message>
     <message>
         <location line="+1"/>
-        <location filename="../src/mainwindow_snapshots.cpp" line="-251"/>
+        <location filename="../src/ui/mainwindow_snapshots.cpp" line="-251"/>
         <source>定时快照未启用</source>
         <translation>定时快照未启用</translation>
     </message>
     <message>
         <location line="+3"/>
         <location line="+121"/>
-        <location filename="../src/mainwindow_snapshots.cpp" line="-25"/>
+        <location filename="../src/ui/mainwindow_snapshots.cpp" line="-25"/>
         <location line="+11"/>
         <source>暂停</source>
         <translation>暂停</translation>
@@ -1006,8 +1006,8 @@
     </message>
     <message>
         <location line="+1"/>
-        <location filename="../src/mainwindow_snapshots.cpp" line="+7"/>
-        <location filename="../src/mainwindow_versions.cpp" line="-377"/>
+        <location filename="../src/ui/mainwindow_snapshots.cpp" line="+7"/>
+        <location filename="../src/ui/mainwindow_versions.cpp" line="-403"/>
         <source>恢复</source>
         <translation>恢复</translation>
     </message>
@@ -1057,7 +1057,7 @@
         <translation>操作未完成</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow_versions.cpp" line="-8"/>
+        <location filename="../src/ui/mainwindow_versions.cpp" line="-8"/>
         <source>未记录修改</source>
         <translation>未记录修改</translation>
     </message>
@@ -1097,7 +1097,7 @@
         <translation>固定原因：%1</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow_metadata.cpp" line="-224"/>
+        <location filename="../src/ui/mainwindow_metadata.cpp" line="-224"/>
         <source>已清除评分</source>
         <translation>已清除评分</translation>
     </message>
@@ -1203,8 +1203,8 @@
     </message>
     <message>
         <location line="+1"/>
-        <location filename="../src/mainwindow_snapshots.cpp" line="+241"/>
-        <location filename="../src/mainwindow_versions.cpp" line="+275"/>
+        <location filename="../src/ui/mainwindow_snapshots.cpp" line="+241"/>
+        <location filename="../src/ui/mainwindow_versions.cpp" line="+301"/>
         <source>取消</source>
         <translation>取消</translation>
     </message>
@@ -1308,7 +1308,7 @@
         <translation>已从 %1 个素材移除标签：%2</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow_versions.cpp" line="-228"/>
+        <location filename="../src/ui/mainwindow_versions.cpp" line="-254"/>
         <source>%1 MiB</source>
         <translation>%1 MiB</translation>
     </message>
@@ -1396,7 +1396,17 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation>导入完成：新增 %1，跳过重复 %2</translation>
     </message>
     <message>
-        <location line="+13"/>
+        <location line="+14"/>
+        <source>正在扫描重复素材（只读，后台进行）…</source>
+        <translation>正在扫描重复素材（只读，后台进行）…</translation>
+    </message>
+    <message>
+        <location line="+15"/>
+        <source>重复素材扫描失败：%1</source>
+        <translation>重复素材扫描失败：%1</translation>
+    </message>
+    <message>
+        <location line="+10"/>
         <source>重复扫描</source>
         <translation>重复扫描</translation>
     </message>
@@ -1472,19 +1482,19 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation>无法恢复：%1</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow_snapshots.cpp" line="-5"/>
-        <location filename="../src/mainwindow_versions.cpp" line="+4"/>
+        <location filename="../src/ui/mainwindow_snapshots.cpp" line="-5"/>
+        <location filename="../src/ui/mainwindow_versions.cpp" line="+4"/>
         <source>恢复预演</source>
         <translation>恢复预演</translation>
     </message>
     <message>
         <location line="+4"/>
-        <location filename="../src/mainwindow_versions.cpp" line="+8"/>
+        <location filename="../src/ui/mainwindow_versions.cpp" line="+8"/>
         <source>确认恢复</source>
         <translation>确认恢复</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow_versions.cpp" line="+21"/>
+        <location filename="../src/ui/mainwindow_versions.cpp" line="+21"/>
         <source>目标文件已存在：%1
 覆盖？</source>
         <translation>目标文件已存在：%1
@@ -1526,7 +1536,7 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation>滑动对比：拖动分界线；左右键步进；[ / ] 调整步进；缩放后分界线保持同一图像坐标。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow_metadata.cpp" line="+11"/>
+        <location filename="../src/ui/mainwindow_metadata.cpp" line="+11"/>
         <source>字段历史</source>
         <translation>字段历史</translation>
     </message>
@@ -1546,7 +1556,7 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation>（空）</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow_snapshots.cpp" line="-96"/>
+        <location filename="../src/ui/mainwindow_snapshots.cpp" line="-96"/>
         <source>还没有快照</source>
         <translation>还没有快照</translation>
     </message>
@@ -1563,7 +1573,7 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation>#%1 %2 · %3 个素材%4</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow_backup.cpp" line="+52"/>
+        <location filename="../src/ui/mainwindow_backup.cpp" line="+52"/>
         <source>选择备份目标目录（须为空或新目录）</source>
         <translation>选择备份目标目录（须为空或新目录）</translation>
     </message>
@@ -1819,7 +1829,7 @@ I/O 错误（无法读取）：
 演练目录：%2</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow_sources.cpp" line="-57"/>
+        <location filename="../src/ui/mainwindow_sources.cpp" line="-57"/>
         <source>挂载来源状态</source>
         <translation>挂载来源状态</translation>
     </message>
@@ -2033,18 +2043,18 @@ I/O 错误（无法读取）：
 记录共 %3 条，其中缺失 %4 条。</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow_versions.cpp" line="-76"/>
+        <location filename="../src/ui/mainwindow_versions.cpp" line="-76"/>
         <location line="+5"/>
         <source>导出历史版本</source>
         <translation>导出历史版本</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow_sources.cpp" line="-302"/>
+        <location filename="../src/ui/mainwindow_sources.cpp" line="-302"/>
         <source>自动记录失败：%1</source>
         <translation>自动记录失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow_snapshots.cpp" line="-279"/>
+        <location filename="../src/ui/mainwindow_snapshots.cpp" line="-279"/>
         <source>暂停定时快照</source>
         <translation>暂停定时快照</translation>
     </message>

@@ -220,6 +220,7 @@ private:
     // duplicate-confirmation flow can be exercised without a native dialog.
     int importFilesFrom(const QStringList &paths, int duplicateAnswer = QMessageBox::No);
     void scanDuplicates();
+    void showDuplicateGroups(const QVector<Library::DuplicateGroup> &groups);
     void capture();
     void restore();
     void exportFile();

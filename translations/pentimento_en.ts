@@ -4,7 +4,7 @@
 <context>
     <name>CompareCanvas</name>
     <message>
-        <location filename="../src/compare_canvas.cpp" line="+124"/>
+        <location filename="../src/ui/compare_canvas.cpp" line="+124"/>
         <source>此版本不可预览</source>
         <translation>This version cannot be previewed</translation>
     </message>
@@ -511,7 +511,7 @@
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../src/mainwindow.cpp" line="+48"/>
+        <location filename="../src/ui/mainwindow.cpp" line="+48"/>
         <source>pentimento · 画迹</source>
         <translation>pentimento</translation>
     </message>
@@ -527,7 +527,7 @@
     </message>
     <message>
         <location line="+2"/>
-        <location filename="../src/mainwindow_versions.cpp" line="+371"/>
+        <location filename="../src/ui/mainwindow_versions.cpp" line="+397"/>
         <source>记录版本</source>
         <translation>Record version</translation>
     </message>
@@ -568,7 +568,7 @@
     </message>
     <message>
         <location line="-16"/>
-        <location filename="../src/mainwindow_snapshots.cpp" line="+351"/>
+        <location filename="../src/ui/mainwindow_snapshots.cpp" line="+351"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>Restore to anchor</translation>
@@ -610,7 +610,7 @@
     </message>
     <message>
         <location line="+52"/>
-        <location filename="../src/mainwindow_metadata.cpp" line="+259"/>
+        <location filename="../src/ui/mainwindow_metadata.cpp" line="+259"/>
         <location line="+16"/>
         <source>标签</source>
         <translation>Tags</translation>
@@ -628,7 +628,7 @@
     </message>
     <message>
         <location line="+1"/>
-        <location filename="../src/mainwindow_snapshots.cpp" line="-208"/>
+        <location filename="../src/ui/mainwindow_snapshots.cpp" line="-208"/>
         <source>添加</source>
         <translation>Add</translation>
     </message>
@@ -811,7 +811,7 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+3"/>
-        <location filename="../src/mainwindow_versions.cpp" line="-153"/>
+        <location filename="../src/ui/mainwindow_versions.cpp" line="-179"/>
         <source>历史版本</source>
         <translation>Historical version</translation>
     </message>
@@ -877,7 +877,7 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location filename="../src/mainwindow_metadata.cpp" line="-182"/>
+        <location filename="../src/ui/mainwindow_metadata.cpp" line="-182"/>
         <source>未附加证据</source>
         <translation>No evidence attached</translation>
     </message>
@@ -903,10 +903,10 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location filename="../src/mainwindow_metadata.cpp" line="+211"/>
-        <location filename="../src/mainwindow_snapshots.cpp" line="+178"/>
-        <location filename="../src/mainwindow_sources.cpp" line="+164"/>
-        <location filename="../src/mainwindow_versions.cpp" line="+303"/>
+        <location filename="../src/ui/mainwindow_metadata.cpp" line="+211"/>
+        <location filename="../src/ui/mainwindow_snapshots.cpp" line="+178"/>
+        <location filename="../src/ui/mainwindow_sources.cpp" line="+164"/>
+        <location filename="../src/ui/mainwindow_versions.cpp" line="+329"/>
         <source>关闭</source>
         <translation>Off</translation>
     </message>
@@ -927,14 +927,14 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location filename="../src/mainwindow_snapshots.cpp" line="-251"/>
+        <location filename="../src/ui/mainwindow_snapshots.cpp" line="-251"/>
         <source>定时快照未启用</source>
         <translation>Scheduled snapshots off</translation>
     </message>
     <message>
         <location line="+3"/>
         <location line="+121"/>
-        <location filename="../src/mainwindow_snapshots.cpp" line="-25"/>
+        <location filename="../src/ui/mainwindow_snapshots.cpp" line="-25"/>
         <location line="+11"/>
         <source>暂停</source>
         <translation>Pause</translation>
@@ -1006,8 +1006,8 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location filename="../src/mainwindow_snapshots.cpp" line="+7"/>
-        <location filename="../src/mainwindow_versions.cpp" line="-377"/>
+        <location filename="../src/ui/mainwindow_snapshots.cpp" line="+7"/>
+        <location filename="../src/ui/mainwindow_versions.cpp" line="-403"/>
         <source>恢复</source>
         <translation>Resume</translation>
     </message>
@@ -1057,12 +1057,12 @@ Restoring appends a new version; existing history is always kept.</translation>
         <translation>Operation not completed</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow_versions.cpp" line="-8"/>
+        <location filename="../src/ui/mainwindow_versions.cpp" line="-8"/>
         <source>未记录修改</source>
         <translation>Unrecorded changes</translation>
     </message>
     <message>
-        <location line="+265"/>
+        <location line="+291"/>
         <source>将覆盖当前工作副本：未记录的当前内容会先保存为保护版本。
 空间需求：约 %1 KiB（保护 %2 KiB + 写入 %3 KiB）。
 保护的是磁盘上已保存的内容；外部编辑器未写盘的内容不受保护，请先关闭编辑器。</source>
@@ -1088,19 +1088,19 @@ Space needed: about %1 KiB.</translation>
         <translation>Cannot restore: %1</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow_snapshots.cpp" line="+236"/>
-        <location filename="../src/mainwindow_versions.cpp" line="+4"/>
+        <location filename="../src/ui/mainwindow_snapshots.cpp" line="+236"/>
+        <location filename="../src/ui/mainwindow_versions.cpp" line="+4"/>
         <source>恢复预演</source>
         <translation>Restore preview</translation>
     </message>
     <message>
         <location line="+4"/>
-        <location filename="../src/mainwindow_versions.cpp" line="+8"/>
+        <location filename="../src/ui/mainwindow_versions.cpp" line="+8"/>
         <source>确认恢复</source>
         <translation>Confirm restore</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow_backup.cpp" line="+88"/>
+        <location filename="../src/ui/mainwindow_backup.cpp" line="+88"/>
         <source>将导出一致备份包到：
 %1
 
@@ -1296,7 +1296,7 @@ Empty-dir restore, content hash, asset ID, version count and path were verified 
 Drill directory: %2</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow_versions.cpp" line="-290"/>
+        <location filename="../src/ui/mainwindow_versions.cpp" line="-316"/>
         <source>已固定</source>
         <translation>Pinned</translation>
     </message>
@@ -1331,7 +1331,7 @@ Drill directory: %2</translation>
         <translation>Pin reason: %1</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow_metadata.cpp" line="-224"/>
+        <location filename="../src/ui/mainwindow_metadata.cpp" line="-224"/>
         <source>已清除评分</source>
         <translation>Rating cleared</translation>
     </message>
@@ -1437,8 +1437,8 @@ Drill directory: %2</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location filename="../src/mainwindow_snapshots.cpp" line="+1"/>
-        <location filename="../src/mainwindow_versions.cpp" line="+275"/>
+        <location filename="../src/ui/mainwindow_snapshots.cpp" line="+1"/>
+        <location filename="../src/ui/mainwindow_versions.cpp" line="+301"/>
         <source>取消</source>
         <translation>Cancel</translation>
     </message>
@@ -1542,7 +1542,7 @@ Only this tag is removed; other tags are not affected.</translation>
         <translation>Removed tag %2 from %1 assets</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow_versions.cpp" line="-228"/>
+        <location filename="../src/ui/mainwindow_versions.cpp" line="-254"/>
         <source>%1 MiB</source>
         <translation>%1 MiB</translation>
     </message>
@@ -1622,7 +1622,7 @@ The original file and history are fully preserved and can be exported.</translat
         <translation>The content of these files is already in the library (identical content shares one object and costs no extra disk space):
 %1
 
-Import them again as separate assets anyway? Choose "No" to skip these files; "Yes" keeps the separate identities.</translation>
+Import them again as separate assets anyway? Choose &quot;No&quot; to skip these files; &quot;Yes&quot; keeps the separate identities.</translation>
     </message>
     <message>
         <location line="+25"/>
@@ -1630,7 +1630,17 @@ Import them again as separate assets anyway? Choose "No" to skip these files; "Y
         <translation>Import finished: %1 added, %2 duplicates skipped</translation>
     </message>
     <message>
-        <location line="+13"/>
+        <location line="+14"/>
+        <source>正在扫描重复素材（只读，后台进行）…</source>
+        <translation>Scanning duplicate assets (read-only, in background)…</translation>
+    </message>
+    <message>
+        <location line="+15"/>
+        <source>重复素材扫描失败：%1</source>
+        <translation>Duplicate scan failed: %1</translation>
+    </message>
+    <message>
+        <location line="+10"/>
         <source>重复扫描</source>
         <translation>Duplicate scan</translation>
     </message>
@@ -1647,7 +1657,7 @@ Import them again as separate assets anyway? Choose "No" to skip these files; "Y
     <message>
         <location line="+3"/>
         <source>以下素材的最新内容相同（共享同一对象，不额外占磁盘）。选择每组保留的身份，其余以“合并去重”墓碑关闭；历史不删除。</source>
-        <translation>These assets have identical latest content (one shared object, no extra disk use). Pick the identity to keep in each group; the rest are closed with a "merged as duplicate" tombstone. History is never deleted.</translation>
+        <translation>These assets have identical latest content (one shared object, no extra disk use). Pick the identity to keep in each group; the rest are closed with a &quot;merged as duplicate&quot; tombstone. History is never deleted.</translation>
     </message>
     <message>
         <location line="+8"/>
@@ -1715,7 +1725,7 @@ Import them again as separate assets anyway? Choose "No" to skip these files; "Y
         <translation>Sliding compare: drag the divider; Left/Right step it; [ / ] adjust the step; after zoom the divider stays on the same image coordinate.</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow_metadata.cpp" line="+11"/>
+        <location filename="../src/ui/mainwindow_metadata.cpp" line="+11"/>
         <source>字段历史</source>
         <translation>Field history</translation>
     </message>
@@ -1735,7 +1745,7 @@ Import them again as separate assets anyway? Choose "No" to skip these files; "Y
         <translation>(empty)</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow_snapshots.cpp" line="-97"/>
+        <location filename="../src/ui/mainwindow_snapshots.cpp" line="-97"/>
         <source>还没有快照</source>
         <translation>No snapshots yet</translation>
     </message>
@@ -1823,7 +1833,7 @@ What is preserved is content already saved on disk; unsaved editor content is no
         <translation>Restore result</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow_backup.cpp" line="-275"/>
+        <location filename="../src/ui/mainwindow_backup.cpp" line="-275"/>
         <source>选择备份目标目录（须为空或新目录）</source>
         <translation>Choose a backup target directory (must be empty or new)</translation>
     </message>
@@ -1883,7 +1893,7 @@ The package does not share the running index and is portable to another machine.
         <translation>Backup package exported: %1 (%2 assets, %3 objects, about %4 KiB; completion marker written)</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow_sources.cpp" line="-57"/>
+        <location filename="../src/ui/mainwindow_sources.cpp" line="-57"/>
         <source>挂载来源状态</source>
         <translation>Mounted Source Status</translation>
     </message>
@@ -2097,7 +2107,7 @@ Directory: %2
 %3 records in total, %4 of them missing.</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow_versions.cpp" line="-76"/>
+        <location filename="../src/ui/mainwindow_versions.cpp" line="-76"/>
         <location line="+5"/>
         <source>导出历史版本</source>
         <translation>Export revision</translation>
@@ -2110,12 +2120,12 @@ Directory: %2
 Overwrite?</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow_sources.cpp" line="-302"/>
+        <location filename="../src/ui/mainwindow_sources.cpp" line="-302"/>
         <source>自动记录失败：%1</source>
         <translation>Auto-record failed: %1</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow_snapshots.cpp" line="-258"/>
+        <location filename="../src/ui/mainwindow_snapshots.cpp" line="-258"/>
         <source>暂停定时快照</source>
         <translation>Pause scheduled snapshots</translation>
     </message>

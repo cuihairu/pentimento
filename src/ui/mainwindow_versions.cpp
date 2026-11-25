@@ -303,9 +303,35 @@ int MainWindow::importFilesFrom(const QStringList &paths, int duplicateAnswer) {
 // B-003: post-import duplicate scan. Identical content already shares one
 // object, so the scan reports redundant *identities* — the user picks which
 // identity to keep; the others are closed with a tombstone revision ("合并去重"),
-// their history and objects stay intact. Never automatic.
+// their history and objects stay intact. Never automatic. The scan reads every
+// revision of every asset, so it runs on the background writer queue like the
+// consistency check and space preview (P-601/P-602) — a large library must
+// never block the UI.
 void MainWindow::scanDuplicates() {
-    auto groups = library_.duplicateGroups();
+    statusBar()->showMessage(tr("正在扫描重复素材（只读，后台进行）…"));
+    auto result = std::make_shared<QVector<Library::DuplicateGroup>>();
+    auto error = std::make_shared<QString>();
+    const qint64 id = captureQueue_->submit(QStringLiteral("重复素材扫描"),
+        [this, result, error](TaskQueue::Progress &) {
+            try {
+                *result = library_.duplicateGroups();
+            } catch (const std::exception &e) {
+                *error = QString::fromUtf8(e.what());
+            }
+        });
+    QObject::connect(captureQueue_.get(), &TaskQueue::taskFinished, this,
+        [this, id, result, error](qint64 finished, bool, const QString &) {
+            if (finished != id) return;
+            if (!error->isEmpty()) {
+                statusBar()->showMessage(tr("重复素材扫描失败：%1").arg(*error));
+                return;
+            }
+            statusBar()->clearMessage();
+            showDuplicateGroups(*result);
+        });
+}
+
+void MainWindow::showDuplicateGroups(const QVector<Library::DuplicateGroup> &groups) {
     if (groups.isEmpty()) {
         QMessageBox::information(this, tr("重复扫描"),
                                  tr("没有发现内容重复的素材。"));
