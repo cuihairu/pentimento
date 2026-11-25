@@ -34,8 +34,15 @@
 #include <QSqlQuery>
 #include <QTemporaryDir>
 #include <QtTest>
+// POSIX-only header: mode_t/stat are used solely in guarded spans.
+#ifdef Q_OS_UNIX
 #include <sys/stat.h>
+#endif
+// Windows has no chmod(2)/geteuid(2); the permission-simulation spans below
+// are unix-only (the build matrix records this limit, see build-matrix.yml).
+#ifdef Q_OS_UNIX
 #include <unistd.h>
+#endif
 
 #include <algorithm>
 #include <atomic>
@@ -210,7 +217,7 @@ private slots:
         // (Objects are content-addressed and stored read-only, so clear the
         // write protection before clobbering the file.)
         const QString objB = objectsDir + "/" + hashB;
-        ::chmod(objB.toLocal8Bit(), 0644);
+        QVERIFY(platform::makeMutable(objB));
         put(objB, "wrong-bytes");
         // An object file no revision references → orphan.
         put(objectsDir + "/" + orphanHash, "orphan-bytes");
@@ -329,7 +336,7 @@ private slots:
             QVERIFY(QDir().mkpath(QFileInfo(staging).absolutePath()));
             put(staging, "half");
             const QString objPath = root + "/objects/" + hash;
-            ::chmod(objPath.toLocal8Bit(), 0644);
+            QVERIFY(platform::makeMutable(objPath));
             put(objPath, "xy"); // same length, different bytes: hash mismatch
         }
         Library reopened(root);
@@ -376,6 +383,10 @@ private slots:
     // Export refuses unusable destinations with concrete reasons before any
     // file is written: empty path, unwritable parent, unwritable target dir.
     void backupExportRefusesUnusableDestinations() {
+#ifndef Q_OS_UNIX
+        QSKIP("chmod/geteuid/stat permission simulation needs a unix OS");
+#else
+
         if (::geteuid() == 0) QSKIP("root bypasses directory write permissions");
         QTemporaryDir dir;
         put(dir.filePath("a.png"), "bytes-a");
@@ -405,7 +416,9 @@ private slots:
         QVERIFY(!QFileInfo::exists(lockedTarget + "/objects"));
         QVERIFY(::chmod(lockedParent.toLocal8Bit().constData(), 0755) == 0);
         QVERIFY(::chmod(lockedTarget.toLocal8Bit().constData(), 0755) == 0);
-    }
+    
+#endif
+}
     // The export verifies every live object (declared size) and refuses a
     // package whose index is malformed or whose object vanished — never a
     // half package marked COMPLETE.
@@ -607,6 +620,10 @@ private slots:
     // The consistency audit reports unreadable objects as I/O errors (not
     // corruption, not missing) and streams progress percent to the callback.
     void consistencyCheckReportsIoErrorsAndProgress() {
+#ifndef Q_OS_UNIX
+        QSKIP("chmod/geteuid/stat permission simulation needs a unix OS");
+#else
+
         if (::geteuid() == 0) QSKIP("root bypasses file read permissions");
         QTemporaryDir dir;
         put(dir.filePath("a.png"), "bytes-a");
@@ -634,7 +651,9 @@ private slots:
         QCOMPARE(io.ioErrors.first(), hash);
         QCOMPARE(io.ok, 0);
         QVERIFY(::chmod(library.objectPath(hash).toLocal8Bit().constData(), 0644) == 0);
-    }
+    
+#endif
+}
 
 };
 

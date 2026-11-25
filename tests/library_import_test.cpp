@@ -31,8 +31,15 @@
 #include <QSqlQuery>
 #include <QTemporaryDir>
 #include <QtTest>
+// POSIX-only header: mode_t/stat are used solely in guarded spans.
+#ifdef Q_OS_UNIX
 #include <sys/stat.h>
+#endif
+// Windows has no chmod(2)/geteuid(2); the permission-simulation spans below
+// are unix-only (the build matrix records this limit, see build-matrix.yml).
+#ifdef Q_OS_UNIX
 #include <unistd.h>
+#endif
 
 #include <algorithm>
 #include <atomic>
@@ -104,8 +111,12 @@ private slots:
         QVERIFY(QFile::remove(source + "/a.png"));
         QVERIFY(QFile::rename(source + "/b.png", source + "/c.png"));
         put(source + "/d.png", "content-d");
+#ifdef Q_OS_UNIX
         bool asRoot = ::geteuid() == 0;
         if (!asRoot) QVERIFY(::chmod((source + "/d.png").toLocal8Bit().constData(), 0000) == 0);
+#else
+        bool asRoot = true; // no chmod(2): d.png stays readable, the as-root expectations apply
+#endif
 
         // The rescan is read-only and classifies; it never mutates the library.
         const auto preview = importer::rescanPreview(library, source);
@@ -181,12 +192,14 @@ private slots:
         // A released lock frees the path for the next writer.
         { Library afterRelease(dir.filePath("lockedlib")); Q_UNUSED(afterRelease); }
         // 5) 权限不足: an existing read-only directory cannot be opened for writing.
+#ifdef Q_OS_UNIX
         if (::geteuid() != 0) {
             QVERIFY(QDir().mkpath(dir.filePath("rolib")));
             QVERIFY(::chmod(dir.filePath("rolib").toLocal8Bit().constData(), 0555) == 0);
             QVERIFY_EXCEPTION_THROWN(Library denied(dir.filePath("rolib")), std::runtime_error);
             QVERIFY(::chmod(dir.filePath("rolib").toLocal8Bit().constData(), 0755) == 0);
         }
+#endif
         // 6) 拔盘/不可达: a path whose parent is a regular file cannot be created.
         put(dir.filePath("blocker"), "file");
         QVERIFY_EXCEPTION_THROWN(Library unreachable(dir.filePath("blocker/lib")), std::runtime_error);
@@ -332,6 +345,10 @@ private slots:
     // must not leave a half-written asset — no orphan working directory, no
     // asset row, and no stray object temp.
     void importFileFailureAfterWorkingCopyLeavesNoOrphan() {
+#ifndef Q_OS_UNIX
+        QSKIP("chmod/geteuid/stat permission simulation needs a unix OS");
+#else
+
         QTemporaryDir dir;
         put(dir.filePath("a.bin"), "fresh bytes");
         Library library(dir.filePath("lib"));
@@ -356,7 +373,9 @@ private slots:
         const auto asset = library.importFile(dir.filePath("a.bin"));
         QVERIFY(!asset.id.isEmpty());
         QCOMPARE(library.assets().size(), 1);
-    }
+    
+#endif
+}
 
     void recursiveScanAppliesIgnoreRulesWithoutFollowingSymlinks() {
         QTemporaryDir dir;
@@ -484,6 +503,10 @@ private slots:
     // unreadable state and its last good hash, instead of being mistaken for
     // a vanished (deleted) file on the next pass.
     void externalIndexMarksUnreadableFileAndKeepsRow() {
+#ifndef Q_OS_UNIX
+        QSKIP("chmod/geteuid/stat permission simulation needs a unix OS");
+#else
+
         if (::geteuid() == 0) QSKIP("root bypasses file permissions");
         QTemporaryDir work;
         Library library(work.filePath("library"));
@@ -502,7 +525,9 @@ private slots:
         QVERIFY(assets.first().state == Library::ExternalAssetState::Unreadable);
         QCOMPARE(assets.first().hash, digestHex("s3cret-bytes"));
         QVERIFY(::chmod(secret.toLocal8Bit().constData(), 0644) == 0);
-    }
+    
+#endif
+}
     // 审核发现（2026-11-02）: verifyObject confirms integrity without loading
     // the object whole; a missing object reports false (never throws).
 

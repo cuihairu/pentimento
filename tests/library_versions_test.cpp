@@ -31,8 +31,15 @@
 #include <QSqlQuery>
 #include <QTemporaryDir>
 #include <QtTest>
+// POSIX-only header: mode_t/stat are used solely in guarded spans.
+#ifdef Q_OS_UNIX
 #include <sys/stat.h>
+#endif
+// Windows has no chmod(2)/geteuid(2); the permission-simulation spans below
+// are unix-only (the build matrix records this limit, see build-matrix.yml).
+#ifdef Q_OS_UNIX
 #include <unistd.h>
+#endif
 
 #include <algorithm>
 #include <atomic>
@@ -252,11 +259,15 @@ private slots:
         // stray temp, and without touching the working copy (retryable).
         const QString tmpDir = lib.root() + "/objects/.tmp";
         QVERIFY(QFileInfo::exists(tmpDir));
+#ifdef Q_OS_UNIX
         QVERIFY(::chmod(tmpDir.toLocal8Bit().constData(), 0555) == 0);
         bool threw = false;
         try { lib.capture(asset); } catch (const std::runtime_error &) { threw = true; }
         QVERIFY(::chmod(tmpDir.toLocal8Bit().constData(), 0755) == 0);
         QVERIFY(threw);
+#else
+        QSKIP("chmod read-only staging simulation needs a unix OS");
+#endif
 
         const auto history = lib.revisions(asset.id);
         QCOMPARE(history.size(), 1);

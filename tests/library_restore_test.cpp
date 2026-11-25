@@ -31,8 +31,15 @@
 #include <QSqlQuery>
 #include <QTemporaryDir>
 #include <QtTest>
+// POSIX-only header: mode_t/stat are used solely in guarded spans.
+#ifdef Q_OS_UNIX
 #include <sys/stat.h>
+#endif
+// Windows has no chmod(2)/geteuid(2); the permission-simulation spans below
+// are unix-only (the build matrix records this limit, see build-matrix.yml).
+#ifdef Q_OS_UNIX
 #include <unistd.h>
+#endif
 
 #include <algorithm>
 #include <atomic>
@@ -110,6 +117,10 @@ private slots:
     // protect revision recorded (a real version of the content that was there)
     // and the working file unchanged — no half-restored state, no lost content.
     void restoreRollsBackPreservationOnTransactionFailure() {
+#ifndef Q_OS_UNIX
+        QSKIP("chmod/geteuid/stat permission simulation needs a unix OS");
+#else
+
         if (::geteuid() == 0) QSKIP("root bypasses directory write permissions");
         QTemporaryDir dir;
         const auto source = dir.filePath("asset.dat");
@@ -137,7 +148,9 @@ private slots:
         // The working file is untouched because the write never succeeded, and
         // no restore note exists in the history (nothing half-restored).
         QCOMPARE(get(asset.path), QByteArray("unrecorded"));
-    }
+    
+#endif
+}
     // P1 audit (2026-11-12): a stage-4 failure must propagate its own error —
     // a failed log update at the end of the rollback path must not swallow it.
     // Both the append and the log update are made to fail; the exception that
@@ -197,6 +210,10 @@ private slots:
     // former mtime-polling watcher raced the rollback write (32 MiB only
     // widened the window, it did not close it).
     void restoreJoinsErrorsWhenRollbackWriteFails() {
+#ifndef Q_OS_UNIX
+        QSKIP("chmod/geteuid/stat permission simulation needs a unix OS");
+#else
+
         if (::geteuid() == 0) QSKIP("root bypasses directory write permissions");
         QTemporaryDir dir;
         put(dir.filePath("a.dat"), "v1");
@@ -260,6 +277,10 @@ private slots:
     // reopen — the restore revision is appended from the target object, the
     // file is untouched, and the log row lands on 'done'.
     void rollbackPendingConvergesForwardOnReopen() {
+#ifndef Q_OS_UNIX
+        QSKIP("chmod/geteuid/stat permission simulation needs a unix OS");
+#else
+
         if (::geteuid() == 0) QSKIP("root bypasses directory write permissions");
         QTemporaryDir dir;
         put(dir.filePath("a.dat"), "v1");
@@ -306,13 +327,19 @@ private slots:
         // The converged revision carries the target content.
         reopened.exportRevision(a.id, history.first().id, dir.filePath("converged.dat"));
         QCOMPARE(get(dir.filePath("converged.dat")), QByteArray("v1"));
-    }
+    
+#endif
+}
     // Audit 2026-11-15: the create path (working copy missing, nothing to
     // protect) must roll back by REMOVING the file the restore created — and
     // when that remove fails (unwritable directory), the row must land on
     // rollback-pending, not terminal 'failed': the created file holds the
     // target with no restore revision, so reopening converges it forward.
     void restoreNewFileRollbackFailureStaysConvergeable() {
+#ifndef Q_OS_UNIX
+        QSKIP("chmod/geteuid/stat permission simulation needs a unix OS");
+#else
+
         if (::geteuid() == 0) QSKIP("root bypasses directory write permissions");
         QTemporaryDir dir;
         put(dir.filePath("a.dat"), "v1");
@@ -370,7 +397,9 @@ private slots:
         const auto history = reopened.revisions(a.id);
         QCOMPARE(history.size(), 2);
         QCOMPARE(history.first().note, QStringLiteral("恢复历史版本 #%1").arg(first));
-    }
+    
+#endif
+}
     // Audit 2026-11-15: a planned row whose working file is ABSENT and whose
     // previous hash is empty (create path) converges to 'aborted' — the
     // restore simply did not complete, and no file is resurrected. The log
@@ -782,11 +811,13 @@ private slots:
         const QString object = library.objectPath(revision.hash);
         QVERIFY(QFileInfo::exists(object));
         QVERIFY(platform::isImmutable(object));
+#ifdef Q_OS_UNIX
         if (::geteuid() != 0) {
             // A direct write to the object file must fail while it stays immutable.
             QFile attempt(object);
             QVERIFY(!attempt.open(QIODevice::WriteOnly));
         }
+#endif
         QCOMPARE(library.readObject(revision.hash), QByteArray("v1"));
         // hardenObjects re-applies the guard to any object left writable.
         QVERIFY(platform::makeMutable(object));
@@ -843,6 +874,10 @@ private slots:
     // P-316: an unreadable working copy cannot be protected, so the preview
     // reports a conflict and executing that plan is refused before any write.
     void unreadableWorkingCopyPlansConflictAndExecutionRefuses() {
+#ifndef Q_OS_UNIX
+        QSKIP("chmod/geteuid/stat permission simulation needs a unix OS");
+#else
+
         if (::geteuid() == 0) QSKIP("root bypasses file read permissions");
         QTemporaryDir dir;
         put(dir.filePath("a.dat"), "v1");
@@ -860,7 +895,9 @@ private slots:
         QCOMPARE(get(asset.path), QByteArray("unrecorded"));
         QCOMPARE(library.revisions(asset.id).size(), 1);
         QCOMPARE(library.restoreLogs().size(), 0);
-    }
+    
+#endif
+}
     // P-320 convergence edges: a forward convergence whose target object has
     // vanished is recorded failed (never a silent completion), and a working
     // file that an external editor changed after the interruption is flagged
@@ -1024,10 +1061,16 @@ private slots:
         QCOMPARE(ghostOutcomes.size(), 1);
         QCOMPARE(ghostOutcomes.at(0).outcome, QStringLiteral("failed"));
         QVERIFY(ghostOutcomes.at(0).error.contains(QStringLiteral("不存在")));
-    }
+    
+#endif
+}
     // Delete confirms intent on the working copy: an unremovable file blocks
     // the delete (never a half-deleted asset), a removable one tombstones.
     void deleteAssetBlocksOnUnremovableWorkingCopy() {
+#ifndef Q_OS_UNIX
+        QSKIP("chmod/geteuid/stat permission simulation needs a unix OS");
+#else
+
         if (::geteuid() == 0) QSKIP("root bypasses directory write permissions");
         QTemporaryDir dir;
         put(dir.filePath("a.dat"), "v1");
@@ -1053,7 +1096,9 @@ private slots:
         QCOMPARE(history.first().note, QStringLiteral("删除"));
         QVERIFY(history.first().tombstone);
         QVERIFY_EXCEPTION_THROWN(library.deleteAsset(asset.id), std::runtime_error); // already deleted
-    }
+    
+#endif
+}
 
 };
 

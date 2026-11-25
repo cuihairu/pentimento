@@ -33,8 +33,15 @@
 #include <stdexcept>
 #include <QTemporaryDir>
 #include <QtTest>
+// POSIX-only header: mode_t/stat are used solely in guarded spans.
+#ifdef Q_OS_UNIX
 #include <sys/stat.h>
+#endif
+// Windows has no chmod(2)/geteuid(2); the permission-simulation spans below
+// are unix-only (the build matrix records this limit, see build-matrix.yml).
+#ifdef Q_OS_UNIX
 #include <unistd.h>
+#endif
 
 #include <algorithm>
 #include <atomic>
@@ -636,13 +643,16 @@ private slots:
     }
     // An unreadable catalog file is refused before SQLite even tries.
     void libraryCtorRefusesUnreadableCatalog() {
+#ifdef Q_OS_UNIX
         if (::geteuid() == 0) QSKIP("root bypasses file permissions");
+#endif
         QTemporaryDir dir;
         {
             Library lib(dir.filePath("lib"));
         }
         const QString catalog = dir.filePath(QStringLiteral("lib/catalog.sqlite"));
         QVERIFY(QFileInfo::exists(catalog));
+#ifdef Q_OS_UNIX
         QVERIFY(::chmod(catalog.toLocal8Bit().constData(), 0000) == 0);
         bool threw = false;
         QString message;
@@ -655,6 +665,9 @@ private slots:
         QVERIFY(threw);
         QVERIFY(message.contains(QStringLiteral("素材库索引不可读")));
         QVERIFY(::chmod(catalog.toLocal8Bit().constData(), 0644) == 0);
+#else
+        QSKIP("chmod unreadable-catalog simulation needs a unix OS");
+#endif
     }
     // The library_id row is load-bearing identity: a catalog missing it is
     // corrupt and libraryId() must fail loudly instead of returning garbage.

@@ -89,10 +89,10 @@ jobs:
             ForEach-Object { $_.FullName.Substring($stage.Length + 1) } | Sort-Object
           $out | Out-File deploy-list.txt
           Get-Content deploy-list.txt
-      # Test targets are POSIX-coupled: ten of them simulate read-only and
-      # unreadable files with chmod(2)/geteuid(2), which Windows has no
-      # equivalent of (the Windows mechanism is FILE_ATTRIBUTE_READONLY).
-      # Record that limit instead of letting it abort the deployment record.
+      # Permission-simulation test functions are unix-only (their chmod(2)/
+      # geteuid(2) spans are guarded by Q_OS_UNIX and QSKIP on other platforms),
+      # so all targets build here; continue-on-error keeps the deployment
+      # record flowing if a platform-specific gap appears anyway.
       - name: Build test targets
         continue-on-error: true
         run: |

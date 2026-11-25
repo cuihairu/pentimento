@@ -32,8 +32,15 @@
 #include <QSqlQuery>
 #include <QTemporaryDir>
 #include <QtTest>
+// POSIX-only header: mode_t/stat are used solely in guarded spans.
+#ifdef Q_OS_UNIX
 #include <sys/stat.h>
+#endif
+// Windows has no chmod(2)/geteuid(2); the permission-simulation spans below
+// are unix-only (the build matrix records this limit, see build-matrix.yml).
+#ifdef Q_OS_UNIX
 #include <unistd.h>
+#endif
 
 #include <algorithm>
 #include <atomic>
@@ -72,11 +79,13 @@ private slots:
         // Missing path is unreachable, not a healthy disk.
         QCOMPARE(statSource(dir.filePath("missing")).state, SourceState::Unreachable);
         // A read-only file reports ReadOnly (not silently healthy).
+#ifdef Q_OS_UNIX
         if (::geteuid() != 0) {
             put(dir.filePath("ro.png"), "x");
             QVERIFY(::chmod(dir.filePath("ro.png").toLocal8Bit().constData(), 0444) == 0);
             QCOMPARE(statSource(dir.filePath("ro.png")).state, SourceState::ReadOnly);
         }
+#endif
         // P1 audit (2026-11-12): an oversize file is stream-hashed, never
         // loaded whole — statvfs-style stat must not readAll a huge source.
         QFile oversize(dir.filePath("huge.bin"));
@@ -510,6 +519,7 @@ private slots:
         // listDirectory on a file (or a missing path) is empty, not an error.
         QCOMPARE(listDirectory(file).size(), 0);
         QCOMPARE(listDirectory(dir.filePath("gone")).size(), 0);
+#ifdef Q_OS_UNIX
         if (::geteuid() != 0) {
             // An unreadable directory is refused; a read-only one reports
             // ReadOnly — a source-read answer never passes as backup-write.
@@ -529,6 +539,7 @@ private slots:
             QVERIFY(healthy.writable && healthy.exists);
             QVERIFY(healthy.freeBytes > 0);
         }
+#endif
     }
 
     // P-209: fit scale is uniform (one factor for both axes, so a wide image is
