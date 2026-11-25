@@ -114,19 +114,22 @@ jobs:
         continue-on-error: true
         run: |
           ctest --test-dir build -C Release -N -V > test-commands.txt 2>&1
-          $failed = Select-String -Path tests.txt -Pattern 'FAILED:\s+(\S+)' |
-                    ForEach-Object { $_.Matches[0].Groups[1].Value } | Sort-Object -Unique
+          # ctest's list ends with "The following tests FAILED:\n\t  2 - name (Failed)".
+          $failed = @(Select-String -Path tests.txt -Pattern '^\s*\d+\s+-\s+(\S+)\s+\(' |
+                      ForEach-Object { $_.Matches[0].Groups[1].Value })
           $map = @{}
-          $name = $null
+          $cmd = $null
           foreach ($line in (Get-Content test-commands.txt)) {
-            if ($line -match 'Test #\s*\d+:\s+(\S+)') { $name = $Matches[1] }
-            elseif ($line -match 'Test command:\s+(.+\.exe)' -and $name) {
-              $map[$name] = $Matches[1]; $name = $null
+            if ($line -match 'Test command:\s+(.+\.exe)') { $cmd = $Matches[1] }
+            elseif ($line -match 'Test\s+#\s*\d+:\s+(\S+)' -and $cmd) {
+              $map[$Matches[1]] = $cmd; $cmd = $null
             }
           }
+          Write-Host "failed suites: $($failed -join ', ')"
           $env:QT_QPA_PLATFORM = 'offscreen'
           foreach ($t in $failed) {
-            if (-not $map.ContainsKey($t)) { continue }
+            if (-not $map.ContainsKey($t)) { Write-Host "no command for $t"; continue }
+            Write-Host "re-running $t -> detail-$t.txt"
             & $map[$t] -o "detail-$t.txt,txt" | Out-Null
           }
           Remove-Item env:QT_QPA_PLATFORM
