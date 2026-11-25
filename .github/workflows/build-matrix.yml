@@ -102,7 +102,34 @@ jobs:
           Get-Content test-build-errors.txt
       - name: Test
         continue-on-error: true
-        run: ctest --test-dir build -C Release --output-on-failure > tests.txt 2>&1
+        # --output-on-failure: QtTest prints failing test functions to stdout;
+        # a crashed suite loses its buffered stdout, so the step below re-runs
+        # failed suites with QtTest's own -o file output (flushed per test
+        # function) to capture where each one dies.
+        run: |
+          ctest --test-dir build -C Release --output-on-failure > tests.txt 2>&1
+          (Get-Content tests.txt | Select-Object -Last 40) |
+            Out-String | Set-Content -Path $env:GITHUB_STEP_SUMMARY
+      - name: Failed-suite detail
+        continue-on-error: true
+        run: |
+          ctest --test-dir build -C Release -N -V > test-commands.txt 2>&1
+          $failed = Select-String -Path tests.txt -Pattern 'FAILED:\s+(\S+)' |
+                    ForEach-Object { $_.Matches[0].Groups[1].Value } | Sort-Object -Unique
+          $map = @{}
+          $name = $null
+          foreach ($line in (Get-Content test-commands.txt)) {
+            if ($line -match 'Test #\s*\d+:\s+(\S+)') { $name = $Matches[1] }
+            elseif ($line -match 'Test command:\s+(.+\.exe)' -and $name) {
+              $map[$name] = $Matches[1]; $name = $null
+            }
+          }
+          $env:QT_QPA_PLATFORM = 'offscreen'
+          foreach ($t in $failed) {
+            if (-not $map.ContainsKey($t)) { continue }
+            & $map[$t] -o "detail-$t.txt,txt" | Out-Null
+          }
+          Remove-Item env:QT_QPA_PLATFORM
       - uses: actions/upload-artifact@v4
         with:
           name: windows-record
@@ -110,6 +137,7 @@ jobs:
             deploy-list.txt
             test-build-errors.txt
             tests.txt
+            detail-*.txt
           if-no-files-found: ignore
 
   macos:
