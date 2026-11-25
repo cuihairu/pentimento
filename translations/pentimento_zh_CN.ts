@@ -12,27 +12,25 @@
 <context>
     <name>Library</name>
     <message>
-        <location filename="../src/library.cpp" line="+31"/>
-        <location line="+19"/>
-        <location line="+6"/>
+        <location filename="../src/library.cpp" line="+63"/>
+        <location filename="../src/library_internal.h" line="+28"/>
+        <location line="+21"/>
         <location line="+7"/>
-        <location line="+6"/>
         <source>无法读取文件：%1</source>
         <translation>无法读取文件：%1</translation>
     </message>
     <message>
-        <location line="-36"/>
+        <location filename="../src/library_internal.h" line="-26"/>
         <source>首版单文件上限为 256 MiB：%1</source>
         <translation>首版单文件上限为 256 MiB：%1</translation>
     </message>
     <message>
-        <location line="+8"/>
+        <location line="+9"/>
         <source>无法安全写入文件：%1；%2</source>
         <translation>无法安全写入文件：%1；%2</translation>
     </message>
-    
     <message>
-        <location line="+48"/>
+        <location filename="../src/library.cpp" line="+14"/>
         <source>该目录不是有效的素材库（未找到 catalog.sqlite），不会静默重建</source>
         <translation>该目录不是有效的素材库（未找到 catalog.sqlite），不会静默重建</translation>
     </message>
@@ -57,7 +55,7 @@
         <translation>素材库损坏或索引无法打开：%1</translation>
     </message>
     <message>
-        <location line="+107"/>
+        <location line="+113"/>
         <source>素材库 schema 版本不兼容（%1），请使用匹配版本打开</source>
         <translation>素材库 schema 版本不兼容（%1），请使用匹配版本打开</translation>
     </message>
@@ -77,12 +75,12 @@
         <translation>素材库缺少身份标识（library_id），库可能已损坏</translation>
     </message>
     <message>
-        <location line="+143"/>
+        <location filename="../src/library_meta.cpp" line="+194"/>
         <source>无效的评分：%1</source>
         <translation>无效的评分：%1</translation>
     </message>
     <message>
-        <location line="+146"/>
+        <location filename="../src/library_snapshot.cpp" line="+40"/>
         <source>排除规则不能为空</source>
         <translation>排除规则不能为空</translation>
     </message>
@@ -107,7 +105,19 @@
         <translation>手动固定</translation>
     </message>
     <message>
-        <location line="+80"/>
+        <location filename="../src/library_meta.cpp" line="-96"/>
+        <location line="+26"/>
+        <source>无法开启事务：%1</source>
+        <translation>无法开启事务：%1</translation>
+    </message>
+    <message>
+        <location line="-10"/>
+        <location line="+26"/>
+        <source>提交事务失败：%1</source>
+        <translation>提交事务失败：%1</translation>
+    </message>
+    <message>
+        <location line="+266"/>
         <source>名称不能为空</source>
         <translation>名称不能为空</translation>
     </message>
@@ -148,7 +158,7 @@
         <translation>目标文件夹已有同名素材：%1，不会合并</translation>
     </message>
     <message>
-        <location line="+36"/>
+        <location filename="../src/library.cpp" line="+6"/>
         <source>该路径不是有效的素材库（未找到可读的 catalog.sqlite）</source>
         <translation>该路径不是有效的素材库（未找到可读的 catalog.sqlite）</translation>
     </message>
@@ -158,22 +168,22 @@
         <translation>该素材库缺少身份标识（library_id），库可能已损坏</translation>
     </message>
     <message>
-        <location line="+48"/>
+        <location filename="../src/library_objects.cpp" line="+36"/>
         <location line="+2"/>
         <source>无效的对象哈希</source>
         <translation>无效的对象哈希</translation>
     </message>
     <message>
         <location line="+7"/>
-        <location line="+13"/>
-        <location line="+18"/>
         <location line="+19"/>
+        <location line="+22"/>
+        <location line="+20"/>
         <location line="+3"/>
         <source>历史对象校验失败；已停止操作</source>
         <translation>历史对象校验失败；已停止操作</translation>
     </message>
     <message>
-        <location line="+157"/>
+        <location filename="../src/library_restore.cpp" line="+55"/>
         <source>目标版本内容缺失或损坏，无法恢复</source>
         <translation>目标版本内容缺失或损坏，无法恢复</translation>
     </message>
@@ -208,7 +218,23 @@
         <translation>检测到外部编辑正在写入，请关闭外部编辑器后重试</translation>
     </message>
     <message>
-        <location line="+114"/>
+        <location line="+35"/>
+        <source>%1；回滚工作副本也失败：%2</source>
+        <translation>%1；回滚工作副本也失败：%2</translation>
+    </message>
+    <message>
+        <location line="+8"/>
+        <source>%1；回滚删除新建的工作副本也失败：%2</source>
+        <translation>%1；回滚删除新建的工作副本也失败：%2</translation>
+    </message>
+    <message>
+        <location line="+28"/>
+        <location line="+171"/>
+        <source>未知错误</source>
+        <translation>未知错误</translation>
+    </message>
+    <message>
+        <location line="-69"/>
         <source>素材记录不存在</source>
         <translation>素材记录不存在</translation>
     </message>
@@ -224,11 +250,23 @@
     </message>
     <message>
         <location line="+10"/>
+        <source>工作副本已丢失，未自动处理</source>
+        <translation>工作副本已丢失，未自动处理</translation>
+    </message>
+    <message>
+        <location line="+5"/>
+        <location line="+12"/>
+        <source>工作副本不可读或无法校验，未自动处理</source>
+        <translation>工作副本不可读或无法校验，未自动处理</translation>
+    </message>
+    <message>
+        <location line="+9"/>
         <source>目标内容损坏，无法完成恢复：%1</source>
         <translation>目标内容损坏，无法完成恢复：%1</translation>
     </message>
     <message>
-        <location line="+20"/>
+        <location line="-28"/>
+        <location line="+56"/>
         <source>恢复未完成，已取消</source>
         <translation>恢复未完成，已取消</translation>
     </message>
@@ -258,17 +296,18 @@
         <translation>素材不存在，跳过</translation>
     </message>
     <message>
-        <location line="+127"/>
+        <location filename="../src/library_meta.cpp" line="-140"/>
+        <location filename="../src/library_restore.cpp" line="+160"/>
         <source>导出目标是指向其他位置的链接，请选择一个真实文件路径</source>
         <translation>导出目标是指向其他位置的链接，请选择一个真实文件路径</translation>
     </message>
     <message>
-        <location line="+4"/>
+        <location filename="../src/library_restore.cpp" line="+4"/>
         <source>目标文件已存在；覆盖需要明确确认</source>
         <translation>目标文件已存在；覆盖需要明确确认</translation>
     </message>
     <message>
-        <location line="+52"/>
+        <location filename="../src/library_snapshot.cpp" line="+46"/>
         <source>无法发布一致快照，以下文件仍在写入：%1</source>
         <translation>无法发布一致快照，以下文件仍在写入：%1</translation>
     </message>
@@ -278,12 +317,12 @@
         <translation>无法发布一致快照，对象校验失败：%1</translation>
     </message>
     <message>
-        <location line="+41"/>
+        <location line="+48"/>
         <source>无法发布一致快照，文件写入未稳定：%1</source>
         <translation>无法发布一致快照，文件写入未稳定：%1</translation>
     </message>
     <message>
-        <location line="+125"/>
+        <location filename="../src/library_backup.cpp" line="+39"/>
         <source>备份目标目录不能为空</source>
         <translation>备份目标目录不能为空</translation>
     </message>
@@ -314,7 +353,7 @@
         <translation>备份对象校验失败：%1</translation>
     </message>
     <message>
-        <location line="+35"/>
+        <location line="+39"/>
         <source>备份包不完整（缺少完成标记）：%1</source>
         <translation>备份包不完整（缺少完成标记）：%1</translation>
     </message>
@@ -329,7 +368,13 @@
         <translation>备份包清单无法识别：%1</translation>
     </message>
     <message>
-        <location line="+21"/>
+        <location line="+39"/>
+        <location line="+5"/>
+        <source>备份包清单路径字段不合法：%1</source>
+        <translation>备份包清单路径字段不合法：%1</translation>
+    </message>
+    <message>
+        <location line="+11"/>
         <source>备份包对象缺失或尺寸不符：%1</source>
         <translation>备份包对象缺失或尺寸不符：%1</translation>
     </message>
@@ -350,24 +395,30 @@
         <translation>备份包清单为空：%1</translation>
     </message>
     <message>
-        <location line="+25"/>
+        <location line="+27"/>
+        <location line="+12"/>
+        <source>备份包目标路径越出工作目录：%1</source>
+        <translation>备份包目标路径越出工作目录：%1</translation>
+    </message>
+    <message>
+        <location line="+6"/>
         <source>恢复后内容校验失败：%1</source>
         <translation>恢复后内容校验失败：%1</translation>
     </message>
     <message>
-        <location line="-1387"/>
+        <location filename="../src/library_meta.cpp" line="-18"/>
         <source>历史对象内容不一致</source>
         <translation>历史对象内容不一致</translation>
     </message>
     <message>
-        <location line="-503"/>
-        <location line="+7"/>
-        <location line="+4"/>
+        <location filename="../src/library_internal.h" line="+11"/>
+        <location line="+8"/>
+        <location line="+5"/>
         <source>无法写入暂存对象：%1</source>
         <translation>无法写入暂存对象：%1</translation>
     </message>
     <message>
-        <location line="+883"/>
+        <location filename="../src/library_objects.cpp" line="+3"/>
         <source>无法发布历史对象</source>
         <translation>无法发布历史对象</translation>
     </message>
@@ -377,13 +428,13 @@
         <translation>无法创建对象暂存目录</translation>
     </message>
     <message>
-        <location line="+43"/>
-        <location line="+940"/>
+        <location filename="../src/library.cpp" line="+128"/>
+        <location filename="../src/library_backup.cpp" line="-3"/>
         <source>无法创建工作目录</source>
         <translation>无法创建工作目录</translation>
     </message>
     <message>
-        <location line="-729"/>
+        <location filename="../src/library_restore.cpp" line="-474"/>
         <source>无法创建恢复目录</source>
         <translation>无法创建恢复目录</translation>
     </message>
@@ -394,13 +445,13 @@
         <translation>找不到属于当前素材的历史版本</translation>
     </message>
     <message>
-        <location line="-601"/>
-        <location line="+983"/>
+        <location filename="../src/library_meta.cpp" line="+12"/>
+        <location filename="../src/library_restore.cpp" line="+508"/>
         <source>请导出到素材库之外的现有目录</source>
         <translation>请导出到素材库之外的现有目录</translation>
     </message>
     <message>
-        <location line="-90"/>
+        <location filename="../src/library_restore.cpp" line="-123"/>
         <location line="+22"/>
         <source>素材不存在</source>
         <translation>素材不存在</translation>
@@ -416,15 +467,51 @@
         <translation>无法删除工作副本：%1（请关闭占用该文件的程序）</translation>
     </message>
     <message>
-        <location line="+66"/>
+        <location line="+40"/>
+        <source>保留素材不存在或已删除</source>
+        <translation>保留素材不存在或已删除</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>不能把保留素材自身合并掉</source>
+        <translation>不能把保留素材自身合并掉</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>待合并素材不存在或没有内容：%1</source>
+        <translation>待合并素材不存在或没有内容：%1</translation>
+    </message>
+    <message>
+        <location line="+50"/>
         <source>找不到历史版本</source>
         <translation>找不到历史版本</translation>
+    </message>
+    <message>
+        <location filename="../src/library_external.cpp" line="+56"/>
+        <source>外部目录不可读：%1</source>
+        <translation>外部目录不可读：%1</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>外部目录不能位于素材库内部：%1</source>
+        <translation>外部目录不能位于素材库内部：%1</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>该目录已在索引中：%1</source>
+        <translation>该目录已在索引中：%1</translation>
+    </message>
+    <message>
+        <location line="+19"/>
+        <location line="+21"/>
+        <source>未知的索引目录 id：%1</source>
+        <translation>未知的索引目录 id：%1</translation>
     </message>
 </context>
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../src/mainwindow.cpp" line="+43"/>
+        <location filename="../src/mainwindow.cpp" line="+48"/>
         <source>pentimento · 画迹</source>
         <translation>pentimento · 画迹</translation>
     </message>
@@ -440,12 +527,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+1002"/>
+        <location filename="../src/mainwindow_versions.cpp" line="+371"/>
         <source>记录版本</source>
         <translation>记录版本</translation>
     </message>
     <message>
-        <location line="-1001"/>
+        <location line="+1"/>
         <source>编辑工作副本</source>
         <translation>编辑工作副本</translation>
     </message>
@@ -470,7 +557,7 @@
         <translation>列表视图</translation>
     </message>
     <message>
-        <location line="+10"/>
+        <location line="+24"/>
         <source>为筛选结果添加标签…</source>
         <translation>为筛选结果添加标签…</translation>
     </message>
@@ -480,14 +567,14 @@
         <translation>从筛选结果移除标签…</translation>
     </message>
     <message>
-        <location line="+2"/>
-        <location line="+1524"/>
+        <location line="-16"/>
+        <location filename="../src/mainwindow_snapshots.cpp" line="+351"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>恢复到锚点</translation>
     </message>
     <message>
-        <location line="-1515"/>
+        <location line="+28"/>
         <source>素材库</source>
         <translation>素材库</translation>
     </message>
@@ -507,30 +594,31 @@
         <translation>素材列表</translation>
     </message>
     <message>
-        <location line="+51"/>
-        <location line="+769"/>
+        <location line="+52"/>
+        <location filename="../src/mainwindow_metadata.cpp" line="+259"/>
         <location line="+16"/>
         <source>标签</source>
         <translation>标签</translation>
     </message>
     <message>
-        <location line="-782"/>
+        <location line="+3"/>
         <source>标签列表</source>
         <translation>标签列表</translation>
     </message>
     <message>
         <location line="+5"/>
+        <location line="+1"/>
         <source>新标签</source>
         <translation>新标签</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location line="+1206"/>
+        <location filename="../src/mainwindow_snapshots.cpp" line="-208"/>
         <source>添加</source>
         <translation>添加</translation>
     </message>
     <message>
-        <location line="-1205"/>
+        <location line="+1"/>
         <source>移除</source>
         <translation>移除</translation>
     </message>
@@ -541,13 +629,13 @@
         <translation>评分</translation>
     </message>
     <message>
-        <location line="-40"/>
-        <location line="+41"/>
+        <location line="-41"/>
+        <location line="+42"/>
         <source>无评分</source>
         <translation>无评分</translation>
     </message>
     <message>
-        <location line="-94"/>
+        <location line="-109"/>
         <source>浏览快照…</source>
         <translation>浏览快照…</translation>
     </message>
@@ -557,7 +645,18 @@
         <translation>挂载来源状态…</translation>
     </message>
     <message>
-        <location line="+3"/>
+        <location line="+7"/>
+        <location line="+11"/>
+        <source>更多</source>
+        <translation>更多</translation>
+    </message>
+    <message>
+        <location line="-6"/>
+        <source>索引外部目录…</source>
+        <translation>索引外部目录…</translation>
+    </message>
+    <message>
+        <location line="+1"/>
         <source>导出备份包…</source>
         <translation>导出备份包…</translation>
     </message>
@@ -565,6 +664,11 @@
         <location line="+1"/>
         <source>一致性检查…</source>
         <translation>一致性检查…</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>重复素材扫描…</source>
+        <translation>重复素材扫描…</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -577,7 +681,7 @@
         <translation>恢复演练…</translation>
     </message>
     <message>
-        <location line="+19"/>
+        <location line="+21"/>
         <source>筛选</source>
         <translation>筛选</translation>
     </message>
@@ -585,6 +689,11 @@
         <location line="+3"/>
         <source>标签（逗号分隔，任一命中）</source>
         <translation>标签（逗号分隔，任一命中）</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>标签筛选</source>
+        <translation>标签筛选</translation>
     </message>
     <message>
         <location line="+2"/>
@@ -637,7 +746,7 @@
         <translation>清除条件</translation>
     </message>
     <message>
-        <location line="+40"/>
+        <location line="+41"/>
         <source>%1 星</source>
         <translation>%1 星</translation>
     </message>
@@ -702,12 +811,12 @@
     </message>
     <message>
         <location line="+3"/>
-        <location line="+723"/>
+        <location filename="../src/mainwindow_versions.cpp" line="-153"/>
         <source>历史版本</source>
         <translation>历史版本</translation>
     </message>
     <message>
-        <location line="-720"/>
+        <location line="+9"/>
         <source>恢复此版本</source>
         <translation>恢复此版本</translation>
     </message>
@@ -732,14 +841,29 @@
         <translation>来源（网址或出处，可留空）</translation>
     </message>
     <message>
+        <location line="+1"/>
+        <source>来源</source>
+        <translation>来源</translation>
+    </message>
+    <message>
         <location line="+2"/>
         <source>作者（可留空）</source>
         <translation>作者（可留空）</translation>
     </message>
     <message>
+        <location line="+1"/>
+        <source>作者</source>
+        <translation>作者</translation>
+    </message>
+    <message>
         <location line="+2"/>
         <source>许可（如实填写；应用不代为判断）</source>
         <translation>许可（如实填写；应用不代为判断）</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>许可</source>
+        <translation>许可</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -753,17 +877,17 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+456"/>
+        <location filename="../src/mainwindow_metadata.cpp" line="-182"/>
         <source>未附加证据</source>
         <translation>未附加证据</translation>
     </message>
     <message>
-        <location line="-451"/>
+        <location line="+5"/>
         <source>记录（旧记录可回看）</source>
         <translation>记录（旧记录可回看）</translation>
     </message>
     <message>
-        <location line="+5"/>
+        <location line="+6"/>
         <source>导出证据…</source>
         <translation>导出证据…</translation>
     </message>
@@ -774,15 +898,20 @@
     </message>
     <message>
         <location line="+3"/>
-        <location line="+877"/>
-        <location line="+223"/>
-        <location line="+152"/>
-        <location line="+322"/>
+        <source>定时快照周期</source>
+        <translation>定时快照周期</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <location filename="../src/mainwindow_metadata.cpp" line="+211"/>
+        <location filename="../src/mainwindow_snapshots.cpp" line="+178"/>
+        <location filename="../src/mainwindow_sources.cpp" line="+164"/>
+        <location filename="../src/mainwindow_versions.cpp" line="+303"/>
         <source>关闭</source>
         <translation>关闭</translation>
     </message>
     <message>
-        <location line="-1573"/>
+        <location line="+1"/>
         <source>每 15 分钟</source>
         <translation>每 15 分钟</translation>
     </message>
@@ -798,20 +927,20 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+962"/>
+        <location filename="../src/mainwindow_snapshots.cpp" line="-251"/>
         <source>定时快照未启用</source>
         <translation>定时快照未启用</translation>
     </message>
     <message>
-        <location line="-959"/>
-        <location line="+114"/>
-        <location line="+820"/>
+        <location line="+3"/>
+        <location line="+121"/>
+        <location filename="../src/mainwindow_snapshots.cpp" line="-25"/>
         <location line="+11"/>
         <source>暂停</source>
         <translation>暂停</translation>
     </message>
     <message>
-        <location line="-943"/>
+        <location line="-119"/>
         <source>仅应用运行时生效；退出应用期间不算持续备份。</source>
         <translation>仅应用运行时生效；退出应用期间不算持续备份。</translation>
     </message>
@@ -826,7 +955,7 @@
         <translation>字段历史…</translation>
     </message>
     <message>
-        <location line="+25"/>
+        <location line="+32"/>
         <source>重命名…</source>
         <translation>重命名…</translation>
     </message>
@@ -877,13 +1006,13 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+238"/>
-        <location line="+605"/>
+        <location filename="../src/mainwindow_snapshots.cpp" line="+7"/>
+        <location filename="../src/mainwindow_versions.cpp" line="-377"/>
         <source>恢复</source>
         <translation>恢复</translation>
     </message>
     <message>
-        <location line="-819"/>
+        <location line="+45"/>
         <source>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</source>
         <translation>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</translation>
     </message>
@@ -928,11 +1057,10 @@
         <translation>操作未完成</translation>
     </message>
     <message>
-        <location line="+140"/>
+        <location filename="../src/mainwindow_versions.cpp" line="-8"/>
         <source>未记录修改</source>
         <translation>未记录修改</translation>
     </message>
-    
     <message>
         <location line="+1"/>
         <source>已固定</source>
@@ -968,9 +1096,8 @@
         <source>固定原因：%1</source>
         <translation>固定原因：%1</translation>
     </message>
-    
     <message>
-        <location line="+51"/>
+        <location filename="../src/mainwindow_metadata.cpp" line="-224"/>
         <source>已清除评分</source>
         <translation>已清除评分</translation>
     </message>
@@ -1076,13 +1203,13 @@
     </message>
     <message>
         <location line="+1"/>
-        <location line="+266"/>
-        <location line="+451"/>
+        <location filename="../src/mainwindow_snapshots.cpp" line="+241"/>
+        <location filename="../src/mainwindow_versions.cpp" line="+275"/>
         <source>取消</source>
         <translation>取消</translation>
     </message>
     <message>
-        <location line="-712"/>
+        <location line="+5"/>
         <source>已删除：%1（历史与对象保留，可从时间线恢复）</source>
         <translation>已删除：%1（历史与对象保留，可从时间线恢复）</translation>
     </message>
@@ -1181,7 +1308,7 @@
         <translation>已从 %1 个素材移除标签：%2</translation>
     </message>
     <message>
-        <location line="+29"/>
+        <location filename="../src/mainwindow_versions.cpp" line="-228"/>
         <source>%1 MiB</source>
         <translation>%1 MiB</translation>
     </message>
@@ -1243,12 +1370,68 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation>预览已降采样显示（解码尺寸超出内存预算），原始文件未修改</translation>
     </message>
     <message>
-        <location line="+13"/>
+        <location line="+5"/>
         <source>导入素材（保留原文件，创建工作副本）</source>
         <translation>导入素材（保留原文件，创建工作副本）</translation>
     </message>
     <message>
-        <location line="+15"/>
+        <location line="+14"/>
+        <source>导入重复内容</source>
+        <translation>导入重复内容</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>以下文件的内容已在库中（相同内容共享对象，不会重复占用磁盘）：
+%1
+
+仍要作为独立素材导入吗？选择“否”跳过这些文件；选择“是”保留独立身份。</source>
+        <translation>以下文件的内容已在库中（相同内容共享对象，不会重复占用磁盘）：
+%1
+
+仍要作为独立素材导入吗？选择“否”跳过这些文件；选择“是”保留独立身份。</translation>
+    </message>
+    <message>
+        <location line="+25"/>
+        <source>导入完成：新增 %1，跳过重复 %2</source>
+        <translation>导入完成：新增 %1，跳过重复 %2</translation>
+    </message>
+    <message>
+        <location line="+13"/>
+        <source>重复扫描</source>
+        <translation>重复扫描</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>没有发现内容重复的素材。</source>
+        <translation>没有发现内容重复的素材。</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>重复素材扫描</source>
+        <translation>重复素材扫描</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>以下素材的最新内容相同（共享同一对象，不额外占磁盘）。选择每组保留的身份，其余以“合并去重”墓碑关闭；历史不删除。</source>
+        <translation>以下素材的最新内容相同（共享同一对象，不额外占磁盘）。选择每组保留的身份，其余以“合并去重”墓碑关闭；历史不删除。</translation>
+    </message>
+    <message>
+        <location line="+8"/>
+        <source>内容 %1…（%2 个素材，%3 字节）</source>
+        <translation>内容 %1…（%2 个素材，%3 字节）</translation>
+    </message>
+    <message>
+        <location line="+7"/>
+        <source>保留素材</source>
+        <translation>保留素材</translation>
+    </message>
+    <message>
+        <location line="+31"/>
+        <source>重复合并完成：关闭 %1 个重复身份（历史保留）</source>
+        <translation>重复合并完成：关闭 %1 个重复身份（历史保留）</translation>
+    </message>
+    <message>
+        <location line="+7"/>
         <source>版本说明</source>
         <translation>版本说明</translation>
     </message>
@@ -1289,19 +1472,19 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation>无法恢复：%1</translation>
     </message>
     <message>
-        <location line="+4"/>
-        <location line="+455"/>
+        <location filename="../src/mainwindow_snapshots.cpp" line="-5"/>
+        <location filename="../src/mainwindow_versions.cpp" line="+4"/>
         <source>恢复预演</source>
         <translation>恢复预演</translation>
     </message>
     <message>
-        <location line="-447"/>
-        <location line="+451"/>
+        <location line="+4"/>
+        <location filename="../src/mainwindow_versions.cpp" line="+8"/>
         <source>确认恢复</source>
         <translation>确认恢复</translation>
     </message>
     <message>
-        <location line="-430"/>
+        <location filename="../src/mainwindow_versions.cpp" line="+21"/>
         <source>目标文件已存在：%1
 覆盖？</source>
         <translation>目标文件已存在：%1
@@ -1343,7 +1526,7 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation>滑动对比：拖动分界线；左右键步进；[ / ] 调整步进；缩放后分界线保持同一图像坐标。</translation>
     </message>
     <message>
-        <location line="+217"/>
+        <location filename="../src/mainwindow_metadata.cpp" line="+11"/>
         <source>字段历史</source>
         <translation>字段历史</translation>
     </message>
@@ -1363,7 +1546,7 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation>（空）</translation>
     </message>
     <message>
-        <location line="+27"/>
+        <location filename="../src/mainwindow_snapshots.cpp" line="-96"/>
         <source>还没有快照</source>
         <translation>还没有快照</translation>
     </message>
@@ -1380,24 +1563,44 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation>#%1 %2 · %3 个素材%4</translation>
     </message>
     <message>
-        <location line="+33"/>
+        <location filename="../src/mainwindow_backup.cpp" line="+52"/>
         <source>选择备份目标目录（须为空或新目录）</source>
         <translation>选择备份目标目录（须为空或新目录）</translation>
     </message>
     <message>
-        <location line="+2"/>
+        <location line="+22"/>
+        <source>正在探测备份目标（后台进行，界面可继续操作）…</source>
+        <translation>正在探测备份目标（后台进行，界面可继续操作）…</translation>
+    </message>
+    <message>
+        <location line="+8"/>
+        <source>备份目标不可用</source>
+        <translation>备份目标不可用</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>所选备份目标不可写：
+%1
+
+%2</source>
+        <translation>所选备份目标不可写：
+%1
+
+%2</translation>
+    </message>
+    <message>
+        <location line="+4"/>
         <source>导出备份包</source>
         <translation>导出备份包</translation>
     </message>
     <message>
-        <location line="+1"/>
         <source>将导出一致备份包到：
 %1
 
 导出期间暂停写入；清单与对象全部校验通过后才写入完成标记。
 目标目录必须为空（不静默覆盖既有备份）。
 备份包不共享运行中索引，可移植到其他机器。</source>
-        <translation>将导出一致备份包到：
+        <translation type="vanished">将导出一致备份包到：
 %1
 
 导出期间暂停写入；清单与对象全部校验通过后才写入完成标记。
@@ -1405,12 +1608,29 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
 备份包不共享运行中索引，可移植到其他机器。</translation>
     </message>
     <message>
-        <location line="+7"/>
+        <location line="+1"/>
+        <source>将导出一致备份包到：
+%1
+
+备份目标可写，可用空间约 %2。
+导出期间暂停写入；清单与对象全部校验通过后才写入完成标记。
+目标目录必须为空（不静默覆盖既有备份）。
+备份包不共享运行中索引，可移植到其他机器。</source>
+        <translation>将导出一致备份包到：
+%1
+
+备份目标可写，可用空间约 %2。
+导出期间暂停写入；清单与对象全部校验通过后才写入完成标记。
+目标目录必须为空（不静默覆盖既有备份）。
+备份包不共享运行中索引，可移植到其他机器。</translation>
+    </message>
+    <message>
+        <location line="+9"/>
         <source>正在导出备份包（后台进行，界面可继续操作）…</source>
         <translation>正在导出备份包（后台进行，界面可继续操作）…</translation>
     </message>
     <message>
-        <location line="+15"/>
+        <location line="+9"/>
         <source>备份包导出失败：%1</source>
         <translation>备份包导出失败：%1</translation>
     </message>
@@ -1420,7 +1640,7 @@ Photoshop 合成图解析不在当前版本范围内（Qt 6.10.2 无 PSD 解码�
         <translation>备份包已导出：%1（%2 个素材，%3 个对象，约 %4 KiB；完成标记已写入）</translation>
     </message>
     <message>
-        <location line="+14"/>
+        <location line="+27"/>
         <source>正在执行一致性检查（只读，后台进行）…</source>
         <translation>正在执行一致性检查（只读，后台进行）…</translation>
     </message>
@@ -1549,13 +1769,13 @@ I/O 错误（无法读取）：
     </message>
     <message>
         <location line="+2"/>
-        <location line="+53"/>
+        <location line="+69"/>
         <location line="+5"/>
         <source>恢复演练</source>
         <translation>恢复演练</translation>
     </message>
     <message>
-        <location line="-57"/>
+        <location line="-73"/>
         <source>将在独立目录完整恢复备份包并逐项核对：
 备份包：%1
 目标目录：%2
@@ -1573,7 +1793,7 @@ I/O 错误（无法读取）：
         <translation>正在执行恢复演练（后台进行）…</translation>
     </message>
     <message>
-        <location line="+45"/>
+        <location line="+61"/>
         <source>恢复演练失败：%1</source>
         <translation>恢复演练失败：%1</translation>
     </message>
@@ -1599,7 +1819,7 @@ I/O 错误（无法读取）：
 演练目录：%2</translation>
     </message>
     <message>
-        <location line="+14"/>
+        <location filename="../src/mainwindow_sources.cpp" line="-57"/>
         <source>挂载来源状态</source>
         <translation>挂载来源状态</translation>
     </message>
@@ -1649,12 +1869,53 @@ I/O 错误（无法读取）：
         <translation>导入新增</translation>
     </message>
     <message>
-        <location line="+10"/>
+        <location line="+12"/>
+        <location line="+48"/>
+        <source>备份目标能力：尚未选择</source>
+        <translation>备份目标能力：尚未选择</translation>
+    </message>
+    <message>
+        <location line="-46"/>
+        <source>备份目标能力</source>
+        <translation>备份目标能力</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>可选的备份目标目录（可为新目录）</source>
+        <translation>可选的备份目标目录（可为新目录）</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>备份目标路径</source>
+        <translation>备份目标路径</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>选择目标…</source>
+        <translation>选择目标…</translation>
+    </message>
+    <message>
+        <location line="+6"/>
         <source>重试</source>
         <translation>重试</translation>
     </message>
     <message>
+        <location line="+25"/>
+        <source>备份目标能力：可写，可用空间约 %1 MiB</source>
+        <translation>备份目标能力：可写，可用空间约 %1 MiB</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>备份目标能力：%1</source>
+        <translation>备份目标能力：%1</translation>
+    </message>
+    <message>
         <location line="+15"/>
+        <source>备份目标能力：正在探测…</source>
+        <translation>备份目标能力：正在探测…</translation>
+    </message>
+    <message>
+        <location line="+16"/>
         <source>连接中：%1</source>
         <translation>连接中：%1</translation>
     </message>
@@ -1686,7 +1947,12 @@ I/O 错误（无法读取）：
         <translation>选择已挂载来源目录</translation>
     </message>
     <message>
-        <location line="+12"/>
+        <location line="+10"/>
+        <source>选择备份目标目录</source>
+        <translation>选择备份目标目录</translation>
+    </message>
+    <message>
+        <location line="+10"/>
         <source>正在扫描来源并与库对照…</source>
         <translation>正在扫描来源并与库对照…</translation>
     </message>
@@ -1737,23 +2003,48 @@ I/O 错误（无法读取）：
         <translation>导入完成：
 %1</translation>
     </message>
-    
-    
-    
-    
     <message>
-        <location line="-881"/>
+        <location line="+16"/>
+        <source>选择要索引的外部目录（不复制、不修改文件）</source>
+        <translation>选择要索引的外部目录（不复制、不修改文件）</translation>
+    </message>
+    <message>
+        <location line="+17"/>
+        <source>无法索引该目录</source>
+        <translation>无法索引该目录</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>目录不可读或位于素材库内部。</source>
+        <translation>目录不可读或位于素材库内部。</translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <source>外部目录索引</source>
+        <translation>外部目录索引</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>已索引 %1 个文件（仅读取，未复制、未修改来源）。
+目录：%2
+记录共 %3 条，其中缺失 %4 条。</source>
+        <translation>已索引 %1 个文件（仅读取，未复制、未修改来源）。
+目录：%2
+记录共 %3 条，其中缺失 %4 条。</translation>
+    </message>
+    <message>
+        <location filename="../src/mainwindow_versions.cpp" line="-76"/>
         <location line="+5"/>
         <source>导出历史版本</source>
         <translation>导出历史版本</translation>
     </message>
     <message>
-        <location line="+98"/>
+        <location filename="../src/mainwindow_sources.cpp" line="-302"/>
         <source>自动记录失败：%1</source>
         <translation>自动记录失败：%1</translation>
     </message>
     <message>
-        <location line="+54"/>
+        <location filename="../src/mainwindow_snapshots.cpp" line="-279"/>
         <source>暂停定时快照</source>
         <translation>暂停定时快照</translation>
     </message>
@@ -1837,7 +2128,7 @@ I/O 错误（无法读取）：
         <translation>无法删除排除规则</translation>
     </message>
     <message>
-        <location line="+50"/>
+        <location line="+15"/>
         <source>紧急快照失败：%1</source>
         <translation>紧急快照失败：%1</translation>
     </message>
@@ -1980,7 +2271,6 @@ I/O 错误（无法读取）：
         <source>还没有紧急快照锚点</source>
         <translation>还没有紧急快照锚点</translation>
     </message>
-    
     <message>
         <location line="+16"/>
         <source>选择感染前锚点（回滚形成新版本，不销毁后续历史）</source>
@@ -2019,7 +2309,7 @@ I/O 错误（无法读取）：
         <translation>不可读（跳过，可重试）：%1</translation>
     </message>
     <message>
-        <location line="+46"/>
+        <location line="+50"/>
         <source>读取失败（可重试）：%1</source>
         <translation>读取失败（可重试）：%1</translation>
     </message>
@@ -2063,6 +2353,36 @@ I/O 错误（无法读取）：
         <location line="+4"/>
         <source>来源存在但当前不可读（权限不足或挂载异常）。</source>
         <translation>来源存在但当前不可读（权限不足或挂载异常）。</translation>
+    </message>
+    <message>
+        <location filename="../src/storage.cpp" line="+83"/>
+        <source>备份目标目录不能为空</source>
+        <translation>备份目标目录不能为空</translation>
+    </message>
+    <message>
+        <location line="+9"/>
+        <source>备份目标不可达：%1</source>
+        <translation>备份目标不可达：%1</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>备份目标必须是目录：%1</source>
+        <translation>备份目标必须是目录：%1</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>备份目标不可读：%1</source>
+        <translation>备份目标不可读：%1</translation>
+    </message>
+    <message>
+        <location line="+5"/>
+        <source>备份目标只读（无写权限或只读挂载）：%1</source>
+        <translation>备份目标只读（无写权限或只读挂载）：%1</translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <source>备份目标所在卷只读：%1</source>
+        <translation>备份目标所在卷只读：%1</translation>
     </message>
 </context>
 </TS>

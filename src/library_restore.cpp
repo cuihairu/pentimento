@@ -571,6 +571,39 @@ void Library::deleteAsset(const QString &assetId) {
     }
 }
 
+void Library::mergeDuplicates(const QString &keeperId, const QVector<QString> &loserIds) {
+    // B-003: a duplicate merge is an in-app confirmed deletion of the losing
+    // identities. The keeper is never touched; each loser keeps its full
+    // revision history and object (the content is shared with the keeper), only
+    // its working copy is removed. Reuse deleteAsset's semantics but with a
+    // distinct note so the timeline records why the identity was closed.
+    const auto keeper = assets();
+    bool keeperExists = false;
+    for (const auto &a : keeper)
+        if (a.id == keeperId) keeperExists = true;
+    if (!keeperExists) fail(Library::tr("保留素材不存在或已删除"));
+    if (loserIds.isEmpty()) return;
+    for (const auto &id : loserIds) {
+        if (id == keeperId) fail(Library::tr("不能把保留素材自身合并掉"));
+        QSqlQuery check(db());
+        check.prepare("SELECT hash FROM revisions WHERE asset_id=? ORDER BY id DESC LIMIT 1");
+        check.addBindValue(id);
+        execute(check);
+        if (!check.next() || check.value(0).toString().isEmpty())
+            fail(Library::tr("待合并素材不存在或没有内容：%1").arg(id));
+        deleteAsset(id);
+        // Overwrite the tombstone note: deleteAsset wrote "删除"; this is an
+        // explicit merge, and the timeline must say so.
+        QSqlQuery note(db());
+        note.prepare("UPDATE revisions SET note=? WHERE asset_id=? AND tombstone=1 "
+                     "AND id=(SELECT MAX(id) FROM revisions WHERE asset_id=?)");
+        note.addBindValue(QStringLiteral("合并去重"));
+        note.addBindValue(id);
+        note.addBindValue(id);
+        execute(note);
+    }
+}
+
 Library::Health Library::workingCopyHealth(const Asset &asset) const {
     const std::lock_guard<QRecursiveMutex> guard(mutex_);
     const QFileInfo info(asset.path);

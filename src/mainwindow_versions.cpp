@@ -17,7 +17,9 @@
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QDialog>
+#include <QDialogButtonBox>
 #include <QFileDialog>
+#include <QGroupBox>
 #include <QVBoxLayout>
 #include <QFileInfo>
 #include <QFrame>
@@ -253,14 +255,113 @@ void MainWindow::showRevision() {
 
 void MainWindow::importFiles() {
     const auto files = QFileDialog::getOpenFileNames(this, tr("导入素材（保留原文件，创建工作副本）"));
+    if (files.isEmpty()) return;
+    // B-003: hash the selection once on the UI thread only for small metadata
+    // reads (streaming, bounded chunk); the dialog asks before any copy is made
+    // so a duplicate import is an explicit user choice, never a silent surprise.
+    int answer = QMessageBox::No;
+    if (!files.isEmpty()) {
+        QStringList duplicates;
+        for (const auto &file : files) {
+            QString hash;
+            if (hashFile(file, &hash, nullptr) && library_.hasContent(hash))
+                duplicates << QFileInfo(file).fileName();
+        }
+        if (!duplicates.isEmpty()) {
+            answer = QMessageBox::question(this, tr("导入重复内容"),
+                tr("以下文件的内容已在库中（相同内容共享对象，不会重复占用磁盘）：\n%1\n\n"
+                   "仍要作为独立素材导入吗？选择“否”跳过这些文件；选择“是”保留独立身份。")
+                    .arg(duplicates.join(QStringLiteral("\n"))),
+                QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+        }
+    }
+    importFilesFrom(files, answer);
+}
+
+int MainWindow::importFilesFrom(const QStringList &paths, int duplicateAnswer) {
     QString last;
-    for (const auto &file : files) {
-        try { last = library_.importFile(file).id; }
+    int imported = 0;
+    int skipped = 0;
+    for (const auto &file : paths) {
+        QString hash;
+        const bool hasHash = hashFile(file, &hash, nullptr);
+        if (hasHash && library_.hasContent(hash) && duplicateAnswer != QMessageBox::Yes) {
+            ++skipped;
+            continue;
+        }
+        try { last = library_.importFile(file).id; ++imported; }
         catch (const std::exception &error) { report(error); break; }
     }
     reloadAssets(last);
+    if (skipped > 0)
+        statusBar()->showMessage(tr("导入完成：新增 %1，跳过重复 %2").arg(imported).arg(skipped));
     // Re-arm the sentinel: the app's own import is legitimate, not ransomware.
     if (sentinel_) sentinel_->resetBaseline();
+    return imported;
+}
+
+// B-003: post-import duplicate scan. Identical content already shares one
+// object, so the scan reports redundant *identities* — the user picks which
+// identity to keep; the others are closed with a tombstone revision ("合并去重"),
+// their history and objects stay intact. Never automatic.
+void MainWindow::scanDuplicates() {
+    auto groups = library_.duplicateGroups();
+    if (groups.isEmpty()) {
+        QMessageBox::information(this, tr("重复扫描"),
+                                 tr("没有发现内容重复的素材。"));
+        return;
+    }
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("重复素材扫描"));
+    dialog.setMinimumWidth(600);
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *hint = new QLabel(tr("以下素材的最新内容相同（共享同一对象，不额外占磁盘）。"
+                               "选择每组保留的身份，其余以“合并去重”墓碑关闭；历史不删除。"));
+    hint->setWordWrap(true);
+    layout->addWidget(hint);
+    // One combo per group: index 0 is the first (alphabetically) member, which
+    // does not pre-judge which identity the user wants to keep.
+    QVector<QComboBox *> keepers;
+    for (const auto &group : groups) {
+        auto *box = new QGroupBox(tr("内容 %1…（%2 个素材，%3 字节）")
+                                      .arg(group.hash.left(12)).arg(group.assets.size())
+                                      .arg(group.size), &dialog);
+        auto *groupLayout = new QVBoxLayout(box);
+        auto *combo = new QComboBox(box);
+        for (const auto &asset : group.assets)
+            combo->addItem(asset.logicalPath(), asset.id);
+        combo->setAccessibleName(tr("保留素材"));
+        groupLayout->addWidget(combo);
+        keepers.push_back(combo);
+        QStringList losers;
+        for (const auto &asset : group.assets) losers << asset.logicalPath();
+        auto *members = new QLabel(losers.join(QStringLiteral("\n")), box);
+        members->setWordWrap(true);
+        members->setStyleSheet("color:#666;");
+        groupLayout->addWidget(members);
+        layout->addWidget(box);
+    }
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
+                                         Qt::Horizontal, &dialog);
+    layout->addWidget(buttons);
+    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    if (dialog.exec() != QDialog::Accepted) return;
+    int merged = 0;
+    for (int i = 0; i < groups.size(); ++i) {
+        const auto keeperId = keepers[i]->currentData().toString();
+        QVector<QString> loserIds;
+        for (const auto &asset : groups[i].assets)
+            if (asset.id != keeperId) loserIds.push_back(asset.id);
+        if (loserIds.isEmpty()) continue;
+        try {
+            library_.mergeDuplicates(keeperId, loserIds);
+            merged += loserIds.size();
+        } catch (const std::exception &error) { report(error); break; }
+    }
+    reloadAssets();
+    if (sentinel_) sentinel_->resetBaseline();
+    statusBar()->showMessage(tr("重复合并完成：关闭 %1 个重复身份（历史保留）").arg(merged));
 }
 
 void MainWindow::capture() {

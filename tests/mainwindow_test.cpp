@@ -426,6 +426,50 @@ private slots:
         }
         QVERIFY(hasScroll);
     }
+    // B-003: the import-time duplicate ask. Re-importing content already in
+    // the library either imports again as a distinct identity (user said keep)
+    // or skips the duplicate files (user said no) — never a silent third path.
+    void importDuplicateAskSkipsOrKeepsByAnswer() {
+        QTemporaryDir dir;
+        Library library(dir.filePath("library"));
+        const QString first = dir.filePath("a.png");
+        const QString second = dir.filePath("copy.png");
+        const QString fresh = dir.filePath("fresh.png");
+        QImage image(32, 32, QImage::Format_RGB32);
+        image.fill(Qt::red);
+        QVERIFY(image.save(first, "PNG"));
+        QVERIFY(QFile::copy(first, second));
+        image.fill(Qt::blue);
+        QVERIFY(image.save(fresh, "PNG"));
+        library.importFile(first);
+
+        MainWindow window(library);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+        // Answer "no" to the duplicate ask: the duplicate is skipped, the
+        // genuinely fresh file still imports.
+        QCOMPARE(window.importFilesFromForTest({second, fresh}, QMessageBox::No), 1);
+        QCOMPARE(library.assets().size(), 2);
+        QVERIFY(window.statusBar()->currentMessage().contains(QStringLiteral("跳过重复 1")));
+
+        // Answer "yes": the same content becomes a distinct identity (a shared
+        // object, no merged history), which is the explicit user choice.
+        QCOMPARE(window.importFilesFromForTest({second}, QMessageBox::Yes), 1);
+        QCOMPARE(library.assets().size(), 3);
+        QVERIFY(library.duplicateGroups().size() >= 1);
+
+        // The scan+merge seam closes the redundant identity, history intact.
+        const auto groups = library.duplicateGroups();
+        const auto keeper = groups.first().assets.first().id;
+        QVector<QString> losers;
+        for (const auto &a : groups.first().assets)
+            if (a.id != keeper) losers.push_back(a.id);
+        window.mergeDuplicatesForTest(keeper, losers);
+        QCOMPARE(library.assets().size(), 2);
+        QVERIFY(library.revisions(losers.first()).first().tombstone);
+    }
+
     // UI audit evidence (todo.md 审核发现 · UI-AUDIT P2): offscreen grabs of the
     // main window (with sample assets) and the source-state dialog, written only
     // when PENTIMENTO_UI_AUDIT_DIR is set, so a normal test run is unaffected.

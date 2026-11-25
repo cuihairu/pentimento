@@ -279,6 +279,56 @@ private slots:
         QVERIFY_EXCEPTION_THROWN(library.importFile(missing), std::runtime_error);
         QCOMPARE(library.assets().size(), 2);
     }
+    // B-003: the post-import scan reports redundant identities (same tip
+    // content), never silently merges them; a user-chosen merge tombstones the
+    // losers while keeping their history and the shared object intact.
+    void duplicateScanReportsGroupsAndMergeKeepsHistory() {
+        QTemporaryDir dir;
+        const auto source = dir.filePath("dupe.png");
+        const auto other = dir.filePath("other.png");
+        put(source, "same bytes");
+        put(other, "different bytes");
+        Library library(dir.filePath("lib"));
+        const auto a = library.importFile(source);
+        const auto b = library.importFile(source);
+        const auto c = library.importFile(source);
+        const auto d = library.importFile(other);
+        // Scan: exactly one group with three identical live identities.
+        const auto groups = library.duplicateGroups();
+        QCOMPARE(groups.size(), 1);
+        QCOMPARE(groups.first().assets.size(), 3);
+        QCOMPARE(groups.first().hash, library.revisions(a.id).first().hash);
+        // A changed tip drops that asset out of the group (the old content stays
+        // in history); the remaining two identical identities still report.
+        put(b.path, "changed bytes");
+        QVERIFY(library.capture(b));
+        const auto narrowed = library.duplicateGroups();
+        QCOMPARE(narrowed.size(), 1);
+        QCOMPARE(narrowed.first().assets.size(), 2);
+        // Back to an identical state; keep a, close b and c.
+        put(b.path, "same bytes");
+        QVERIFY(library.capture(b));
+        const auto bBefore = library.revisions(b.id).size();
+        const auto cBefore = library.revisions(c.id).size();
+        QVERIFY(QFileInfo::exists(a.path)); // keeper working copy present
+        library.mergeDuplicates(a.id, {b.id, c.id});
+        const auto live = library.assets();
+        QCOMPARE(live.size(), 2); // keeper + the distinct-content asset
+        QVERIFY(live.first().id == a.id || live.at(1).id == a.id);
+        // Losers are closed with a merge tombstone, their history/object intact.
+        const auto loserHistory = library.revisions(b.id);
+        QVERIFY(loserHistory.first().tombstone);
+        QCOMPARE(loserHistory.first().note, QStringLiteral("合并去重"));
+        QCOMPARE(loserHistory.size(), bBefore + 1);
+        QCOMPARE(library.revisions(c.id).size(), cBefore + 1);
+        QCOMPARE(library.readObject(loserHistory.at(1).hash), QByteArray("same bytes"));
+        QVERIFY(!QFileInfo::exists(b.path));
+        QVERIFY(!QFileInfo::exists(c.path));
+        QVERIFY(library.assets().size() == 2);
+        // Merging the keeper into itself is refused; a deleted asset is not a loser.
+        QVERIFY_EXCEPTION_THROWN(library.mergeDuplicates(a.id, {a.id}), std::runtime_error);
+    }
+
     // P-203: an import that fails AFTER the working copy is written (here: the
     // object staging dir refuses writes, so the registration append throws)
     // must not leave a half-written asset — no orphan working directory, no

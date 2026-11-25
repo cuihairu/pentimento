@@ -161,6 +161,25 @@ public:
     // present: the object exists and a re-import would only duplicate it.
     bool hasContent(const QString &hexHash) const;
     Asset importFile(const QString &source);
+    // B-003: one group of live assets whose latest revision content is
+    // identical. Duplicate content already shares one content-addressed object,
+    // so a group costs no extra object storage — what it costs is redundant
+    // asset identities (names, folders, tags, histories to maintain). The scan
+    // is read-only; collapsing a group is a separate, user-confirmed flow
+    // (keep one asset, tombstone the rest — never automatic, per the import
+    // rule that dedup does not merge distinct asset identities).
+    struct DuplicateGroup {
+        QString hash;           // shared content hash (hex SHA-256)
+        qint64 size = 0;        // content size in bytes
+        QVector<Asset> assets;  // live members, ordered by logicalPath, id
+    };
+    QVector<DuplicateGroup> duplicateGroups() const;
+    // B-003: user-confirmed merge of duplicate identities. The keeper stays a
+    // live asset; each `loser` receives a tombstone revision with note "合并去重"
+    // and its working copy is removed — the object and all history stay intact
+    // (same as an in-app delete, but a distinct audit note). Never called
+    // automatically: a duplicate scan only reports; the user picks the keeper.
+    void mergeDuplicates(const QString &keeperId, const QVector<QString> &loserIds);
     bool capture(const Asset &asset, const QString &note = QString());
     // P-303 manual version record: always returns the version id that now
     // represents the working copy — the newly recorded revision, or the current

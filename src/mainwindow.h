@@ -8,6 +8,7 @@
 #include <QHash>
 #include <QMainWindow>
 #include <QMap>
+#include <QMessageBox>
 #include <QMutex>
 #include <QSet>
 #include <memory>
@@ -46,6 +47,15 @@ public:
     // follows is factored into exportBackupTo() so the async-probe regression
     // can be exercised without a file dialog.
     void exportBackupToForTest(const QString &dir) { exportBackupTo(dir); }
+    // B-003: the duplicate scan/merge dialog is modal; tests drive the same
+    // seam with an explicit keeper/loser choice instead of clicking widgets.
+    void mergeDuplicatesForTest(const QString &keeperId, const QVector<QString> &loserIds) {
+        library_.mergeDuplicates(keeperId, loserIds);
+        reloadAssets();
+    }
+    int importFilesFromForTest(const QStringList &paths, int duplicateAnswer) {
+        return importFilesFrom(paths, duplicateAnswer);
+    }
 #endif
 private:
     Library &library_;
@@ -206,6 +216,10 @@ private:
     void updateZoomLabel();
     void syncZoomButtons(bool fit);
     void importFiles();
+    // B-003: the import path with the file dialog factored out, so the
+    // duplicate-confirmation flow can be exercised without a native dialog.
+    int importFilesFrom(const QStringList &paths, int duplicateAnswer = QMessageBox::No);
+    void scanDuplicates();
     void capture();
     void restore();
     void exportFile();

@@ -12,27 +12,25 @@
 <context>
     <name>Library</name>
     <message>
-        <location filename="../src/library.cpp" line="+31"/>
-        <location line="+19"/>
-        <location line="+6"/>
+        <location filename="../src/library.cpp" line="+63"/>
+        <location filename="../src/library_internal.h" line="+28"/>
+        <location line="+21"/>
         <location line="+7"/>
-        <location line="+6"/>
         <source>无法读取文件：%1</source>
         <translation>Cannot read file: %1</translation>
     </message>
     <message>
-        <location line="-36"/>
+        <location filename="../src/library_internal.h" line="-26"/>
         <source>首版单文件上限为 256 MiB：%1</source>
         <translation>First release caps single files at 256 MiB: %1</translation>
     </message>
     <message>
-        <location line="+8"/>
+        <location line="+9"/>
         <source>无法安全写入文件：%1；%2</source>
         <translation>Cannot safely write file: %1; %2</translation>
     </message>
-    
     <message>
-        <location line="+48"/>
+        <location filename="../src/library.cpp" line="+14"/>
         <source>该目录不是有效的素材库（未找到 catalog.sqlite），不会静默重建</source>
         <translation>Not a valid asset library (catalog.sqlite missing); will not silently recreate it</translation>
     </message>
@@ -57,24 +55,22 @@
         <translation>Library is corrupt or the index cannot be opened: %1</translation>
     </message>
     <message>
-        <location line="+107"/>
+        <location line="+113"/>
         <source>素材库 schema 版本不兼容（%1），请使用匹配版本打开</source>
         <translation>Library schema version is incompatible (%1); open with a matching version</translation>
     </message>
-    
-    
     <message>
         <location line="+70"/>
         <source>素材库缺少身份标识（library_id），库可能已损坏</source>
         <translation>Library is missing its identity (library_id); the library may be corrupt</translation>
     </message>
     <message>
-        <location line="+143"/>
+        <location filename="../src/library_meta.cpp" line="+194"/>
         <source>无效的评分：%1</source>
         <translation>Invalid rating: %1</translation>
     </message>
     <message>
-        <location line="+146"/>
+        <location filename="../src/library_snapshot.cpp" line="+40"/>
         <source>排除规则不能为空</source>
         <translation>Exclusion rule must not be empty</translation>
     </message>
@@ -99,7 +95,19 @@
         <translation>Pinned manually</translation>
     </message>
     <message>
-        <location line="+80"/>
+        <location filename="../src/library_meta.cpp" line="-96"/>
+        <location line="+26"/>
+        <source>无法开启事务：%1</source>
+        <translation>Cannot start a transaction: %1</translation>
+    </message>
+    <message>
+        <location line="-10"/>
+        <location line="+26"/>
+        <source>提交事务失败：%1</source>
+        <translation>Failed to commit the transaction: %1</translation>
+    </message>
+    <message>
+        <location line="+266"/>
         <source>名称不能为空</source>
         <translation>Name cannot be empty</translation>
     </message>
@@ -140,7 +148,7 @@
         <translation>An asset with this name already exists in the target folder: %1; will not merge</translation>
     </message>
     <message>
-        <location line="+36"/>
+        <location filename="../src/library.cpp" line="+6"/>
         <source>该路径不是有效的素材库（未找到可读的 catalog.sqlite）</source>
         <translation>This path is not a valid asset library (no readable catalog.sqlite found)</translation>
     </message>
@@ -150,41 +158,22 @@
         <translation>This asset library is missing its identity (library_id); the library may be corrupt</translation>
     </message>
     <message>
-        <location line="+48"/>
+        <location filename="../src/library_objects.cpp" line="+36"/>
         <location line="+2"/>
         <source>无效的对象哈希</source>
         <translation>Invalid object hash</translation>
     </message>
     <message>
         <location line="+7"/>
-        <location line="+13"/>
-        <location line="+18"/>
         <location line="+19"/>
+        <location line="+22"/>
+        <location line="+20"/>
         <location line="+3"/>
         <source>历史对象校验失败；已停止操作</source>
         <translation>History object verification failed; operation stopped</translation>
     </message>
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
     <message>
-        <location line="+667"/>
+        <location filename="../src/library_snapshot.cpp" line="+46"/>
         <source>无法发布一致快照，以下文件仍在写入：%1</source>
         <translation>Cannot publish a consistent snapshot, still being written: %1</translation>
     </message>
@@ -194,12 +183,12 @@
         <translation>Cannot publish a consistent snapshot, object verification failed: %1</translation>
     </message>
     <message>
-        <location line="+41"/>
+        <location line="+48"/>
         <source>无法发布一致快照，文件写入未稳定：%1</source>
         <translation>Cannot publish a consistent snapshot, write not settled: %1</translation>
     </message>
     <message>
-        <location line="+125"/>
+        <location filename="../src/library_backup.cpp" line="+39"/>
         <source>备份目标目录不能为空</source>
         <translation>Backup target directory must not be empty</translation>
     </message>
@@ -230,7 +219,7 @@
         <translation>Backup object verification failed: %1</translation>
     </message>
     <message>
-        <location line="+35"/>
+        <location line="+39"/>
         <source>备份包不完整（缺少完成标记）：%1</source>
         <translation>Backup package incomplete (missing completion marker): %1</translation>
     </message>
@@ -245,7 +234,13 @@
         <translation>Backup package manifest unrecognized: %1</translation>
     </message>
     <message>
-        <location line="+21"/>
+        <location line="+39"/>
+        <location line="+5"/>
+        <source>备份包清单路径字段不合法：%1</source>
+        <translation>Invalid path field in the backup manifest: %1</translation>
+    </message>
+    <message>
+        <location line="+11"/>
         <source>备份包对象缺失或尺寸不符：%1</source>
         <translation>Backup package object missing or wrong size: %1</translation>
     </message>
@@ -255,23 +250,20 @@
         <source>备份包对象校验失败：%1</source>
         <translation>Backup package object verification failed: %1</translation>
     </message>
-    
-    
-    
     <message>
-        <location line="-1376"/>
+        <location filename="../src/library_meta.cpp" line="-158"/>
         <source>历史对象内容不一致</source>
         <translation>History object content mismatch</translation>
     </message>
     <message>
-        <location line="-503"/>
-        <location line="+7"/>
-        <location line="+4"/>
+        <location filename="../src/library_internal.h" line="+11"/>
+        <location line="+8"/>
+        <location line="+5"/>
         <source>无法写入暂存对象：%1</source>
         <translation>Cannot write the staged object: %1</translation>
     </message>
     <message>
-        <location line="+883"/>
+        <location filename="../src/library_objects.cpp" line="+3"/>
         <source>无法发布历史对象</source>
         <translation>Cannot publish the history object</translation>
     </message>
@@ -281,13 +273,13 @@
         <translation>Cannot create the object staging directory</translation>
     </message>
     <message>
-        <location line="+43"/>
-        <location line="+940"/>
+        <location filename="../src/library.cpp" line="+128"/>
+        <location filename="../src/library_backup.cpp" line="+28"/>
         <source>无法创建工作目录</source>
         <translation>Cannot create working directory</translation>
     </message>
     <message>
-        <location line="-729"/>
+        <location filename="../src/library_restore.cpp" line="+165"/>
         <source>无法创建恢复目录</source>
         <translation>Cannot create restore directory</translation>
     </message>
@@ -298,7 +290,7 @@
         <translation>No revision found for this asset</translation>
     </message>
     <message>
-        <location line="-915"/>
+        <location filename="../src/library.cpp" line="-189"/>
         <source>后台连接无法打开：%1</source>
         <translation>Background connection could not be opened: %1</translation>
     </message>
@@ -308,13 +300,13 @@
         <translation>Background connection initialization failed: %1</translation>
     </message>
     <message>
-        <location line="+310"/>
-        <location line="+983"/>
+        <location filename="../src/library_meta.cpp" line="+12"/>
+        <location filename="../src/library_restore.cpp" line="+508"/>
         <source>请导出到素材库之外的现有目录</source>
         <translation>Export to an existing directory outside the library</translation>
     </message>
     <message>
-        <location line="-450"/>
+        <location filename="../src/library_restore.cpp" line="-576"/>
         <source>目标版本内容缺失或损坏，无法恢复</source>
         <translation>Target revision content is missing or corrupt; cannot restore</translation>
     </message>
@@ -349,7 +341,23 @@
         <translation>An external editor is writing; close it and retry</translation>
     </message>
     <message>
-        <location line="+114"/>
+        <location line="+35"/>
+        <source>%1；回滚工作副本也失败：%2</source>
+        <translation>%1; rolling back the working copy also failed: %2</translation>
+    </message>
+    <message>
+        <location line="+8"/>
+        <source>%1；回滚删除新建的工作副本也失败：%2</source>
+        <translation>%1; removing the newly created working copy during rollback also failed: %2</translation>
+    </message>
+    <message>
+        <location line="+28"/>
+        <location line="+171"/>
+        <source>未知错误</source>
+        <translation>Unknown error</translation>
+    </message>
+    <message>
+        <location line="-69"/>
         <source>素材记录不存在</source>
         <translation>Asset record not found</translation>
     </message>
@@ -365,11 +373,38 @@
     </message>
     <message>
         <location line="+10"/>
+        <source>工作副本已丢失，未自动处理</source>
+        <translation>The working copy is missing; nothing was done automatically</translation>
+    </message>
+    <message>
+        <location line="+5"/>
+        <location line="+12"/>
+        <source>工作副本不可读或无法校验，未自动处理</source>
+        <translation>The working copy is unreadable or failed verification; nothing was done automatically</translation>
+    </message>
+    <message>
+        <location line="+9"/>
         <source>目标内容损坏，无法完成恢复：%1</source>
         <translation>Target content is corrupt; restore could not complete: %1</translation>
     </message>
     <message>
-        <location line="+20"/>
+        <location line="+191"/>
+        <source>保留素材不存在或已删除</source>
+        <translation>The asset to keep does not exist or is already deleted</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>不能把保留素材自身合并掉</source>
+        <translation>The asset to keep cannot be merged into itself</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>待合并素材不存在或没有内容：%1</source>
+        <translation>The asset to merge does not exist or has no content: %1</translation>
+    </message>
+    <message>
+        <location line="-228"/>
+        <location line="+56"/>
         <source>恢复未完成，已取消</source>
         <translation>Restore incomplete; cancelled</translation>
     </message>
@@ -415,12 +450,13 @@
         <translation>Cannot remove the working copy: %1 (close the program using this file)</translation>
     </message>
     <message>
-        <location line="+58"/>
+        <location filename="../src/library_meta.cpp" line="+6"/>
+        <location filename="../src/library_restore.cpp" line="+91"/>
         <source>导出目标是指向其他位置的链接，请选择一个真实文件路径</source>
         <translation>Export target is a link to another location; choose a real file path</translation>
     </message>
     <message>
-        <location line="+4"/>
+        <location filename="../src/library_restore.cpp" line="+4"/>
         <source>目标文件已存在；覆盖需要明确确认</source>
         <translation>Target file exists; overwriting requires explicit confirmation</translation>
     </message>
@@ -430,7 +466,7 @@
         <translation>Revision not found</translation>
     </message>
     <message>
-        <location line="+350"/>
+        <location filename="../src/library_backup.cpp" line="-47"/>
         <source>恢复演练目标库非空（不覆盖既有素材库）</source>
         <translation>Drill target library is not empty (an existing library is never overwritten)</translation>
     </message>
@@ -440,15 +476,42 @@
         <translation>Backup package manifest is empty: %1</translation>
     </message>
     <message>
-        <location line="+25"/>
+        <location line="+27"/>
+        <location line="+12"/>
+        <source>备份包目标路径越出工作目录：%1</source>
+        <translation>The backup package path escapes the working directory: %1</translation>
+    </message>
+    <message>
+        <location line="+6"/>
         <source>恢复后内容校验失败：%1</source>
         <translation>Restored content verification failed: %1</translation>
+    </message>
+    <message>
+        <location filename="../src/library_external.cpp" line="+56"/>
+        <source>外部目录不可读：%1</source>
+        <translation>The external directory is unreadable: %1</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>外部目录不能位于素材库内部：%1</source>
+        <translation>The external directory cannot live inside the library: %1</translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>该目录已在索引中：%1</source>
+        <translation>This directory is already indexed: %1</translation>
+    </message>
+    <message>
+        <location line="+19"/>
+        <location line="+21"/>
+        <source>未知的索引目录 id：%1</source>
+        <translation>Unknown indexed directory id: %1</translation>
     </message>
 </context>
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../src/mainwindow.cpp" line="+43"/>
+        <location filename="../src/mainwindow.cpp" line="+48"/>
         <source>pentimento · 画迹</source>
         <translation>pentimento</translation>
     </message>
@@ -464,12 +527,12 @@
     </message>
     <message>
         <location line="+2"/>
-        <location line="+1002"/>
+        <location filename="../src/mainwindow_versions.cpp" line="+371"/>
         <source>记录版本</source>
         <translation>Record version</translation>
     </message>
     <message>
-        <location line="-1001"/>
+        <location line="+1"/>
         <source>编辑工作副本</source>
         <translation>Edit working copy</translation>
     </message>
@@ -494,7 +557,7 @@
         <translation>List view</translation>
     </message>
     <message>
-        <location line="+10"/>
+        <location line="+24"/>
         <source>为筛选结果添加标签…</source>
         <translation>Add tag to filtered results…</translation>
     </message>
@@ -504,19 +567,19 @@
         <translation>Remove tag from filtered results…</translation>
     </message>
     <message>
-        <location line="+2"/>
-        <location line="+1524"/>
+        <location line="-16"/>
+        <location filename="../src/mainwindow_snapshots.cpp" line="+351"/>
         <location line="+6"/>
         <source>恢复到锚点</source>
         <translation>Restore to anchor</translation>
     </message>
     <message>
-        <location line="-1521"/>
+        <location line="+19"/>
         <source>一致性检查…</source>
         <translation>Consistency check…</translation>
     </message>
     <message>
-        <location line="+1"/>
+        <location line="+2"/>
         <source>空间预演…</source>
         <translation>Space preview…</translation>
     </message>
@@ -526,7 +589,7 @@
         <translation>Restore drill…</translation>
     </message>
     <message>
-        <location line="+4"/>
+        <location line="+6"/>
         <source>素材库</source>
         <translation>Library</translation>
     </message>
@@ -546,30 +609,31 @@
         <translation>Asset list</translation>
     </message>
     <message>
-        <location line="+51"/>
-        <location line="+769"/>
+        <location line="+52"/>
+        <location filename="../src/mainwindow_metadata.cpp" line="+259"/>
         <location line="+16"/>
         <source>标签</source>
         <translation>Tags</translation>
     </message>
     <message>
-        <location line="-782"/>
+        <location line="+3"/>
         <source>标签列表</source>
         <translation>Tag list</translation>
     </message>
     <message>
         <location line="+5"/>
+        <location line="+1"/>
         <source>新标签</source>
         <translation>New tag</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location line="+1206"/>
+        <location filename="../src/mainwindow_snapshots.cpp" line="-208"/>
         <source>添加</source>
         <translation>Add</translation>
     </message>
     <message>
-        <location line="-1205"/>
+        <location line="+1"/>
         <source>移除</source>
         <translation>Remove</translation>
     </message>
@@ -580,13 +644,13 @@
         <translation>Rating</translation>
     </message>
     <message>
-        <location line="-40"/>
-        <location line="+41"/>
+        <location line="-41"/>
+        <location line="+42"/>
         <source>无评分</source>
         <translation>No rating</translation>
     </message>
     <message>
-        <location line="-94"/>
+        <location line="-109"/>
         <source>浏览快照…</source>
         <translation>Browse snapshot…</translation>
     </message>
@@ -596,15 +660,28 @@
         <translation>Mounted Source Status…</translation>
     </message>
     <message>
-        <location line="+3"/>
+        <location line="+7"/>
+        <location line="+11"/>
+        <source>更多</source>
+        <translation>More</translation>
+    </message>
+    <message>
+        <location line="-6"/>
+        <source>索引外部目录…</source>
+        <translation>Index external directory…</translation>
+    </message>
+    <message>
+        <location line="+1"/>
         <source>导出备份包…</source>
         <translation>Export Backup Package…</translation>
     </message>
-    
-    
-    
     <message>
-        <location line="+22"/>
+        <location line="+2"/>
+        <source>重复素材扫描…</source>
+        <translation>Duplicate scan…</translation>
+    </message>
+    <message>
+        <location line="+23"/>
         <source>筛选</source>
         <translation>Filter</translation>
     </message>
@@ -612,6 +689,11 @@
         <location line="+3"/>
         <source>标签（逗号分隔，任一命中）</source>
         <translation>Tags (comma-separated, any match)</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>标签筛选</source>
+        <translation>Tag filter</translation>
     </message>
     <message>
         <location line="+2"/>
@@ -664,7 +746,7 @@
         <translation>Clear conditions</translation>
     </message>
     <message>
-        <location line="+40"/>
+        <location line="+41"/>
         <source>%1 星</source>
         <translation>%1 star(s)</translation>
     </message>
@@ -729,12 +811,12 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+3"/>
-        <location line="+723"/>
+        <location filename="../src/mainwindow_versions.cpp" line="-153"/>
         <source>历史版本</source>
         <translation>Historical version</translation>
     </message>
     <message>
-        <location line="-720"/>
+        <location line="+9"/>
         <source>恢复此版本</source>
         <translation>Restore this version</translation>
     </message>
@@ -759,14 +841,29 @@ Restoring appends a new version; existing history is always kept.</translation>
         <translation>Source (URL or origin, can be empty)</translation>
     </message>
     <message>
+        <location line="+1"/>
+        <source>来源</source>
+        <translation>Source</translation>
+    </message>
+    <message>
         <location line="+2"/>
         <source>作者（可留空）</source>
         <translation>Author (can be empty)</translation>
     </message>
     <message>
+        <location line="+1"/>
+        <source>作者</source>
+        <translation>Author</translation>
+    </message>
+    <message>
         <location line="+2"/>
         <source>许可（如实填写；应用不代为判断）</source>
         <translation>License (enter truthfully; the app does not decide it for you)</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>许可</source>
+        <translation>License</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -780,17 +877,17 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location line="+456"/>
+        <location filename="../src/mainwindow_metadata.cpp" line="-182"/>
         <source>未附加证据</source>
         <translation>No evidence attached</translation>
     </message>
     <message>
-        <location line="-451"/>
+        <location line="+5"/>
         <source>记录（旧记录可回看）</source>
         <translation>Records (old entries stay viewable)</translation>
     </message>
     <message>
-        <location line="+5"/>
+        <location line="+6"/>
         <source>导出证据…</source>
         <translation>Export evidence…</translation>
     </message>
@@ -801,15 +898,20 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+3"/>
-        <location line="+877"/>
-        <location line="+223"/>
-        <location line="+152"/>
-        <location line="+322"/>
+        <source>定时快照周期</source>
+        <translation>Scheduled snapshot period</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <location filename="../src/mainwindow_metadata.cpp" line="+211"/>
+        <location filename="../src/mainwindow_snapshots.cpp" line="+178"/>
+        <location filename="../src/mainwindow_sources.cpp" line="+164"/>
+        <location filename="../src/mainwindow_versions.cpp" line="+303"/>
         <source>关闭</source>
         <translation>Off</translation>
     </message>
     <message>
-        <location line="-1573"/>
+        <location line="+1"/>
         <source>每 15 分钟</source>
         <translation>Every 15 minutes</translation>
     </message>
@@ -825,20 +927,20 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location line="+962"/>
+        <location filename="../src/mainwindow_snapshots.cpp" line="-251"/>
         <source>定时快照未启用</source>
         <translation>Scheduled snapshots off</translation>
     </message>
     <message>
-        <location line="-959"/>
-        <location line="+114"/>
-        <location line="+820"/>
+        <location line="+3"/>
+        <location line="+121"/>
+        <location filename="../src/mainwindow_snapshots.cpp" line="-25"/>
         <location line="+11"/>
         <source>暂停</source>
         <translation>Pause</translation>
     </message>
     <message>
-        <location line="-943"/>
+        <location line="-119"/>
         <source>仅应用运行时生效；退出应用期间不算持续备份。</source>
         <translation>Active only while the app runs; exiting is never counted as continuous backup.</translation>
     </message>
@@ -853,7 +955,7 @@ Restoring appends a new version; existing history is always kept.</translation>
         <translation>Field history…</translation>
     </message>
     <message>
-        <location line="+25"/>
+        <location line="+32"/>
         <source>重命名…</source>
         <translation>Rename…</translation>
     </message>
@@ -904,13 +1006,13 @@ Restoring appends a new version; existing history is always kept.</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location line="+238"/>
-        <location line="+605"/>
+        <location filename="../src/mainwindow_snapshots.cpp" line="+7"/>
+        <location filename="../src/mainwindow_versions.cpp" line="-377"/>
         <source>恢复</source>
         <translation>Resume</translation>
     </message>
     <message>
-        <location line="-819"/>
+        <location line="+45"/>
         <source>本地素材库：%1 · 编辑工作副本后自动记录稳定变化</source>
         <translation>Local library: %1 · stable changes to working copies are recorded automatically</translation>
     </message>
@@ -955,12 +1057,12 @@ Restoring appends a new version; existing history is always kept.</translation>
         <translation>Operation not completed</translation>
     </message>
     <message>
-        <location line="+140"/>
+        <location filename="../src/mainwindow_versions.cpp" line="-8"/>
         <source>未记录修改</source>
         <translation>Unrecorded changes</translation>
     </message>
     <message>
-        <location line="+411"/>
+        <location line="+265"/>
         <source>将覆盖当前工作副本：未记录的当前内容会先保存为保护版本。
 空间需求：约 %1 KiB（保护 %2 KiB + 写入 %3 KiB）。
 保护的是磁盘上已保存的内容；外部编辑器未写盘的内容不受保护，请先关闭编辑器。</source>
@@ -986,19 +1088,36 @@ Space needed: about %1 KiB.</translation>
         <translation>Cannot restore: %1</translation>
     </message>
     <message>
-        <location line="+4"/>
-        <location line="+455"/>
+        <location filename="../src/mainwindow_snapshots.cpp" line="+236"/>
+        <location filename="../src/mainwindow_versions.cpp" line="+4"/>
         <source>恢复预演</source>
         <translation>Restore preview</translation>
     </message>
     <message>
-        <location line="-447"/>
-        <location line="+451"/>
+        <location line="+4"/>
+        <location filename="../src/mainwindow_versions.cpp" line="+8"/>
         <source>确认恢复</source>
         <translation>Confirm restore</translation>
     </message>
     <message>
-        <location line="+110"/>
+        <location filename="../src/mainwindow_backup.cpp" line="+88"/>
+        <source>将导出一致备份包到：
+%1
+
+备份目标可写，可用空间约 %2。
+导出期间暂停写入；清单与对象全部校验通过后才写入完成标记。
+目标目录必须为空（不静默覆盖既有备份）。
+备份包不共享运行中索引，可移植到其他机器。</source>
+        <translation>A consistent backup package will be exported to:
+%1
+
+The target is writable with about %2 of free space.
+Writes pause during the export; the completion marker is written only after the manifest and every object verify.
+The target directory must be empty (an existing backup is never silently overwritten).
+The package does not share the live index and can be moved to another machine.</translation>
+    </message>
+    <message>
+        <location line="+48"/>
         <source>正在执行一致性检查（只读，后台进行）…</source>
         <translation>Running consistency check (read-only, in background)...</translation>
     </message>
@@ -1127,13 +1246,13 @@ No cleanup is performed: disk usage keeps growing with new versions.</translatio
     </message>
     <message>
         <location line="+2"/>
-        <location line="+53"/>
+        <location line="+69"/>
         <location line="+5"/>
         <source>恢复演练</source>
         <translation>Restore drill</translation>
     </message>
     <message>
-        <location line="-57"/>
+        <location line="-73"/>
         <source>将在独立目录完整恢复备份包并逐项核对：
 备份包：%1
 目标目录：%2
@@ -1151,7 +1270,7 @@ The original library is never overwritten; checks: empty-dir restore, content ha
         <translation>Running restore drill (in background)...</translation>
     </message>
     <message>
-        <location line="+45"/>
+        <location line="+61"/>
         <source>恢复演练失败：%1</source>
         <translation>Restore drill failed: %1</translation>
     </message>
@@ -1176,9 +1295,8 @@ The original library is never overwritten; checks: empty-dir restore, content ha
 Empty-dir restore, content hash, asset ID, version count and path were verified item by item.
 Drill directory: %2</translation>
     </message>
-    
     <message>
-        <location line="-1172"/>
+        <location filename="../src/mainwindow_versions.cpp" line="-290"/>
         <source>已固定</source>
         <translation>Pinned</translation>
     </message>
@@ -1212,9 +1330,8 @@ Drill directory: %2</translation>
         <source>固定原因：%1</source>
         <translation>Pin reason: %1</translation>
     </message>
-    
     <message>
-        <location line="+51"/>
+        <location filename="../src/mainwindow_metadata.cpp" line="-224"/>
         <source>已清除评分</source>
         <translation>Rating cleared</translation>
     </message>
@@ -1320,13 +1437,13 @@ Drill directory: %2</translation>
     </message>
     <message>
         <location line="+1"/>
-        <location line="+266"/>
-        <location line="+451"/>
+        <location filename="../src/mainwindow_snapshots.cpp" line="+1"/>
+        <location filename="../src/mainwindow_versions.cpp" line="+275"/>
         <source>取消</source>
         <translation>Cancel</translation>
     </message>
     <message>
-        <location line="-712"/>
+        <location line="+5"/>
         <source>已删除：%1（历史与对象保留，可从时间线恢复）</source>
         <translation>Deleted: %1 (history and objects retained, restorable from the timeline)</translation>
     </message>
@@ -1425,7 +1542,7 @@ Only this tag is removed; other tags are not affected.</translation>
         <translation>Removed tag %2 from %1 assets</translation>
     </message>
     <message>
-        <location line="+29"/>
+        <location filename="../src/mainwindow_versions.cpp" line="-228"/>
         <source>%1 MiB</source>
         <translation>%1 MiB</translation>
     </message>
@@ -1487,12 +1604,68 @@ The original file and history are fully preserved and can be exported.</translat
         <translation>Preview downsampled for display (decode size exceeded memory budget); source file unchanged</translation>
     </message>
     <message>
-        <location line="+13"/>
+        <location line="+5"/>
         <source>导入素材（保留原文件，创建工作副本）</source>
         <translation>Import assets (originals kept, working copies created)</translation>
     </message>
     <message>
-        <location line="+15"/>
+        <location line="+14"/>
+        <source>导入重复内容</source>
+        <translation>Duplicate content on import</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>以下文件的内容已在库中（相同内容共享对象，不会重复占用磁盘）：
+%1
+
+仍要作为独立素材导入吗？选择“否”跳过这些文件；选择“是”保留独立身份。</source>
+        <translation>The content of these files is already in the library (identical content shares one object and costs no extra disk space):
+%1
+
+Import them again as separate assets anyway? Choose "No" to skip these files; "Yes" keeps the separate identities.</translation>
+    </message>
+    <message>
+        <location line="+25"/>
+        <source>导入完成：新增 %1，跳过重复 %2</source>
+        <translation>Import finished: %1 added, %2 duplicates skipped</translation>
+    </message>
+    <message>
+        <location line="+13"/>
+        <source>重复扫描</source>
+        <translation>Duplicate scan</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>没有发现内容重复的素材。</source>
+        <translation>No assets with duplicate content were found.</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>重复素材扫描</source>
+        <translation>Duplicate asset scan</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>以下素材的最新内容相同（共享同一对象，不额外占磁盘）。选择每组保留的身份，其余以“合并去重”墓碑关闭；历史不删除。</source>
+        <translation>These assets have identical latest content (one shared object, no extra disk use). Pick the identity to keep in each group; the rest are closed with a "merged as duplicate" tombstone. History is never deleted.</translation>
+    </message>
+    <message>
+        <location line="+8"/>
+        <source>内容 %1…（%2 个素材，%3 字节）</source>
+        <translation>Content %1… (%2 assets, %3 bytes)</translation>
+    </message>
+    <message>
+        <location line="+7"/>
+        <source>保留素材</source>
+        <translation>Asset to keep</translation>
+    </message>
+    <message>
+        <location line="+31"/>
+        <source>重复合并完成：关闭 %1 个重复身份（历史保留）</source>
+        <translation>Duplicate merge finished: %1 duplicate identities closed (history kept)</translation>
+    </message>
+    <message>
+        <location line="+7"/>
         <source>版本说明</source>
         <translation>Version note</translation>
     </message>
@@ -1506,13 +1679,6 @@ The original file and history are fully preserved and can be exported.</translat
         <source>内容未变化（当前版本 #%1），无需重复保存</source>
         <translation>Content unchanged (current version #%1); nothing to save again</translation>
     </message>
-    
-    
-    
-    
-    
-    
-    
     <message>
         <location line="+97"/>
         <source>双版对比</source>
@@ -1549,7 +1715,7 @@ The original file and history are fully preserved and can be exported.</translat
         <translation>Sliding compare: drag the divider; Left/Right step it; [ / ] adjust the step; after zoom the divider stays on the same image coordinate.</translation>
     </message>
     <message>
-        <location line="+217"/>
+        <location filename="../src/mainwindow_metadata.cpp" line="+11"/>
         <source>字段历史</source>
         <translation>Field history</translation>
     </message>
@@ -1569,7 +1735,7 @@ The original file and history are fully preserved and can be exported.</translat
         <translation>(empty)</translation>
     </message>
     <message>
-        <location line="+27"/>
+        <location filename="../src/mainwindow_snapshots.cpp" line="-97"/>
         <source>还没有快照</source>
         <translation>No snapshots yet</translation>
     </message>
@@ -1657,24 +1823,44 @@ What is preserved is content already saved on disk; unsaved editor content is no
         <translation>Restore result</translation>
     </message>
     <message>
-        <location line="+54"/>
+        <location filename="../src/mainwindow_backup.cpp" line="-275"/>
         <source>选择备份目标目录（须为空或新目录）</source>
         <translation>Choose a backup target directory (must be empty or new)</translation>
     </message>
     <message>
-        <location line="+2"/>
+        <location line="+22"/>
+        <source>正在探测备份目标（后台进行，界面可继续操作）…</source>
+        <translation>Probing the backup target (in the background; the UI stays responsive)…</translation>
+    </message>
+    <message>
+        <location line="+8"/>
+        <source>备份目标不可用</source>
+        <translation>Backup target unavailable</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>所选备份目标不可写：
+%1
+
+%2</source>
+        <translation>The selected backup target is not writable:
+%1
+
+%2</translation>
+    </message>
+    <message>
+        <location line="+4"/>
         <source>导出备份包</source>
         <translation>Export Backup Package</translation>
     </message>
     <message>
-        <location line="+1"/>
         <source>将导出一致备份包到：
 %1
 
 导出期间暂停写入；清单与对象全部校验通过后才写入完成标记。
 目标目录必须为空（不静默覆盖既有备份）。
 备份包不共享运行中索引，可移植到其他机器。</source>
-        <translation>Will export a consistent backup package to:
+        <translation type="vanished">Will export a consistent backup package to:
 %1
 
 Writes are paused during the export; the completion marker is written only after every manifest object is copied and verified.
@@ -1682,12 +1868,12 @@ The target directory must be empty (existing backups are never silently overwrit
 The package does not share the running index and is portable to another machine.</translation>
     </message>
     <message>
-        <location line="+7"/>
+        <location line="+10"/>
         <source>正在导出备份包（后台进行，界面可继续操作）…</source>
         <translation>Exporting backup package (in background; the UI stays usable)…</translation>
     </message>
     <message>
-        <location line="+15"/>
+        <location line="+9"/>
         <source>备份包导出失败：%1</source>
         <translation>Backup package export failed: %1</translation>
     </message>
@@ -1696,31 +1882,8 @@ The package does not share the running index and is portable to another machine.
         <source>备份包已导出：%1（%2 个素材，%3 个对象，约 %4 KiB；完成标记已写入）</source>
         <translation>Backup package exported: %1 (%2 assets, %3 objects, about %4 KiB; completion marker written)</translation>
     </message>
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
     <message>
-        <location line="+203"/>
+        <location filename="../src/mainwindow_sources.cpp" line="-57"/>
         <source>挂载来源状态</source>
         <translation>Mounted Source Status</translation>
     </message>
@@ -1770,12 +1933,53 @@ The package does not share the running index and is portable to another machine.
         <translation>Import New</translation>
     </message>
     <message>
-        <location line="+10"/>
+        <location line="+12"/>
+        <location line="+48"/>
+        <source>备份目标能力：尚未选择</source>
+        <translation>Backup target capability: none selected yet</translation>
+    </message>
+    <message>
+        <location line="-46"/>
+        <source>备份目标能力</source>
+        <translation>Backup target capability</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>可选的备份目标目录（可为新目录）</source>
+        <translation>Optional backup target directory (may be a new one)</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>备份目标路径</source>
+        <translation>Backup target path</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>选择目标…</source>
+        <translation>Choose target…</translation>
+    </message>
+    <message>
+        <location line="+6"/>
         <source>重试</source>
         <translation>Retry</translation>
     </message>
     <message>
+        <location line="+25"/>
+        <source>备份目标能力：可写，可用空间约 %1 MiB</source>
+        <translation>Backup target capability: writable, about %1 MiB free</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>备份目标能力：%1</source>
+        <translation>Backup target capability: %1</translation>
+    </message>
+    <message>
         <location line="+15"/>
+        <source>备份目标能力：正在探测…</source>
+        <translation>Backup target capability: probing…</translation>
+    </message>
+    <message>
+        <location line="+16"/>
         <source>连接中：%1</source>
         <translation>Connecting: %1</translation>
     </message>
@@ -1807,7 +2011,12 @@ The package does not share the running index and is portable to another machine.
         <translation>Select a mounted source directory</translation>
     </message>
     <message>
-        <location line="+12"/>
+        <location line="+10"/>
+        <source>选择备份目标目录</source>
+        <translation>Choose the backup target directory</translation>
+    </message>
+    <message>
+        <location line="+10"/>
         <source>正在扫描来源并与库对照…</source>
         <translation>Scanning the source against the library…</translation>
     </message>
@@ -1858,12 +2067,37 @@ The package does not share the running index and is portable to another machine.
         <translation>Import complete:
 %1</translation>
     </message>
-    
-    
-    
-    
     <message>
-        <location line="-881"/>
+        <location line="+16"/>
+        <source>选择要索引的外部目录（不复制、不修改文件）</source>
+        <translation>Choose an external directory to index (nothing is copied or modified)</translation>
+    </message>
+    <message>
+        <location line="+17"/>
+        <source>无法索引该目录</source>
+        <translation>The directory cannot be indexed</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>目录不可读或位于素材库内部。</source>
+        <translation>The directory is unreadable or lies inside the library.</translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <source>外部目录索引</source>
+        <translation>External directory index</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>已索引 %1 个文件（仅读取，未复制、未修改来源）。
+目录：%2
+记录共 %3 条，其中缺失 %4 条。</source>
+        <translation>Indexed %1 files (read-only; nothing copied, nothing modified).
+Directory: %2
+%3 records in total, %4 of them missing.</translation>
+    </message>
+    <message>
+        <location filename="../src/mainwindow_versions.cpp" line="-76"/>
         <location line="+5"/>
         <source>导出历史版本</source>
         <translation>Export revision</translation>
@@ -1876,12 +2110,12 @@ The package does not share the running index and is portable to another machine.
 Overwrite?</translation>
     </message>
     <message>
-        <location line="+97"/>
+        <location filename="../src/mainwindow_sources.cpp" line="-302"/>
         <source>自动记录失败：%1</source>
         <translation>Auto-record failed: %1</translation>
     </message>
     <message>
-        <location line="+54"/>
+        <location filename="../src/mainwindow_snapshots.cpp" line="-258"/>
         <source>暂停定时快照</source>
         <translation>Pause scheduled snapshots</translation>
     </message>
@@ -1965,7 +2199,7 @@ Overwrite?</translation>
         <translation>Cannot remove exclusion rule</translation>
     </message>
     <message>
-        <location line="+50"/>
+        <location line="+15"/>
         <source>紧急快照失败：%1</source>
         <translation>Emergency snapshot failed: %1</translation>
     </message>
@@ -2027,30 +2261,16 @@ Close external editors, then roll back via &quot;Restore revision&quot; or &quot
         <source>（此快照没有条目）</source>
         <translation>(this snapshot has no entries)</translation>
     </message>
-    
-    
-    
-    
-    
-    
-    
     <message>
         <location line="+39"/>
         <source>· %1 —— %2</source>
         <translation>· %1 —— %2</translation>
     </message>
-    
-    
-    
-    
-    
-    
     <message>
         <location line="+35"/>
         <source>还没有紧急快照锚点</source>
         <translation>No emergency snapshot anchor yet</translation>
     </message>
-    
     <message>
         <location line="+16"/>
         <source>选择感染前锚点（回滚形成新版本，不销毁后续历史）</source>
@@ -2089,7 +2309,7 @@ Close all external editors first.</translation>
         <translation>Unreadable (skipped, can retry): %1</translation>
     </message>
     <message>
-        <location line="+46"/>
+        <location line="+50"/>
         <source>读取失败（可重试）：%1</source>
         <translation>Read failed (retryable): %1</translation>
     </message>
@@ -2133,6 +2353,36 @@ Close all external editors first.</translation>
         <location line="+4"/>
         <source>来源存在但当前不可读（权限不足或挂载异常）。</source>
         <translation>The source exists but cannot be read right now (insufficient permissions or a mount error).</translation>
+    </message>
+    <message>
+        <location filename="../src/storage.cpp" line="+83"/>
+        <source>备份目标目录不能为空</source>
+        <translation>Backup target directory must not be empty</translation>
+    </message>
+    <message>
+        <location line="+9"/>
+        <source>备份目标不可达：%1</source>
+        <translation>The backup target is unreachable: %1</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>备份目标必须是目录：%1</source>
+        <translation>The backup target must be a directory: %1</translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>备份目标不可读：%1</source>
+        <translation>The backup target is unreadable: %1</translation>
+    </message>
+    <message>
+        <location line="+5"/>
+        <source>备份目标只读（无写权限或只读挂载）：%1</source>
+        <translation>The backup target is read-only (no write permission or a read-only mount): %1</translation>
+    </message>
+    <message>
+        <location line="+10"/>
+        <source>备份目标所在卷只读：%1</source>
+        <translation>The volume holding the backup target is read-only: %1</translation>
     </message>
 </context>
 </TS>

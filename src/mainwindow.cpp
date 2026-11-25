@@ -98,6 +98,7 @@ MainWindow::MainWindow(Library &library) : library_(library), thumbnails_(librar
     moreMenu->addAction(tr("索引外部目录…"), this, &MainWindow::indexExternalDirectory);
     moreMenu->addAction(tr("导出备份包…"), this, &MainWindow::exportBackup);
     moreMenu->addAction(tr("一致性检查…"), this, &MainWindow::checkConsistency);
+    moreMenu->addAction(tr("重复素材扫描…"), this, &MainWindow::scanDuplicates);
     moreMenu->addAction(tr("空间预演…"), this, &MainWindow::showSpacePreview);
     moreMenu->addAction(tr("恢复演练…"), this, &MainWindow::restoreBackupDrill);
     auto *moreAction = toolbar->addAction(QIcon(), tr("更多"));

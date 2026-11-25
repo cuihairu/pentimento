@@ -13,6 +13,7 @@
 
 #include <QCryptographicHash>
 #include <QDateTime>
+#include <algorithm>
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
@@ -360,6 +361,42 @@ bool Library::hasContent(const QString &hexHash) const {
     q.addBindValue(hexHash);
     execute(q);
     return q.next() && q.value(0).toInt() > 0;
+}
+
+QVector<Library::DuplicateGroup> Library::duplicateGroups() const {
+    // Read-only: group LIVE assets by the hash of their latest content
+    // revision. Content-addressed storage already shares the object, so this
+    // reports redundant *identities* rather than wasted bytes. Tombstoned
+    // assets and revisions are deliberately absent — they are history, not
+    // a live duplicate the user needs to collapse.
+    const auto live = assets();
+    QHash<QString, DuplicateGroup> byHash;
+    for (const auto &asset : live) {
+        const auto history = revisions(asset.id);
+        if (history.isEmpty()) continue;
+        const auto &tip = history.first();
+        if (tip.hash.isEmpty() || tip.tombstone) continue;
+        auto &group = byHash[tip.hash];
+        if (group.hash.isEmpty()) {
+            group.hash = tip.hash;
+            group.size = tip.size;
+        }
+        group.assets.push_back(asset);
+    }
+    QVector<DuplicateGroup> result;
+    for (auto &group : byHash) {
+        if (group.assets.size() < 2) continue;
+        std::sort(group.assets.begin(), group.assets.end(),
+                  [](const Asset &a, const Asset &b) {
+                      return a.logicalPath() != b.logicalPath()
+                          ? a.logicalPath() < b.logicalPath() : a.id < b.id;
+                  });
+        result.push_back(group);
+    }
+    std::sort(result.begin(), result.end(), [](const DuplicateGroup &a, const DuplicateGroup &b) {
+        return a.hash < b.hash;
+    });
+    return result;
 }
 
 
