@@ -646,6 +646,9 @@ private slots:
         QCOMPARE(calls, 1);
         QCOMPARE(lastPercent, 0);
         // An unreadable object is an I/O error: present, right size, unopenable.
+        // The store hardens objects on import (macOS: an immutable flag makes
+        // the chmod below fail with EPERM); undo that before simulating the fault.
+        QVERIFY(platform::makeMutable(library.objectPath(hash)));
         QVERIFY(::chmod(library.objectPath(hash).toLocal8Bit().constData(), 0000) == 0);
         const auto io = library.checkConsistency({});
         QCOMPARE(io.ioErrors.size(), 1);
