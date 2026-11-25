@@ -58,7 +58,12 @@ qint64 Library::addExternalRoot(const QString &path) {
     // The index must describe a tree OUTSIDE the library: a root inside the
     // library would double-count content the catalog already owns and blur
     // the import/index boundary.
-    if (canonical == root_ || canonical.startsWith(root_ + QLatin1Char('/')))
+    // Compare canonical against canonical: root_ keeps the user's path as
+    // given (absolutePath only), which on macOS can differ from the canonical
+    // form through /var-style symlinks and silently defeat the containment
+    // check. The library root exists by the time a root can be registered.
+    const QString rootCanonical = QDir(root_).canonicalPath();
+    if (canonical == rootCanonical || canonical.startsWith(rootCanonical + QLatin1Char('/')))
         fail(tr("外部目录不能位于素材库内部：%1").arg(path));
     QSqlQuery check(db());
     check.prepare(QStringLiteral("SELECT id FROM external_roots WHERE path=?"));
