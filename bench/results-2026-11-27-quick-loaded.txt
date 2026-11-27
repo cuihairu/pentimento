@@ -1,0 +1,43 @@
+D-20 quick tier (~5 GiB) — DISCARDED run, loaded machine, 2026-11-27.
+Harness: bench/bench_matrix.cpp with gen-quick/bench-quick (NOT in ctest).
+Generation: 1,036 files / 5,198.1 MiB (5.08 GiB) under bench/run-quick/src
+(gitignored), counts scaled 0.4 from the full tier (200 per bitmap family,
+8 large PNG, 8 PSD, 20 ZIP; same per-file sizes) + the 7 damaged samples.
+WHY DISCARDED: load average was 24-60 during the run (other concurrent
+sessions running vitepress/vitest/pyright/persona builds), versus 8-14 in
+the earlier full-tier runs. Even the previously stable combined filter and
+restore thresholds flipped to MISS under this load; these numbers are NOT
+valid comparison evidence. Kept only to document that a loaded rerun was
+attempted and rejected. A clean rerun is pending machine availability.
+
+== environment ==
+cpu: Intel(R) Core(TM) i9-10880H CPU @ 2.30GHz | qt 6.10.2 | fs ext4  | free 583743.5 MiB (570.06 GiB)
+== import ==
+  imported 1043/1043 files, 5198.3 MiB (5.08 GiB) in 604.8 s
+    WEBP      100 MiB @     2.9 MiB/s
+    PNG       539 MiB @     4.8 MiB/s
+    BMP       399 MiB @     4.4 MiB/s
+    JPG       200 MiB @     5.5 MiB/s
+    TGA       885 MiB @     8.4 MiB/s
+    ZIP      2560 MiB @    14.4 MiB/s
+    PSD       512 MiB @    11.0 MiB/s
+  import throughput                                 8.6 MiB/s (threshold >= 100) -> MISS
+== thumbnails ==
+qt.gui.imageio.jpeg: Corrupt JPEG data: premature end of data segment
+libpng error: Read Error
+  405 thumbnails in 46.7 s
+  thumbnail rate                                  520.8 /min (threshold >= 512) -> PASS
+== name search ==
+  120 queries over 1043 assets
+  name search P95                                 710.0 ms   (threshold < 200) -> MISS
+== combined filter ==
+  combined filter P95                             587.0 ms   (threshold < 500) -> MISS
+== timeline ==
+  101 revisions, 20 opens
+  timeline open P95                                 2.0 ms   (threshold < 500) -> PASS
+== snapshot ==
+  1043 assets, content unchanged
+  whole-library snapshot                        74859.0 ms   (threshold < 10000) -> MISS
+== restore ==
+  55.0 MiB written + verified
+  restore 64 MiB                                 4193.0 ms   (threshold < 3000) -> MISS

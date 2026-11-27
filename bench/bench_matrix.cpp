@@ -3,7 +3,12 @@
 // NOT part of ctest — a benchmark is not a unit test and takes minutes.
 //
 //   cmake --build build --target pentimento_bench_matrix
-//   ./build/pentimento_bench_matrix <workdir> [gen-only|bench-only]
+//   ./build/pentimento_bench_matrix <workdir> [gen-only|bench-only|gen-quick|bench-quick]
+//
+// D-20 defines two tiers: the full matrix (default) and a quick tier scaled
+// to ~5 GiB ("数量/尺寸按比例缩减") — both covering the five bitmap families,
+// PSD degradation and damaged samples. Use a separate workdir per tier; the
+// generator names files identically, so one directory holds one tier.
 //
 // Generation is deterministic (fixed-seed xorshift noise) and idempotent: an
 // existing matrix with the right file count is reused. The library under
@@ -265,7 +270,8 @@ struct Matrix {
     }
 };
 
-bool generateMatrix(const QString &src)
+bool generateMatrix(const QString &src, int bitmapCount, int largeCount,
+                    int psdCount, int zipCount)
 {
     QDir().mkpath(src);
     Matrix m;
@@ -273,8 +279,8 @@ bool generateMatrix(const QString &src)
         v.push_back({path, QFileInfo(path).size()});
     };
 
-    // PNG 500 @512 KiB (透明/不透明各半): 512x512 noise ≈ 512 KiB as PNG.
-    for (int i = 0; i < 500; ++i) {
+    // PNG bitmapCount @512 KiB (透明/不透明各半): 512x512 noise ≈ 512 KiB as PNG.
+    for (int i = 0; i < bitmapCount; ++i) {
         const bool alpha = (i % 2 == 0);
         const QString p = src + QStringLiteral("/png-%1.png").arg(i, 4, 10, QLatin1Char('0'));
         if (!fileOk(p))
@@ -282,17 +288,17 @@ bool generateMatrix(const QString &src)
         add(m.png, p);
     }
 
-    // JPEG 500 @1 MiB: 2048x2048 noise is lossy-incompressible → ~1 MiB.
-    for (int i = 0; i < 500; ++i) {
+    // JPEG bitmapCount @1 MiB: 2048x2048 noise is lossy-incompressible → ~1 MiB.
+    for (int i = 0; i < bitmapCount; ++i) {
         const QString p = src + QStringLiteral("/jpeg-%1.jpg").arg(i, 4, 10, QLatin1Char('0'));
         if (!fileOk(p))
             writeNoiseImage(p, 2048, 2048, "JPEG", 1024 * 1024, false);
         add(m.jpeg, p);
     }
 
-    // WebP 500 @512 KiB (lossy half / lossless half; noise is incompressible
-    // for both, so the encoder output tracks the pixel count).
-    for (int i = 0; i < 500; ++i) {
+    // WebP bitmapCount @512 KiB (lossy half / lossless half; noise is
+    // incompressible for both, so the encoder output tracks the pixel count).
+    for (int i = 0; i < bitmapCount; ++i) {
         const bool lossless = (i % 2 == 0);
         const QString p = src + QStringLiteral("/webp-%1.webp").arg(i, 4, 10, QLatin1Char('0'));
         if (!fileOk(p))
@@ -300,10 +306,10 @@ bool generateMatrix(const QString &src)
         add(m.webp, p);
     }
 
-    // TGA 500 @2 MiB (raw / RLE 各半): 2048x2048x3 = 12 MiB raw — overshoots;
-    // 1152x1152x3 ≈ 4 MiB. TGA has no Qt writer, so writeTga takes fixed dims
-    // and lands within ±30% of target.
-    for (int i = 0; i < 500; ++i) {
+    // TGA bitmapCount @2 MiB (raw / RLE 各半): 2048x2048x3 = 12 MiB raw —
+    // overshoots; 1152x1152x3 ≈ 4 MiB. TGA has no Qt writer, so writeTga
+    // takes fixed dims and lands within ±30% of target.
+    for (int i = 0; i < bitmapCount; ++i) {
         const bool rle = (i % 2 == 0);
         const QString p = src + QStringLiteral("/tga-%1.tga").arg(i, 4, 10, QLatin1Char('0'));
         if (!fileOk(p))
@@ -311,34 +317,35 @@ bool generateMatrix(const QString &src)
         add(m.tga, p);
     }
 
-    // BMP 500 @2 MiB (uncompressed): 2048x2048x3 = 12 MiB raw — overshoots;
-    // 1024x1024x3 = 3 MiB, use 1024x1024 → ~3 MiB, within tolerance.
-    for (int i = 0; i < 500; ++i) {
+    // BMP bitmapCount @2 MiB (uncompressed): 2048x2048x3 = 12 MiB raw —
+    // overshoots; 1024x1024x3 = 3 MiB, use 1024x1024 → ~3 MiB, within tolerance.
+    for (int i = 0; i < bitmapCount; ++i) {
         const QString p = src + QStringLiteral("/bmp-%1.bmp").arg(i, 4, 10, QLatin1Char('0'));
         if (!fileOk(p))
             writeNoiseImage(p, 1024, 1024, "BMP", 2 * 1024 * 1024, false);
         add(m.bmp, p);
     }
 
-    // 大图 PNG 20 @64 MiB: 8192x8192 noise ≈ 256 MiB; scale factor sqrt(64/256) = 0.5
-    // → 4096x4096 noise ≈ 64 MiB.
-    for (int i = 0; i < 20; ++i) {
+    // 大图 PNG largeCount @64 MiB: 8192x8192 noise ≈ 256 MiB; scale factor
+    // sqrt(64/256) = 0.5 → 4096x4096 noise ≈ 64 MiB.
+    for (int i = 0; i < largeCount; ++i) {
         const QString p = src + QStringLiteral("/big-%1.png").arg(i, 2, 10, QLatin1Char('0'));
         if (!fileOk(p))
             writeNoiseImage(p, 4096, 4096, "PNG", 64 * 1024 * 1024, false);
         add(m.largePng, p);
     }
 
-    // PSD 20 @64 MiB (structurally valid, noise RGBA 8192x8192 = 256 MiB; need 64 MiB → 4096x4096).
-    for (int i = 0; i < 20; ++i) {
+    // PSD psdCount @64 MiB (structurally valid, noise RGBA 8192x8192 = 256 MiB;
+    // need 64 MiB → 4096x4096).
+    for (int i = 0; i < psdCount; ++i) {
         const QString p = src + QStringLiteral("/psd-%1.psd").arg(i, 2, 10, QLatin1Char('0'));
         if (!fileOk(p))
             writePsd(p, 4096, 4096);
         add(m.psd, p);
     }
 
-    // ZIP/other 50 @128 MiB: stored ZIP (uncompressed, valid CRC32).
-    for (int i = 0; i < 50; ++i) {
+    // ZIP/other zipCount @128 MiB: stored ZIP (uncompressed, valid CRC32).
+    for (int i = 0; i < zipCount; ++i) {
         const QString p = src + QStringLiteral("/other-%1.zip").arg(i, 2, 10, QLatin1Char('0'));
         if (!fileOk(p))
             writeZipStored(p, QStringLiteral("payload.bin"), 128 * 1024 * 1024);
@@ -690,15 +697,25 @@ int main(int argc, char **argv)
     setvbuf(stdout, nullptr, _IOLBF, 0);
     QCoreApplication app(argc, argv);
     if (argc < 2) {
-        fprintf(stderr, "usage: %s <workdir> [gen-only|bench-only]\n", argv[0]);
+        fprintf(stderr, "usage: %s <workdir> [gen-only|bench-only|gen-quick|bench-quick]\n", argv[0]);
         return 2;
     }
     const QString workdir = QDir(QString::fromUtf8(argv[1])).absolutePath();
     const QString mode = argc >= 3 ? QString::fromUtf8(argv[2]) : QString();
+    const bool quick = mode.contains(QStringLiteral("quick"));
+    // Full tier = draft matrix (500/20/20/50). Quick tier (D-20, ~5 GiB):
+    // counts scaled by 0.4, per-file sizes unchanged, same coverage floor —
+    // five bitmap families, PSD degradation (8 PSDs + 2 damaged PSD cases),
+    // large PNGs and ZIPs.
+    const int bitmapCount = quick ? 200 : 500;
+    const int largeCount  = quick ? 8   : 20;
+    const int psdCount    = quick ? 8   : 20;
+    const int zipCount    = quick ? 20  : 50;
     try {
-        if (mode != QStringLiteral("bench-only"))
-            generateMatrix(workdir + QStringLiteral("/src"));
-        if (mode != QStringLiteral("gen-only"))
+        if (mode != QStringLiteral("bench-only") && mode != QStringLiteral("bench-quick"))
+            generateMatrix(workdir + QStringLiteral("/src"),
+                           bitmapCount, largeCount, psdCount, zipCount);
+        if (mode != QStringLiteral("gen-only") && mode != QStringLiteral("gen-quick"))
             return runBench(workdir);
     } catch (const std::exception &e) {
         fprintf(stderr, "bench failed: %s\n", e.what());
