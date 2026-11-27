@@ -128,7 +128,7 @@ int main(int argc, char **argv) {
         if (timer->isActive()) appTimers << timer;
     printf("  %d active MainWindow timers (change scan / sentinel)\n", appTimers.size());
 
-    const auto runQueries = [&](bool timersOn) {
+    const auto runQueries = [&](bool timersOn, int count, bool report) {
         for (QTimer *timer : appTimers) {
             if (timersOn) timer->start();
             else timer->stop();
@@ -136,17 +136,20 @@ int main(int argc, char **argv) {
         QCoreApplication::processEvents(QEventLoop::AllEvents);
         tickDelays.clear();
         lastTick.restart();
+        std::vector<double> filterTimes;
         std::vector<double> waits;
         std::vector<double> visible;
-        for (int i = 0; i < queries; ++i) {
+        for (int i = 0; i < count; ++i) {
             const QString query = (i % 4 == 3)
                 ? QStringLiteral("zzz-no-such-")
                 : probes[size_t(i) % probes.size()];
             QElapsedTimer t;
             t.start();
             search->setText(query);      // textChanged -> MainWindow::applyFilter
+            // setText returns after the direct-connected applyFilter has run, so
+            // this isolates the filter/show-hide cost from event-loop work.
+            filterTimes.push_back(double(t.elapsed()));
             QCoreApplication::processEvents(QEventLoop::AllEvents);
-            list->repaint();             // include paint of the updated list
             waits.push_back(double(t.elapsed()));
             int hits = 0;
             for (int row = 0; row < list->count(); ++row)
@@ -155,11 +158,13 @@ int main(int argc, char **argv) {
             // Give the ticker a short window so thread stalls are observable.
             QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
         }
-        printf("== end-to-end search (%s, real UI, cached facts) ==\n",
+        if (!report) return;
+        printf("== end-to-end filter change (%s, real UI, cached facts) ==\n",
                timersOn ? "full app" : "isolated");
-        printf("  %d queries over %d assets\n", queries, list->count());
-        printf("  keystroke-to-display average            %7.1f ms\n", average(waits));
-        printf("  keystroke-to-display P95                %7.1f ms (draft budget < 200) -> %s\n",
+        printf("  %d queries over %d assets\n", count, list->count());
+        printf("  filter apply P95                        %7.1f ms\n",
+               percentile95(filterTimes));
+        printf("  filter change to settled UI P95         %7.1f ms (draft budget < 200) -> %s\n",
                percentile95(waits), percentile95(waits) < 200.0 ? "PASS" : "MISS");
         printf("  visible results per query (avg/min/max) %7.1f / %d / %d\n",
                average(visible), int(*std::min_element(visible.begin(), visible.end())),
@@ -171,10 +176,14 @@ int main(int argc, char **argv) {
                    *std::max_element(tickDelays.begin(), tickDelays.end()));
     };
 
-    runQueries(false); // search path alone
+    // Warm both paths first, then measure full app before isolated so a single
+    // sequential order cannot make the second pass look systematically faster.
+    runQueries(true, 10, false);
+    runQueries(true, queries, true);
     std::vector<double>().swap(tickDelays);
-    runQueries(true);  // real app: periodic maintenance competes with typing
+    runQueries(false, queries, true);
     ticker.stop();
+    printf("note: window is offscreen and never shown; paint cost is not included.\n");
     printf("  (no draft threshold for tick delay; budget awaits user approval)\n");
     return 0;
 }

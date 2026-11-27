@@ -1,0 +1,51 @@
+P-004 / D-23 evidence — UI search wait, third run with warm-up and separated cost,
+2026-11-27. Supersedes results-2026-11-27-ui.txt for the UI numbers: the earlier
+run counted event-loop and teardown time as "keystroke-to-display" and used no
+warm-up, so its averages/P95 were order-of-magnitude only.
+
+Harness: bench/bench_ui.cpp (pentimento_bench_ui; NOT registered with ctest).
+Change vs previous run:
+  - 10 warm-up queries before each measured pass;
+  - full-app pass runs BEFORE the isolated pass (earlier order favored the second);
+  - reports setText->applyFilter-return ("filter apply") separately from
+    setText->settled UI ("filter change to settled UI");
+  - window is never shown (offscreen), so paint cost is not included.
+Commands:
+  cmake --build --preset dev --target pentimento_bench_ui
+  QT_QPA_PLATFORM=offscreen ./build/dev/pentimento_bench_ui bench/run/lib 120
+
+startup (open library + reload assets) 90.9 s
+2590 assets in list
+  2 active MainWindow timers (change scan / sentinel)
+== end-to-end filter change (full app, real UI, cached facts) ==
+  120 queries over 2590 assets
+  filter apply P95                         2975.0 ms
+  filter change to settled UI P95          4144.0 ms (draft budget < 200) -> MISS
+  visible results per query (avg/min/max)    14.2 / 0 / 100
+  timer ticks observed                    130
+  tick delay P95 / max                     4113.0 / 21877.0 ms
+== end-to-end filter change (isolated, real UI, cached facts) ==
+  120 queries over 2590 assets
+  filter apply P95                         1452.0 ms
+  filter change to settled UI P95          1452.0 ms (draft budget < 200) -> MISS
+  visible results per query (avg/min/max)    14.2 / 0 / 100
+  timer ticks observed                    74
+  tick delay P95 / max                     1599.0 /  2063.0 ms
+note: window is offscreen and never shown; paint cost is not included.
+  (no draft threshold for tick delay; budget awaits user approval)
+
+Interpretation:
+- Even with warm-up, no paint, and facts cached on reload, the full-app
+  filter-change P95 is 4.1 s and the isolated path is 1.5 s — both far
+  above the draft 200 ms budget. The dominant cost is the synchronous
+  show/hide of 2,590 QListWidget items in applyFilter; the 2 s change-scan
+  timer adds further stalls in the full-app pass (filter apply P95 3.0 s vs
+  1.5 s isolated).
+- The previous run's numbers (1.6-2.7 s) are retained in
+  results-2026-11-27-ui.txt as an earlier estimate; this file is the
+  methodologically cleaner measurement.
+- D-23's request for user-visible wait and UI responsiveness is satisfied
+  with measured numbers, but whether to keep the 200 ms budget, optimize
+  applyFilter, or accept a larger budget remains a user decision. P-004
+  stays unchecked.
+See docs/zh/performance.md for the interpreted record.
