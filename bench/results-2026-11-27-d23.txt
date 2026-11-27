@@ -1,0 +1,51 @@
+P-004 / D-23 evidence — third run, 2026-11-27, with D-23's minimum sample size.
+Harness: bench/bench_matrix.cpp (pentimento_bench_matrix; NOT registered with ctest).
+Change vs earlier runs: search and combined-filter conditions now issue 120 queries
+each (D-23: "搜索建议每条件至少100次再算95%请求的响应时间"); earlier runs used 60.
+Commands:
+  cmake --build --preset dev --target pentimento_bench_matrix
+  ./build/dev/pentimento_bench_matrix bench/run bench-only
+
+matrix: 2590 files, 12995.2 MiB (12.69 GiB)
+== environment ==
+cpu: Intel(R) Core(TM) i9-10880H CPU @ 2.30GHz | qt 6.10.2 | fs ext4  | free 512786.3 MiB (500.77 GiB)
+== import ==
+  imported 2590/2590 files, 12995.2 MiB (12.69 GiB) in 424.5 s
+    BMP       999 MiB @    14.7 MiB/s
+    ZIP      6400 MiB @    42.1 MiB/s
+    PSD      1280 MiB @    33.6 MiB/s
+    PNG      1349 MiB @    33.6 MiB/s
+    JPG       500 MiB @    21.2 MiB/s
+    TGA      2214 MiB @    25.2 MiB/s
+    WEBP      250 MiB @    17.1 MiB/s
+  import throughput                                30.6 MiB/s (threshold >= 100) -> MISS
+== thumbnails ==
+  1000 thumbnails in 33.8 s
+  thumbnail rate                                 1775.6 /min (threshold >= 512) -> PASS
+== name search ==
+  120 queries over 2590 assets
+  name search P95                                 425.0 ms   (threshold < 200) -> MISS
+== combined filter ==
+  combined filter P95                             463.0 ms   (threshold < 500) -> PASS
+== timeline ==
+  101 revisions, 20 opens
+  timeline open P95                                 1.0 ms   (threshold < 500) -> PASS
+== snapshot ==
+  2590 assets, content unchanged
+  whole-library snapshot                       116851.0 ms   (threshold < 10000) -> MISS
+== restore ==
+  55.0 MiB written + verified
+  restore 64 MiB                                 2718.0 ms   (threshold < 3000) -> PASS
+
+Notes:
+- Verdicts are unchanged from the 60-query runs: three misses (import, name search,
+  snapshot) persist with the D-23 sample size.
+- This run's import throughput (30.6 MiB/s) was lower than the idle re-run
+  (39.8 MiB/s) though the machine looked idle; the matrix is 6.4 GiB of stored ZIP
+  plus 2,540 small files, and per-file fixed costs dominate. Run-to-run spread is
+  ~30%; all three import runs stay far below the 100 MiB/s threshold.
+- Snapshot is now ~117 s (vs ~125 s in the earlier two runs); still ~12x over the
+  10 s threshold, consistent with unconditional streaming hash of all 12.69 GiB.
+- Restore 2718 ms is within the 3 s threshold but close; note the sample writes
+  55.0 MiB (largest asset in the generated matrix), not exactly 64 MiB.
+See docs/zh/performance.md for the interpreted record.

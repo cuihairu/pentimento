@@ -519,9 +519,10 @@ int runBench(const QString &workdir)
     };
 
     // --- 4. name search P95 ----------------------------------------------------
+    // D-23: "搜索建议每条件至少100次再算95%" — 120 queries per condition.
     printf("== name search ==\n");
     std::vector<double> searchMs;
-    for (int i = 0; i < 60; ++i) {
+    for (int i = 0; i < 120; ++i) {
         const Asset &probe = assets[size_t((i * 37) % n)];
         AssetFilter f;
         f.name = probe.name.left(6 + (i % 5)); // substrings that mostly hit
@@ -537,13 +538,13 @@ int runBench(const QString &workdir)
         (void)hits;
         searchMs.push_back(ms);
     }
-    printf("  60 queries over %d assets\n", n);
+    printf("  120 queries over %d assets\n", n);
     printVerdict("name search P95", percentile95(searchMs), "ms", 200.0, false);
 
     // --- 5. combined filter P95 ------------------------------------------------
     printf("== combined filter ==\n");
     std::vector<double> comboMs;
-    for (int i = 0; i < 60; ++i) {
+    for (int i = 0; i < 120; ++i) {
         const Asset &probe = assets[size_t((i * 53) % n)];
         AssetFilter f;
         f.name = probe.name.left(4 + (i % 4));
