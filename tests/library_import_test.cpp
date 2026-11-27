@@ -96,6 +96,41 @@ private slots:
         QCOMPARE(preview.alreadyImported(), 0);
         QVERIFY(!preview.candidates.first().hash.isEmpty());
     }
+    // D-20（P-004）: the "大于 256 MiB 的文件先测边界提示" chain — the import
+    // path must refuse a source beyond kMaxObjectBytes with the boundary
+    // message, not silently import it. (git/svn source caps and the
+    // emergency-anchor streaming path have their own tests.)
+    void importRefusesSourceBeyondCap() {
+        QTemporaryDir dir;
+        const QString source = dir.filePath("share");
+        QVERIFY(QDir().mkpath(source));
+        const QString big = source + "/big.bin";
+        {
+            QFile f(big);
+            QVERIFY(f.open(QIODevice::WriteOnly));
+            QByteArray chunk(1 << 20, 'y'); // 1 MiB
+            const qint64 total = 257LL * 1024 * 1024; // just over the cap
+            qint64 written = 0;
+            while (written < total) {
+                const qint64 n = qMin<qint64>(chunk.size(), total - written);
+                QCOMPARE(f.write(chunk.constData(), int(n)), int(n));
+                written += n;
+            }
+            f.close();
+        }
+        Library library(dir.filePath("library"));
+        bool threw = false;
+        try {
+            library.importFile(big);
+        } catch (const std::exception &e) {
+            threw = true;
+            QVERIFY(QString::fromUtf8(e.what())
+                        .contains(QStringLiteral("首版单文件上限为 256 MiB")));
+        }
+        QVERIFY(threw);
+        // Nothing was imported: the library stays empty.
+        QCOMPARE(library.assets().size(), 0);
+    }
     void rescanNeverSyncsRemoteChangesIntoLocalDeletions() {
         QTemporaryDir dir;
         const QString source = dir.filePath("share");
