@@ -141,5 +141,12 @@ if(BUILD_TESTING)
     set_tests_properties(desktop_keyboard_zoom PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()
 
+# P-004 evidence harness: generates the draft sample matrix (docs/zh/
+# performance.md) and measures the draft thresholds on this machine. Deliberately
+# NOT registered with ctest — it takes minutes and produces evidence for a user
+# decision, not a pass/fail unit test.
+add_executable(pentimento_bench_matrix bench/bench_matrix.cpp)
+target_link_libraries(pentimento_bench_matrix PRIVATE pentimento_core)
+
 include(GNUInstallDirs)
 install(TARGETS pentimento BUNDLE DESTINATION . RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
