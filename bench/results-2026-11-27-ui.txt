@@ -1,0 +1,47 @@
+P-004 / D-23 evidence — end-to-end search through the real MainWindow UI, 2026-11-27.
+Harness: bench/bench_ui.cpp (pentimento_bench_ui; NOT registered with ctest).
+Change vs earlier runs: the core harness (bench_matrix.cpp) times a cold fact
+rebuild per query; the UI caches facts on reload and hides/shows list items.
+D-23 explicitly asks for both the core measurement and "从操作到显示结果的用户
+等待时间与界面可响应性，给出预算供批准", so this run measures the latter through
+the real MainWindow search box.
+Commands:
+  cmake --build --preset dev --target pentimento_bench_ui
+  QT_QPA_PLATFORM=offscreen ./build/dev/pentimento_bench_ui bench/run/lib 120
+Sample library: bench/run/lib (2,590 assets, 12.69 GiB; see
+results-2026-11-27-d23.txt for the generated matrix).
+
+startup (open library + reload assets) 88.8 s
+2590 assets in list
+  2 active MainWindow timers (change scan / sentinel)
+== end-to-end search (isolated, real UI, cached facts) ==
+  120 queries over 2590 assets
+  keystroke-to-display average              342.8 ms
+  keystroke-to-display P95                 2678.0 ms (draft budget < 200) -> MISS
+  visible results per query (avg/min/max)    14.2 / 0 / 100
+  timer ticks observed                    74
+  tick delay P95 / max                     2731.0 /  2975.0 ms
+== end-to-end search (full app, real UI, cached facts) ==
+  120 queries over 2590 assets
+  keystroke-to-display average              274.0 ms
+  keystroke-to-display P95                 1585.0 ms (draft budget < 200) -> MISS
+  visible results per query (avg/min/max)    14.2 / 0 / 100
+  timer ticks observed                    114
+  tick delay P95 / max                     1473.0 /  2724.0 ms
+  (no draft threshold for tick delay; budget awaits user approval)
+
+Interpretation:
+- The user-visible wait is worse than the core measurement suggests: even with
+  cached facts, keystroke-to-display P95 is 1.6–2.7 s on this machine. The
+  dominant cost is the repaint of the 2,590-item list after every query, not
+  the in-memory filterMatches (which the core run times at ~400 ms including a
+  cold fact rebuild; cached facts make that part near-free).
+- D-23's "另测从操作到显示结果的用户等待时间与界面可响应性" is now answered with
+  measured numbers. The draft budget (<200 ms, search on 2,000+ assets) is
+  missed by the real UI path; whether to keep the budget, optimize the list
+  repaint (e.g. only update affected rows / defer repaint), or accept a larger
+  budget is a user decision — this file is evidence, not an approval.
+- Run-to-run variance is large (startup 88.8 s this run vs 171.1 s previously,
+  P95 varies ~1.6–2.7 s); the load profile on this machine is not clean, so
+  treat these as order-of-magnitude UI numbers, not exact budgets.
+See docs/zh/performance.md for the interpreted record.

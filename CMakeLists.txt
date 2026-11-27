@@ -148,5 +148,12 @@ endif()
 add_executable(pentimento_bench_matrix bench/bench_matrix.cpp)
 target_link_libraries(pentimento_bench_matrix PRIVATE pentimento_core)
 
+# P-004 / D-23 evidence: user-visible search wait through the real MainWindow
+# search box, plus a coarse UI-thread responsiveness probe. Also not a ctest
+# target; needs a prebuilt sample library with 2,000+ assets.
+add_executable(pentimento_bench_ui bench/bench_ui.cpp)
+target_include_directories(pentimento_bench_ui PRIVATE src src/ui)
+target_link_libraries(pentimento_bench_ui PRIVATE pentimento_ui Qt6::Widgets)
+
 include(GNUInstallDirs)
 install(TARGETS pentimento BUNDLE DESTINATION . RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
