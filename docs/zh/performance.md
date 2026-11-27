@@ -13,6 +13,8 @@ cmake --build --preset dev --target pentimento_bench_matrix
 # 测完可删除：rm -rf bench/run（已 gitignore，不进仓库）
 ```
 
+原始输出留档：`bench/results-2026-11-27.txt`（本表逐行来源，可直接复核）。
+
 环境：Intel i9-10880H（14 核），Qt 6.10.2，ext4/LVM，515 GiB 空闲。**注意：测量期间机器有并行编译负载（load avg 8–14），且进程有 ~9.5 GiB swap 在用，下列数字偏保守。** 样本矩阵按草案 8 类生成 2,590 个文件，实际 12,995 MiB（12.69 GiB，比草案名义 11,960 MiB 大 8.6%——噪声内容不可压缩，编码体积按像素数收敛到 ±30% 带内）。
 
 | 指标 | 阈值（草案） | 实测 | 结论 |
