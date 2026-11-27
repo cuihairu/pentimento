@@ -444,9 +444,34 @@ int runBench(const QString &workdir)
                 cpu = text.mid(colon + 2, eol - colon - 2).trimmed();
         }
     }
+    // D-21 asks that the baseline record CPU, RAM, disk, OS, Qt, plugins and
+    // cold/warm conditions; RAM and OS come from /proc and os-release.
+    QString mem = QStringLiteral("unknown");
+    QFile meminfo(QStringLiteral("/proc/meminfo"));
+    if (meminfo.open(QIODevice::ReadOnly)) {
+        const QString text = QString::fromUtf8(meminfo.readAll());
+        const int at = int(text.indexOf(QStringLiteral("MemTotal:")));
+        if (at >= 0) {
+            const int eol = int(text.indexOf(QLatin1Char('\n'), at));
+            bool ok = false;
+            const qint64 kb = text.mid(at + 9, eol - at - 9).trimmed().toLongLong(&ok);
+            if (ok)
+                mem = QStringLiteral("%1 GiB").arg(double(kb) / (1024.0 * 1024.0), 0, 'f', 1);
+        }
+    }
+    QString os = QStringLiteral("unknown");
+    QFile osrelease(QStringLiteral("/etc/os-release"));
+    if (osrelease.open(QIODevice::ReadOnly)) {
+        const QString text = QString::fromUtf8(osrelease.readAll());
+        const int at = int(text.indexOf(QStringLiteral("PRETTY_NAME=")));
+        if (at >= 0) {
+            const int eol = int(text.indexOf(QLatin1Char('\n'), at));
+            os = text.mid(at + 12, eol - at - 12).remove(QLatin1Char('"')).trimmed();
+        }
+    }
     const QStorageInfo storage(workdir);
-    printf("cpu: %s | qt %s | fs %s %s | free %s\n",
-           qPrintable(cpu), qVersion(),
+    printf("cpu: %s | ram %s | os %s | qt %s | fs %s %s | free %s\n",
+           qPrintable(cpu), qPrintable(mem), qPrintable(os), qVersion(),
            qPrintable(QString::fromUtf8(storage.fileSystemType())),
            qPrintable(storage.name()),
            qPrintable(mibGiB(storage.bytesFree())));
