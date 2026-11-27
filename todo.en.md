@@ -2,6 +2,8 @@
 
 [English](todo.en.md) | [简体中文](todo.md)
 
+**All pending user input is collected in the single-entry checklist at `docs/zh/review/2026-11-27-pending-decisions.md` (14 items, 2026-11-27).**
+
 **Status: P-015 approved (user delegated approval "approve p-015", 2026-11-01, per the 2026-10-14 delegated-authorization grant; approved scope is the delegated plan "local-core V1" in docs/zh/review/2026-10-30-decisions.md). Implementation tasks are unlocked per the delegated plan and developed one by one (check-off carries the commit hash); user review rounds P-012–P-014 await the user's central batch review (user order 2026-11-01: do not wait in real time). Experimental code is not accepted delivery.**
 
 Each task has one deliverable and an observable acceptance condition. See `docs/zh/requirements.md` and `docs/zh/integrations.md` for scope. Groups indicate dependencies, not work already started.
