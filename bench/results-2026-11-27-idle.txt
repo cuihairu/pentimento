@@ -1,0 +1,57 @@
+P-004 / D-21 evidence — second run, 2026-11-27 under near-idle machine conditions.
+Harness: bench/bench_matrix.cpp (pentimento_bench_matrix; NOT registered with ctest).
+Commands:
+  cmake --build --preset dev --target pentimento_bench_matrix   # already built
+  ./build/dev/pentimento_bench_matrix bench/run bench-only
+Purpose: the 2026-11-27 first run happened to overlap compile jobs (load avg 8-14,
+~9.5 GiB swap in use), so its three MISS results carried a "conservative" caveat.
+Re-measured with the same generated matrix and a fresh library to check whether the
+three misses are load artifacts.
+
+matrix: 2590 files, 12995.2 MiB (12.69 GiB)
+== environment ==
+cpu: Intel(R) Core(TM) i9-10880H CPU @ 2.30GHz | qt 6.10.2 | fs ext4  | free 515984.8 MiB (503.89 GiB)
+== import ==
+  imported 2590/2590 files, 12995.2 MiB (12.69 GiB) in 326.5 s
+    PNG      1349 MiB @    40.5 MiB/s
+    BMP       999 MiB @    36.6 MiB/s
+    PSD      1280 MiB @    52.9 MiB/s
+    WEBP      250 MiB @    24.6 MiB/s
+    TGA      2214 MiB @    40.0 MiB/s
+    JPG       500 MiB @    31.9 MiB/s
+    ZIP      6400 MiB @    39.9 MiB/s
+  import throughput                                 39.8 MiB/s (threshold >= 100) -> MISS
+== thumbnails ==
+  1000 thumbnails in 38.2 s
+  thumbnail rate                                 1572.6 /min (threshold >= 512) -> PASS
+== name search ==
+  60 queries over 2590 assets
+  name search P95                                 414.0 ms   (threshold < 200) -> MISS
+== combined filter ==
+  combined filter P95                             403.0 ms   (threshold < 500) -> PASS
+== timeline ==
+  101 revisions, 20 opens
+  timeline open P95                                 1.0 ms   (threshold < 500) -> PASS
+== snapshot ==
+  2590 assets, content unchanged
+  whole-library snapshot                       125411.0 ms   (threshold < 10000) -> MISS
+== restore ==
+  55.0 MiB written + verified
+  restore 64 MiB                                 2484.0 ms   (threshold < 3000) -> PASS
+
+Comparison with the first (loaded) run:
+  import       31.5 ->  39.8 MiB/s   still MISS (threshold 100)
+  thumbnails  1660.7 -> 1572.6 /min  PASS
+  name search  377 -> 414 ms          still MISS (threshold 200 ms)
+  combined      403 -> 403 ms         PASS
+  timeline      1.0 -> 1.0 ms         PASS
+  snapshot    126.4 -> 125.4 s        still MISS (threshold 10 s)
+  restore       2.5 ->  2.5 s         PASS (threshold 3 s)
+
+Conclusion: the three missed thresholds do NOT improve under near-idle conditions —
+import throughput rises ~26% and still lands at ~40 MiB/s (threshold 100), name
+search P95 is actually slightly worse at ~414 ms, and snapshot is unchanged at
+~125 s. The three misses are structural (per-file fixed costs, per-asset catalog
+queries, unconditional re-hashing of all working copies), not load artifacts. This
+strengthens the evidence base for the user's D-20–D-23 decision on P-004.
+See docs/zh/performance.md for the interpreted record.
