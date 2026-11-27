@@ -30,10 +30,13 @@ struct WorkerDb {
 // snapshot working-copy read, so a mounted source cannot OOM a worker thread.
 inline constexpr qint64 kMaxObjectBytes = 256LL * 1024 * 1024;
 
-// Stream a file through SHA-256 in bounded chunks (1 MiB) without ever loading
-// it whole. Shared by library.cpp and importer.cpp so a large file is hashed
-// identically on import, rescan preview and snapshot paths. Throws
-// std::runtime_error when the file cannot be opened or read.
+// Throw-on-error convenience wrapper over hashFile (the non-throwing streaming
+// implementation below): returns the hex SHA-256 of `path`, throwing
+// std::runtime_error when the file cannot be opened or read. The manual/auto
+// capture paths (captureRevision/captureIfStable, via digestFile) use it — a
+// working copy that cannot be read must surface as an error — while
+// importer/rescan-preview/snapshot paths call hashFile directly so one
+// unreadable source degrades instead of aborting the batch.
 QString digestFileBounded(const QString &path);
 
 // Streaming SHA-256 that does not throw: returns false on an open/read failure
