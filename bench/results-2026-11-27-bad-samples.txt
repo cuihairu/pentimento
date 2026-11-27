@@ -1,0 +1,62 @@
+P-004 / D-20 evidence — full matrix WITH deliberately damaged samples, 2026-11-27.
+Harness: bench/bench_matrix.cpp (pentimento_bench_matrix; NOT registered with ctest).
+Generator change: seven small damaged samples added deterministically to the
+matrix — one truncated file per bitmap family (PNG/JPEG/WebP/TGA/BMP, 4 KiB
+prefix of a valid sample) plus two PSD cases (broken signature and a flipped
+pixel-data byte, 64 KiB prefix). D-20's immediate action asks that both sample
+tiers cover "五种位图、PSD 降级和损坏样本"; this run supplies the damaged cases
+and checks that the core APIs still return results on the mixed matrix.
+Commands:
+  cmake --build --preset dev --target pentimento_bench_matrix
+  ./build/dev/pentimento_bench_matrix bench/run gen-only   # added bad-* files
+  ./build/dev/pentimento_bench_matrix bench/run bench-only
+
+== environment ==
+cpu: Intel(R) Core(TM) i9-10880H CPU @ 2.30GHz | qt 6.10.2 | fs ext4  | free 501934.4 MiB (490.17 GiB)
+== import ==
+  imported 2597/2597 files, 12995.4 MiB (12.69 GiB) in 393.6 s
+    PNG      1349 MiB @    38.4 MiB/s
+    BMP       999 MiB @    26.2 MiB/s
+    ZIP      6400 MiB @    42.5 MiB/s
+    JPG       500 MiB @    17.4 MiB/s
+    TGA      2214 MiB @    23.1 MiB/s
+    PSD      1280 MiB @    36.0 MiB/s
+    WEBP      250 MiB @    26.6 MiB/s
+  import throughput                                33.0 MiB/s (threshold >= 100) -> MISS
+== thumbnails ==
+qt.gui.imageio.jpeg: Corrupt JPEG data: premature end of data segment
+libpng error: Read Error
+  1005 thumbnails in 39.7 s
+  thumbnail rate                                 1517.8 /min (threshold >= 512) -> PASS
+== name search ==
+  120 queries over 2597 assets
+  name search P95                                 501.0 ms   (threshold < 200) -> MISS
+== combined filter ==
+  combined filter P95                             439.0 ms   (threshold < 500) -> PASS
+== timeline ==
+  101 revisions, 20 opens
+  timeline open P95                                 1.0 ms   (threshold < 500) -> PASS
+== snapshot ==
+  2597 assets, content unchanged
+  whole-library snapshot                       126497.0 ms   (threshold < 10000) -> MISS
+== restore ==
+  55.0 MiB written + verified
+  restore 64 MiB                                 3169.0 ms   (threshold < 3000) -> MISS
+
+Interpretation:
+- All 2,597 files (including the 7 damaged ones) imported: importFile preserves
+  original bytes by design and does not decode, so damaged content enters the
+  library as a normal asset. Qt emitted decode warnings during thumbnailing
+  ("Corrupt JPEG data: premature end of data segment", "libpng error: Read
+  Error"); thumbnail generation continued and the rate stayed above budget.
+- Three structural misses (import, name search, snapshot) persist with the
+  damaged samples, matching the previous runs. Restore landed at 3,169 ms,
+  just over the 3 s threshold this run (earlier runs: 2,484–2,718 ms) —
+  the sample writes 55 MiB, not exactly 64 MiB; one run-to-run variance data
+  point, not a new conclusion.
+- The 7 bad-* files are part of the generated matrix under bench/run/src/
+  (gitignored) and are reproduced by bench_matrix.cpp's generator. The matrix
+  now covers all five bitmap families, PSD degradation cases and damaged
+  samples as D-20 asks. This is evidence only; P-004 stays unchecked pending
+  the user's D-20–D-23 decision.
+See docs/zh/performance.md for the interpreted record.

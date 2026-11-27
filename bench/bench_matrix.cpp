@@ -345,6 +345,38 @@ bool generateMatrix(const QString &src)
         add(m.zip, p);
     }
 
+    // D-20: one damaged sample per bitmap family plus two PSD cases (bad
+    // signature / damaged pixel data). Generated deterministically by taking a
+    // 4 KiB prefix of a valid sample and, for PSD, writing a small header +
+    // payload prefix with a broken signature or a flipped data byte. They are
+    // small on purpose: they exercise import/thumbnail degradation paths, not
+    // throughput. `fileOk` also makes regeneration idempotent.
+    struct Bad { const char *source; const char *name; bool corruptSignature; bool flipData; };
+    const std::vector<Bad> bad = {
+        {"png-0000.png",   "bad-png-truncated.png",   false, false},
+        {"jpeg-0000.jpg",  "bad-jpeg-truncated.jpg",  false, false},
+        {"webp-0000.webp", "bad-webp-truncated.webp", false, false},
+        {"tga-0000.tga",   "bad-tga-truncated.tga",   false, false},
+        {"bmp-0000.bmp",   "bad-bmp-truncated.bmp",   false, false},
+        {"psd-00.psd",     "bad-psd-signature.psd",   true,  false},
+        {"psd-00.psd",     "bad-psd-data.psd",        false, true },
+    };
+    for (const Bad &b : bad) {
+        const QString p = src + QLatin1Char('/') + QString::fromLatin1(b.name);
+        if (fileOk(p)) continue;
+        QFile in(src + QLatin1Char('/') + QString::fromLatin1(b.source));
+        if (!in.open(QIODevice::ReadOnly)) continue;
+        const qint64 keep = b.corruptSignature || b.flipData ? 64 * 1024 : 4096;
+        QByteArray bytes = in.read(keep);
+        in.close();
+        if (b.corruptSignature && bytes.size() >= 4)
+            bytes.replace(0, 4, "XXXX");
+        if (b.flipData && bytes.size() > 5000)
+            bytes[5000] = char(uchar(bytes[5000]) ^ 0xFFu);
+        QFile out(p);
+        if (out.open(QIODevice::WriteOnly)) out.write(bytes);
+    }
+
     printf("matrix: %lld files, %s\n", (long long)m.count(), qPrintable(mibGiB(m.bytes())));
     return true;
 }
