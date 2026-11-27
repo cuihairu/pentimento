@@ -297,8 +297,8 @@
 ### 目录与分类问题
 
 - `src/snapshot_schedule.h:13` 是纯运行时服务，但只提供 `.h`；当前仓库按 target 而非目录分层尚可接受，未来若继续增长应建立 services/ 子目录并同步 CMake 清单。
-- `docs/architecture.md:5` 描述 pentimento_core 为 Qt Core/Sql 且无 Widgets，实际 core target 还公有链接 Qt6::Gui 并被媒体层使用；该行应改为 Qt Core/Gui/Sql（`CMakeLists.txt:56`）。
-- `docs/zh/architecture.md:5` 同样把 core 描述为仅 Qt Core/Sql，与 target 链接面不一致；中英文描述需同步修正（`CMakeLists.txt:56`）。
+- `docs/architecture.md:5` 描述 pentimento_core 为 Qt Core/Sql 且无 Widgets，实际 core target 还公有链接 Qt6::Gui 并被媒体层使用；该行应改为 Qt Core/Gui/Sql（`CMakeLists.txt:56`）。（已消解 2026-11-27：所指的「Core/Sql」失实描述已被分层文档重写取代——现文只述「核心在 src/、UI 在 src/ui/、CMake target 边界隔离无 Widgets 核心」，组件清单由 G2-F7（2026-11-14，e2967f0）统一为「Core/Gui/Sql/Network」落 README/architecture，不再失实）
+- `docs/zh/architecture.md:5` 同样把 core 描述为仅 Qt Core/Sql，与 target 链接面不一致；中英文描述需同步修正（`CMakeLists.txt:56`）。（同上，随 G2-F7 与分层重写一并消解，2026-11-27 复核现文已无该失实句）
 
 ## P-015 闸门放行（2026-11-08 用户令「为啥不推进」= 明确批准进入实现）
 
